@@ -20,8 +20,10 @@ jobs:
           gradle-version: '8.9'
       - name: Install SDK 35
         run: |
-          echo 'y' | sdkmanager --licenses >/dev/null || true
-          sdkmanager --install 'platforms;android-35' 'build-tools;35.0.0'
+          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -1)"
+          test -n "$SDKMANAGER"
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" --install 'platforms;android-35' 'build-tools;35.0.0'
       - name: Unit tests and debug APK
         run: gradle --no-daemon :core:test :app:assembleDebug
       - uses: actions/upload-artifact@v4
