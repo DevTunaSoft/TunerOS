@@ -161,7 +161,7 @@ class MainActivity : Activity() {
         val now = System.currentTimeMillis() / 1000
         val visible = channels.asSequence()
             .filter { query.isEmpty() || it.name.contains(query, ignoreCase = true) }
-            .filter { !hideNoGuide.isChecked || (it.guideId != null && guide?.now(it.guideId, now) != null) }
+            .filter { channel -> !hideNoGuide.isChecked || channel.guideId?.let { id -> guide?.now(id, now) } != null }
             .take(500)
             .toList()
         for (channel in visible) {
