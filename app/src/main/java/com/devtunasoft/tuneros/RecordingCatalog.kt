@@ -15,10 +15,11 @@ internal data class RecordingCatalogEntry(
     val bytesWritten: Long,
     val filePath: String?,
     val failureReason: String?,
+    val isProtected: Boolean,
 )
 
 internal class RecordingCatalog(context: Context) :
-    SQLiteOpenHelper(context.applicationContext, "recordings.db", null, 2) {
+    SQLiteOpenHelper(context.applicationContext, "recordings.db", null, 3) {
 
     override fun onCreate(db: SQLiteDatabase) {
         createSchema(db)
@@ -50,6 +51,11 @@ internal class RecordingCatalog(context: Context) :
             db.execSQL("ALTER TABLE recordings_v2 RENAME TO recordings")
             createIndexes(db)
         }
+        if (oldVersion < 3) {
+            db.execSQL(
+                "ALTER TABLE recordings ADD COLUMN protected INTEGER NOT NULL DEFAULT 0",
+            )
+        }
     }
 
     private fun createSchema(db: SQLiteDatabase) {
@@ -63,7 +69,8 @@ internal class RecordingCatalog(context: Context) :
                 stopped_epoch INTEGER,
                 bytes_written INTEGER NOT NULL DEFAULT 0,
                 file_path TEXT,
-                failure_reason TEXT
+                failure_reason TEXT,
+                protected INTEGER NOT NULL DEFAULT 0
             )""".trimIndent(),
         )
         createIndexes(db)
@@ -86,7 +93,16 @@ internal class RecordingCatalog(context: Context) :
             putNull("file_path")
             putNull("failure_reason")
         }
-        writableDatabase.insertWithOnConflict("recordings", null, values, SQLiteDatabase.CONFLICT_REPLACE)
+        val db = writableDatabase
+        val inserted = db.insertWithOnConflict(
+            "recordings",
+            null,
+            values,
+            SQLiteDatabase.CONFLICT_IGNORE,
+        )
+        if (inserted == -1L) {
+            db.update("recordings", values, "id=?", arrayOf(id))
+        }
     }
 
     fun updateProgress(id: String, bytesWritten: Long) {
@@ -98,6 +114,14 @@ internal class RecordingCatalog(context: Context) :
         val values = ContentValues().apply { put("file_path", filePath) }
         writableDatabase.update("recordings", values, "id=?", arrayOf(id))
     }
+
+    fun setProtected(id: String, protected: Boolean): Int {
+        val values = ContentValues().apply { put("protected", if (protected) 1 else 0) }
+        return writableDatabase.update("recordings", values, "id=?", arrayOf(id))
+    }
+
+    fun delete(id: String): Int =
+        writableDatabase.delete("recordings", "id=?", arrayOf(id))
 
     fun markInterruptedRecordings(stoppedEpochSeconds: Long): Int {
         val values = ContentValues().apply {
@@ -131,7 +155,10 @@ internal class RecordingCatalog(context: Context) :
         val result = ArrayList<RecordingCatalogEntry>(minOf(limit, 100))
         readableDatabase.query(
             "recordings",
-            arrayOf("id","title","channel_id","state","started_epoch","stopped_epoch","bytes_written","file_path","failure_reason"),
+            arrayOf(
+                "id","title","channel_id","state","started_epoch","stopped_epoch",
+                "bytes_written","file_path","failure_reason","protected",
+            ),
             null, null, null, null,
             "COALESCE(started_epoch,0) DESC",
             limit.toString(),
@@ -145,6 +172,7 @@ internal class RecordingCatalog(context: Context) :
             val bytesCol = cursor.getColumnIndexOrThrow("bytes_written")
             val pathCol = cursor.getColumnIndexOrThrow("file_path")
             val failureCol = cursor.getColumnIndexOrThrow("failure_reason")
+            val protectedCol = cursor.getColumnIndexOrThrow("protected")
             while (cursor.moveToNext()) {
                 result += RecordingCatalogEntry(
                     id = cursor.getString(idCol),
@@ -156,6 +184,7 @@ internal class RecordingCatalog(context: Context) :
                     bytesWritten = cursor.getLong(bytesCol),
                     filePath = if (cursor.isNull(pathCol)) null else cursor.getString(pathCol),
                     failureReason = if (cursor.isNull(failureCol)) null else cursor.getString(failureCol),
+                    isProtected = cursor.getInt(protectedCol) != 0,
                 )
             }
         }
