@@ -56,7 +56,7 @@ https://example.com/live.m3u8
         val guide = GuideParser.parse(ByteArrayInputStream(xml.toByteArray()),
             window = GuideWindow(start, start + 7200))
         assertEquals(listOf("Crosses start", "Inside", "Crosses end"), guide.programs.map { it.title })
-        assertEquals("Inside", guide.now("c", start + 3600)?.title)
+        assertEquals("Inside", guide.now("c", start + 1800)?.title)
         assertTrue(guide.warnings.isEmpty())
     }
 
