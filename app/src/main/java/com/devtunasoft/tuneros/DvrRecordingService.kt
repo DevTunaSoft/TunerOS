@@ -64,7 +64,7 @@ class DvrRecordingService : Service() {
         }
         val title = intent.getStringExtra(EXTRA_TITLE)?.takeIf { it.isNotBlank() } ?: "Recording"
         val channelId = intent.getStringExtra(EXTRA_CHANNEL_ID)?.takeIf { it.isNotBlank() } ?: "unknown"
-        val url = intent.getStringExtra(EXTRA_URL)?.takeIf(::isHttpUrl) ?: run {
+        val url = intent.getStringExtra(EXTRA_URL)?.takeIf(::isRawRecordableUrl) ?: run {
             active.set(false)
             stopSelf(startId)
             return
@@ -98,7 +98,7 @@ class DvrRecordingService : Service() {
         if (!directory.isDirectory) return
         val safeId = id.replace(Regex("[^A-Za-z0-9._-]"), "_").take(96)
         val partial = File(directory, "$safeId.partial")
-        val completed = File(directory, "$safeId.ts")
+        val completed = File(directory, "$safeId${recordingExtension(streamUrl)}")
         var connection: HttpURLConnection? = null
         var bytesWritten = 0L
         var lastCatalogBytes = 0L
@@ -191,10 +191,24 @@ class DvrRecordingService : Service() {
         }
     }
 
-    private fun isHttpUrl(value: String): Boolean = runCatching {
+    private fun isRawRecordableUrl(value: String): Boolean = runCatching {
         val url = URL(value)
-        (url.protocol == "http" || url.protocol == "https") && !url.host.isNullOrBlank()
+        val path = url.path.lowercase()
+        (url.protocol == "http" || url.protocol == "https") &&
+            !url.host.isNullOrBlank() &&
+            !path.endsWith(".m3u8") &&
+            !path.endsWith(".mpd")
     }.getOrDefault(false)
+
+    private fun recordingExtension(value: String): String = runCatching {
+        when (URL(value).path.substringAfterLast('.', "").lowercase()) {
+            "mp4" -> ".mp4"
+            "mkv" -> ".mkv"
+            "webm" -> ".webm"
+            "m2ts" -> ".m2ts"
+            else -> ".ts"
+        }
+    }.getOrDefault(".ts")
 
     override fun onDestroy() {
         cancelled.set(true)
