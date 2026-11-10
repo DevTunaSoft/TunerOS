@@ -52,20 +52,10 @@ class MainActivity : Activity() {
     private val recordingDestinations by lazy { RecordingDestinationStore(this) }
     private val recordingTreeRequestCode = 1701
     private val downloader = SourceDownloader()
-    private var currentPrograms: Map<String, GuideProgram> = emptyMap()
     private val searchRefresh = Runnable { renderChannels() }
     private val clockRefresh = object : Runnable {
         override fun run() {
-            val snapshot = guide
-            if (snapshot != null) worker.execute {
-                val updated = snapshot.currentProgramsAt(System.currentTimeMillis() / 1000)
-                runOnUiThread {
-                    if (guide === snapshot && !isFinishing && !isDestroyed) {
-                        currentPrograms = updated
-                        renderChannels()
-                    }
-                }
-            }
+            if (guide != null && !isFinishing && !isDestroyed) renderChannels()
             uiHandler.postDelayed(this, 60_000)
         }
     }
@@ -247,15 +237,13 @@ class MainActivity : Activity() {
             val saved = secureSources.save("guide", url)
             val result = runCatching {
                 downloader.open(url, 64L * 1024 * 1024).use { GuideParser.parse(it) }.also { it.prepareIndex() }
-                    .let { snapshot -> snapshot to snapshot.currentProgramsAt(System.currentTimeMillis() / 1000) }
             }
             runOnUiThread {
                 if (epoch != guideEpoch.get() || isFinishing || isDestroyed) return@runOnUiThread
                 result.onSuccess {
-                    guide = it.first
-                    currentPrograms = it.second
-                    val warnings = it.first.warnings + if (saved) emptyList() else listOf("URL not saved securely")
-                    showStatus("Loaded ${it.first.programs.size} programs across ${it.first.channelNames.size} guide channels" +
+                    guide = it
+                    val warnings = it.warnings + if (saved) emptyList() else listOf("URL not saved securely")
+                    showStatus("Loaded ${it.programs.size} programs across ${it.channelNames.size} guide channels" +
                         if (warnings.isEmpty()) "" else "; WARNING: " + warnings.joinToString("; "))
                     renderChannels()
                 }.onFailure { showStatus("Guide import failed: ${it.javaClass.simpleName}") }
