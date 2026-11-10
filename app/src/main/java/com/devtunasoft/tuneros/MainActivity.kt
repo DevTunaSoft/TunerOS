@@ -326,13 +326,17 @@ class MainActivity : Activity() {
             return
         }
         val now = System.currentTimeMillis() / 1000
-        if (now < program.startEpochSeconds || now >= program.endEpochSeconds) {
-            showStatus("Scheduled recording is not enabled yet; choose a program that is on now")
+        if (now >= program.endEpochSeconds) {
+            showStatus("That program has already ended")
             return
         }
         val lower = channel.streamUrl.substringBefore('?').lowercase()
         if (lower.endsWith(".m3u8") || lower.endsWith(".mpd")) {
             showStatus("HLS/DASH recording is not enabled yet; playback is unaffected")
+            return
+        }
+        if (now < program.startEpochSeconds) {
+            scheduleProgram(channel, program)
             return
         }
         val recordingId = channel.id.take(40).replace(Regex("[^A-Za-z0-9._-]"), "_") + "-" + now
@@ -346,6 +350,57 @@ class MainActivity : Activity() {
         }
         startForegroundService(intent)
         showStatus("Recording: " + program.title)
+    }
+
+
+    private fun scheduleProgram(channel: Channel, program: GuideProgram) {
+        val safeChannel = channel.id.take(40).replace(Regex("[^A-Za-z0-9._-]"), "_")
+        val id = "$safeChannel-${program.startEpochSeconds}"
+        val sourceKey = "scheduled_recording.$id"
+        worker.execute {
+            if (!secureSources.save(sourceKey, channel.streamUrl)) {
+                runOnUiThread {
+                    if (!isFinishing && !isDestroyed) {
+                        showStatus("Could not securely save the recording source")
+                    }
+                }
+                return@execute
+            }
+            val entry = RecordingScheduleEntry(
+                id = id,
+                title = program.title,
+                channelId = channel.id,
+                secureSourceKey = sourceKey,
+                startEpochSeconds = program.startEpochSeconds,
+                endEpochSeconds = program.endEpochSeconds,
+                state = "SCHEDULED",
+                exactAlarm = false,
+                lastError = null,
+            )
+            val result = runCatching {
+                RecordingScheduleStore(this).use { it.upsert(entry) }
+                RecordingScheduler.schedule(this, entry)
+            }
+            if (result.isFailure) {
+                RecordingScheduleStore(this).use {
+                    it.markFailed(id, result.exceptionOrNull()?.javaClass?.simpleName ?: "Schedule failure")
+                }
+                secureSources.delete(sourceKey)
+            }
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                result.onSuccess { mode ->
+                    val suffix = if (mode == RecordingScheduler.Mode.EXACT) {
+                        "scheduled"
+                    } else {
+                        "scheduled; exact-alarm access is off, so start may be delayed"
+                    }
+                    showStatus(program.title + " · " + suffix)
+                }.onFailure {
+                    showStatus("Could not schedule recording: " + it.javaClass.simpleName)
+                }
+            }
+        }
     }
 
     private fun stopRecording() {
