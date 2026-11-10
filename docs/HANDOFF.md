@@ -116,3 +116,16 @@ Current branch `perf/windowed-epg-retention` now contains a bounded DVR foundati
 - HLS core parsing and capture are bounded. Supported initial subset: unencrypted MPEG-TS media playlists, master variant selection when A/V are contained in the selected variant, media-sequence/live-edge tracking, byte ranges, redirects and stalled-playlist detection. Sequence gaps stop as partial. Encrypted HLS, fMP4 `EXT-X-MAP`, separate external audio/video rendition capture, and DASH recording fail closed.
 - Latest verified pre-integration checkpoints include Actions runs 42842154373 (exact-alarm scheduler fix), 42842606376 (bounded HLS parser tests), and 42843062838 (recording header propagation). The final Android HLS integration and subsequent hardening require the latest branch CI result before being called PASS.
 - **UNVERIFIED / NOT RUN:** real Android TV/mobile recording, long-duration memory measurement, reboot-to-scheduled-recording acceptance, provider-specific HLS behavior, USB/SAF destinations, storage removal, and live fault injection.
+
+
+### SAF / SD / USB recording storage checkpoint — 2026-11-10
+
+- `RecordingDestinationStore` persists the selected tree URI only; credentials are not involved.
+- `SafStorageInspector` currently accepts Android's local ExternalStorageProvider only, verifies that the selected tree is writable, and requires a reported `COLUMN_AVAILABLE_BYTES` value. TunerOS does not disable the 512 MiB reserve when free space is unknown.
+- `RecordingSink` is now the sole storage abstraction for the foreground recorder. Raw and HLS capture share the same sink path: internal app storage or a SAF document tree. The HLS/media buffers remain unchanged and bounded.
+- SAF output rechecks free-space approximately every 16 MiB while conservatively subtracting bytes written between provider queries. A removed drive causes writes/finalization to fail; the recorder does not silently fall back to internal storage.
+- The catalog's legacy SQL column name `file_path` is retained for compatibility, but Kotlin now treats it as a generic `storageLocation` which can be either an internal absolute path or a SAF content URI.
+- `RecordingLocationAccess` validates internal canonical paths and SAF content URIs against persisted tree grants before playback/deletion. An unavailable external drive is distinct from a missing document so the catalog row is not erased just because the drive is unplugged.
+- The UI can choose a recording tree, return future recordings to internal storage, play/delete existing internal or external recordings, and keeps prior persisted grants so recordings on previously selected media remain accessible.
+- Automated evidence: GitHub Actions run **42848491493** completed successfully on code head `48a96c6709a05d5de738c9b983541426f6b51635`, including core tests, debug APK assembly and artifact upload.
+- **UNVERIFIED / NOT RUN:** selecting an actual removable SD/USB device on target Android hardware, long recording to removable media, removal during capture, reinsertion and playback, provider-specific rename behavior, and storage-pressure behavior on a real device.
