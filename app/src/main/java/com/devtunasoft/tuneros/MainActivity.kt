@@ -310,7 +310,6 @@ class MainActivity : Activity() {
             setAudioAttributes(AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build(), true)
         }
         player = newPlayer
-        playingRecordingId = entry.id
         playerView.player = newPlayer
         newPlayer.addListener(object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
@@ -628,6 +627,7 @@ class MainActivity : Activity() {
             )
         }
         player = newPlayer
+        playingRecordingId = entry.id
         playerView.player = newPlayer
         newPlayer.addListener(object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
