@@ -11,7 +11,12 @@ import javax.xml.parsers.SAXParserFactory
 import org.xml.sax.Attributes
 import org.xml.sax.helpers.DefaultHandler
 
-/** Secure SAX XMLTV parser with explicit truncation and timestamp warnings. */
+/** Inclusive-start, exclusive-end programme retention window (epoch seconds). */
+data class GuideWindow(val fromEpochSeconds: Long, val toEpochSeconds: Long) {
+    init { require(toEpochSeconds > fromEpochSeconds) }
+}
+
+/** Secure SAX XMLTV parser with optional bounded-time retention and timestamp warnings. */
 object GuideParser {
     const val MAX_PROGRAMS = 250_000
     const val MAX_CHANNELS = 25_000
@@ -19,7 +24,8 @@ object GuideParser {
     private val withoutOffset = DateTimeFormatter.ofPattern("yyyyMMddHHmmss")
 
     fun parse(input: InputStream, maxPrograms: Int = MAX_PROGRAMS,
-              maxChannels: Int = MAX_CHANNELS, fallbackZone: ZoneId = ZoneOffset.UTC): GuideSnapshot {
+              maxChannels: Int = MAX_CHANNELS, fallbackZone: ZoneId = ZoneOffset.UTC,
+              window: GuideWindow? = null, includeDescriptions: Boolean = true): GuideSnapshot {
         require(maxPrograms in 1..MAX_PROGRAMS && maxChannels in 1..MAX_CHANNELS)
         val channels = LinkedHashMap<String, String>()
         val programs = ArrayList<GuideProgram>()
@@ -51,7 +57,8 @@ object GuideParser {
                         assumedForProgramme = from.second || to.second
                         title = null; description = null
                     }
-                    "display-name", "title", "desc" -> { capture = name; buffer.setLength(0) }
+                    "display-name", "title" -> { capture = name; buffer.setLength(0) }
+                    "desc" -> if (includeDescriptions) { capture = name; buffer.setLength(0) }
                 }
             }
             override fun characters(ch: CharArray, start: Int, length: Int) {
@@ -80,9 +87,12 @@ object GuideParser {
                         val to = stop
                         if (assumedForProgramme) assumedZone++
                         if (from == null || to == null) invalidTimestamps++
-                        if (id != null && from != null && to != null && to > from && !title.isNullOrBlank()) {
-                            if (programs.size < maxPrograms) programs += GuideProgram(id, title!!, from, to, description)
-                            else skippedPrograms++
+                        val programmeTitle = title?.takeIf { it.isNotBlank() }
+                        if (id != null && from != null && to != null && to > from && programmeTitle != null &&
+                            (window == null || (to > window.fromEpochSeconds && from < window.toEpochSeconds))) {
+                            if (programs.size < maxPrograms) {
+                                programs += GuideProgram(id, programmeTitle, from, to, description)
+                            } else skippedPrograms++
                         }
                         channelId = null; programme = false
                     }
