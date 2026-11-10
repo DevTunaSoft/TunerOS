@@ -11,7 +11,6 @@ import android.os.Looper
 import android.provider.Settings
 import android.graphics.Color
 import android.view.WindowManager
-import android.view.KeyEvent
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -160,6 +159,9 @@ class MainActivity : Activity() {
                 focusedProgram = program
                 showStatus(channel.name + (program?.let { " · " + it.title } ?: ""))
             },
+            onWindowShift = { direction ->
+                shiftGuideWindow(direction * guideStepSeconds)
+            },
         )
         recordingAdapter = RecordingLibraryAdapter(
             this,
@@ -172,14 +174,6 @@ class MainActivity : Activity() {
             adapter = channelAdapter
             isFocusable = true
             dividerHeight = 0
-            setOnKeyListener { _, keyCode, event ->
-                if (event.action != KeyEvent.ACTION_DOWN || showingRecordings) return@setOnKeyListener false
-                when (keyCode) {
-                    KeyEvent.KEYCODE_DPAD_LEFT -> { shiftGuideWindow(-guideStepSeconds); true }
-                    KeyEvent.KEYCODE_DPAD_RIGHT -> { shiftGuideWindow(guideStepSeconds); true }
-                    else -> false
-                }
-            }
         }
         root.addView(channelList, LinearLayout.LayoutParams(-1, 0, 1.0f))
         worker.execute {
