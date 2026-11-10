@@ -13,7 +13,7 @@ internal object RecordingScheduler {
 
     fun schedule(context: Context, entry: RecordingScheduleEntry): Mode {
         val alarmManager = context.getSystemService(AlarmManager::class.java)
-        val triggerAtMillis = entry.startEpochSeconds * 1000
+        val triggerAtMillis = maxOf(entry.startEpochSeconds * 1000, System.currentTimeMillis() + 1_000)
         val pendingIntent = alarmIntent(context, entry.id)
         val exactAllowed = Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
             alarmManager.canScheduleExactAlarms()
@@ -104,6 +104,7 @@ class RecordingAlarmReceiver : BroadcastReceiver() {
         val source = SecureSourceStore(context).load(entry.secureSourceKey)
         if (source.isNullOrBlank()) {
             RecordingScheduleStore(context).use { it.markFailed(id, "Secure recording source unavailable") }
+            SecureSourceStore(context).delete(entry.secureSourceKey)
             return
         }
 
@@ -125,6 +126,7 @@ class RecordingAlarmReceiver : BroadcastReceiver() {
             RecordingScheduleStore(context).use {
                 it.markFailed(id, error.javaClass.simpleName)
             }
+            SecureSourceStore(context).delete(entry.secureSourceKey)
         }
     }
 }
@@ -139,11 +141,11 @@ class RecordingRearmReceiver : BroadcastReceiver() {
         val pending = goAsync()
         Thread({
             try {
-                if (action == AlarmManager.ACTION_SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED &&
-                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
-                    !context.getSystemService(AlarmManager::class.java).canScheduleExactAlarms()
-                ) return@Thread
-                RecordingScheduler.rearmPending(context.applicationContext)
+                val shouldRearm =
+                    action != AlarmManager.ACTION_SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED ||
+                        Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
+                        context.getSystemService(AlarmManager::class.java).canScheduleExactAlarms()
+                if (shouldRearm) RecordingScheduler.rearmPending(context.applicationContext)
             } finally {
                 pending.finish()
             }
