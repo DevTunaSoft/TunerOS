@@ -17,6 +17,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 
 /**
  * Single-capture foreground DVR service.
@@ -50,7 +51,8 @@ class DvrRecordingService : Service() {
 
     private val worker = Executors.newSingleThreadExecutor()
     private val cancelled = AtomicBoolean(false)
-    private val active = AtomicBoolean(false)
+    private val activeRecordingId = AtomicReference<String?>(null)
+    @Volatile private var activeConnection: HttpURLConnection? = null
     private val catalogLazy = lazy { RecordingCatalog(this) }
     private val catalog: RecordingCatalog get() = catalogLazy.value
 
@@ -64,25 +66,31 @@ class DvrRecordingService : Service() {
         when (intent?.action) {
             ACTION_STOP -> {
                 cancelled.set(true)
-                if (!active.get()) stopSelf(startId)
+                activeConnection?.disconnect()
+                if (activeRecordingId.get() == null) stopSelf(startId)
                 return START_NOT_STICKY
             }
             ACTION_START -> startRecording(intent, startId)
+            else -> if (activeRecordingId.get() == null) stopSelf(startId)
         }
         return START_NOT_STICKY
     }
 
     private fun startRecording(intent: Intent, startId: Int) {
-        val id = intent.getStringExtra(EXTRA_ID)?.takeIf { it.isNotBlank() } ?: return
+        val id = intent.getStringExtra(EXTRA_ID)?.takeIf { it.isNotBlank() }
+            ?: return rejectInvalidStart(startId)
         val title = intent.getStringExtra(EXTRA_TITLE)?.takeIf { it.isNotBlank() } ?: "Recording"
         val channelId = intent.getStringExtra(EXTRA_CHANNEL_ID)?.takeIf { it.isNotBlank() } ?: "unknown"
-        val url = intent.getStringExtra(EXTRA_URL)?.takeIf(::isRecordableUrl) ?: return
+        val url = intent.getStringExtra(EXTRA_URL)?.takeIf(::isRecordableUrl)
+            ?: return rejectInvalidStart(startId)
         val userAgent = intent.getStringExtra(EXTRA_USER_AGENT)?.takeIf { it.isNotBlank() }?.take(512)
         val referer = intent.getStringExtra(EXTRA_REFERER)?.takeIf(::isHttpUrl)?.take(2048)
 
-        if (!active.compareAndSet(false, true)) {
-            catalog.upsertStart(id, title, channelId, nowSeconds())
-            catalog.finish(id, "FAILED", nowSeconds(), 0, null, "Recorder busy")
+        if (!activeRecordingId.compareAndSet(null, id)) {
+            if (activeRecordingId.get() != id) {
+                catalog.upsertStart(id, title, channelId, nowSeconds())
+                catalog.finish(id, "FAILED", nowSeconds(), 0, null, "Recorder busy")
+            }
             return
         }
 
@@ -104,7 +112,8 @@ class DvrRecordingService : Service() {
             try {
                 capture(id, url, endEpochSeconds, userAgent, referer)
             } finally {
-                active.set(false)
+                activeRecordingId.set(null)
+                activeConnection = null
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf(startId)
             }
@@ -168,17 +177,20 @@ class DvrRecordingService : Service() {
             applyOutcome(id, partial, completed, outcome)
         } catch (error: Exception) {
             val bytes = partial.takeIf { it.exists() }?.length() ?: 0L
+            val wasCancelled = cancelled.get()
             catalog.finish(
                 id = id,
-                state = if (bytes > 0) "PARTIAL" else "FAILED",
+                state = if (wasCancelled) "CANCELLED" else if (bytes > 0) "PARTIAL" else "FAILED",
                 stoppedEpochSeconds = nowSeconds(),
                 bytesWritten = bytes,
                 filePath = partial.takeIf { it.exists() && bytes > 0 }?.absolutePath,
-                failureReason = error.javaClass.simpleName,
+                failureReason = if (wasCancelled) null else error.javaClass.simpleName,
             )
             if (bytes == 0L) partial.delete()
         } finally {
             initialConnection?.disconnect()
+            activeConnection?.disconnect()
+            activeConnection = null
         }
     }
 
@@ -335,6 +347,7 @@ class DvrRecordingService : Service() {
         var current = URL(value)
         repeat(6) {
             val connection = current.openConnection() as HttpURLConnection
+            activeConnection = connection
             connection.instanceFollowRedirects = false
             connection.connectTimeout = 12_000
             connection.readTimeout = 30_000
@@ -358,16 +371,19 @@ class DvrRecordingService : Service() {
                     error("HTTPS downgrade blocked")
                 }
                 connection.disconnect()
+                if (activeConnection === connection) activeConnection = null
                 current = next
                 return@repeat
             }
 
             if (code !in 200..299) {
                 connection.disconnect()
+                if (activeConnection === connection) activeConnection = null
                 error("HTTP status " + code)
             }
             if (byteRange != null && code != HttpURLConnection.HTTP_PARTIAL) {
                 connection.disconnect()
+                if (activeConnection === connection) activeConnection = null
                 error("Server ignored HLS byte range")
             }
             return connection
@@ -409,6 +425,10 @@ class DvrRecordingService : Service() {
         }
     }
 
+    private fun rejectInvalidStart(startId: Int) {
+        if (activeRecordingId.get() == null) stopSelf(startId)
+    }
+
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= 26) {
             getSystemService(NotificationManager::class.java).createNotificationChannel(
@@ -448,6 +468,7 @@ class DvrRecordingService : Service() {
 
     override fun onDestroy() {
         cancelled.set(true)
+        activeConnection?.disconnect()
         worker.shutdownNow()
         if (catalogLazy.isInitialized()) catalog.close()
         super.onDestroy()
