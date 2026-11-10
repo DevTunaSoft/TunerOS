@@ -64,7 +64,7 @@ class MainActivity : Activity() {
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density + 0.5f).toInt()
     private lateinit var playerView: PlayerView
     private lateinit var channelList: ListView
-    private lateinit var channelAdapter: ChannelListAdapter
+    private lateinit var channelAdapter: CableGuideAdapter
     private lateinit var playlistUrl: EditText
     private lateinit var guideUrl: EditText
     private lateinit var search: EditText
@@ -115,13 +115,17 @@ class MainActivity : Activity() {
         root.addView(playerView, LinearLayout.LayoutParams(-1, 0, 1.1f))
         status = label("Enter an M3U URL to begin", 13)
         root.addView(status)
-        channelAdapter = ChannelListAdapter(this)
+        channelAdapter = CableGuideAdapter(
+            this,
+            onChannelSelected = ::play,
+            onProgramFocused = { channel, program ->
+                showStatus(channel.name + (program?.let { " · " + it.title } ?: ""))
+            },
+        )
         channelList = ListView(this).apply {
             adapter = channelAdapter
             isFocusable = true
-            onItemClickListener = android.widget.AdapterView.OnItemClickListener { _, _, position, _ ->
-                play(channelAdapter.getItem(position))
-            }
+            dividerHeight = 0
         }
         root.addView(channelList, LinearLayout.LayoutParams(-1, 0, 1.0f))
         worker.execute {
@@ -218,7 +222,9 @@ class MainActivity : Activity() {
             .filter { channel -> !hideNoGuide.isChecked || channel.guideId?.let { id -> guide?.hasSchedule(id) } == true }
             .take(500)
             .toList()
-        channelAdapter.update(visible, currentPrograms)
+        val now = System.currentTimeMillis() / 1000
+        val windowStart = now - (now % 1800)
+        channelAdapter.update(visible, guide, windowStart, windowStart + 3 * 3600)
     }
 
     private fun play(channel: Channel) {
