@@ -690,11 +690,15 @@ class MainActivity : Activity() {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode != recordingTreeRequestCode || resultCode != RESULT_OK) return
-        val treeUri = data?.data ?: run {
+        val resultData = data ?: run {
             showStatus("No recording folder was selected")
             return
         }
-        val grantFlags = data.flags and (
+        val treeUri = resultData.data ?: run {
+            showStatus("No recording folder was selected")
+            return
+        }
+        val grantFlags = resultData.flags and (
             Intent.FLAG_GRANT_READ_URI_PERMISSION or
                 Intent.FLAG_GRANT_WRITE_URI_PERMISSION
             )
