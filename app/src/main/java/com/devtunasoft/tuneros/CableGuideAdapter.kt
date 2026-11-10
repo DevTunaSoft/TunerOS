@@ -3,6 +3,7 @@ package com.devtunasoft.tuneros
 import android.content.Context
 import android.graphics.Color
 import android.view.Gravity
+import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.BaseAdapter
@@ -16,27 +17,27 @@ import com.devtunasoft.tuneros.core.TimelineLayout
 /**
  * Low-allocation cable guide adapter.
  *
- * ListView owns vertical virtualization. Each recycled row owns a fixed, small pool
- * of TextViews and rebinds them to the current visible time window; no view is
- * created for off-screen channels or the full XMLTV schedule.
+ * ListView owns vertical virtualization. Each recycled row contains only a channel label
+ * and one custom timeline surface, so View count is constant even when a three-hour window
+ * contains many short programmes.
  */
 internal class CableGuideAdapter(
     private val context: Context,
     private val onChannelSelected: (Channel) -> Unit,
     private val onProgramFocused: (Channel, GuideProgram?) -> Unit,
+    private val onWindowShift: (Int) -> Unit,
 ) : BaseAdapter() {
     companion object {
-        private const val MAX_VISIBLE_CELLS = 8
         private const val CHANNEL_WIDTH_DP = 190
-        private const val HOUR_WIDTH_DP = 240
         private const val ROW_HEIGHT_DP = 64
     }
 
-    private data class RowHolder(
-        val channel: TextView,
-        val timeline: LinearLayout,
-        val cells: Array<TextView>,
-    )
+    private class RowHolder(
+        val channelView: TextView,
+        val timelineView: ProgramTimelineView,
+    ) {
+        var boundChannel: Channel? = null
+    }
 
     private var channels: List<Channel> = emptyList()
     private var guide: GuideSnapshot? = null
@@ -82,36 +83,47 @@ internal class CableGuideAdapter(
             isFocusable = true
             setBackgroundResource(android.R.drawable.list_selector_background)
         }
-        val timeline = LinearLayout(context).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
+        val timelineView = ProgramTimelineView(
+            context = context,
+            onChannelSelected = onChannelSelected,
+            onProgramFocused = ::handleProgramFocused,
+            onWindowShift = onWindowShift,
+        )
+        val holder = RowHolder(channelView, timelineView)
+
+        channelView.setOnClickListener {
+            holder.boundChannel?.let(onChannelSelected)
         }
-        val cells = Array(MAX_VISIBLE_CELLS) {
-            TextView(context).apply {
-                setTextColor(Color.WHITE)
-                textSize = 14f
-                gravity = Gravity.CENTER_VERTICAL
-                setPadding(dp(10), 0, dp(8), 0)
-                maxLines = 2
-                isFocusable = true
-                setBackgroundResource(android.R.drawable.list_selector_background)
-            }.also { timeline.addView(it, LinearLayout.LayoutParams(0, dp(ROW_HEIGHT_DP))) }
+        channelView.setOnFocusChangeListener { _, focused ->
+            if (focused) holder.boundChannel?.let { onProgramFocused(it, null) }
         }
+        channelView.setOnKeyListener { _, keyCode, event ->
+            if (event.action == KeyEvent.ACTION_DOWN && keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
+                onWindowShift(-1)
+                true
+            } else {
+                false
+            }
+        }
+
         return LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
             minimumHeight = dp(ROW_HEIGHT_DP)
-            addView(channelView, LinearLayout.LayoutParams(dp(CHANNEL_WIDTH_DP), dp(ROW_HEIGHT_DP)))
-            addView(timeline, LinearLayout.LayoutParams(0, dp(ROW_HEIGHT_DP), 1f))
-            tag = RowHolder(channelView, timeline, cells)
+            addView(
+                channelView,
+                LinearLayout.LayoutParams(dp(CHANNEL_WIDTH_DP), dp(ROW_HEIGHT_DP)),
+            )
+            addView(
+                timelineView,
+                LinearLayout.LayoutParams(0, dp(ROW_HEIGHT_DP), 1f),
+            )
+            tag = holder
         }
     }
 
     private fun bind(holder: RowHolder, channel: Channel) {
-        holder.channel.text = channel.name
-        holder.channel.setOnClickListener { onChannelSelected(channel) }
-        holder.channel.setOnFocusChangeListener { _, focused ->
-            if (focused) onProgramFocused(channel, null)
-        }
+        holder.boundChannel = channel
+        holder.channelView.text = channel.name
 
         val snapshot = guide
         val guideId = channel.guideId
@@ -125,38 +137,22 @@ internal class CableGuideAdapter(
             TimelineLayout.row(emptyList(), fromEpochSeconds, toEpochSeconds)
         }
 
-        for (index in holder.cells.indices) {
-            val cell = holder.cells[index]
-            val entry = entries.getOrNull(index)
-            if (entry == null) {
-                cell.visibility = View.GONE
-                cell.setOnClickListener(null)
-                cell.onFocusChangeListener = null
-                continue
-            }
-            cell.visibility = View.VISIBLE
-            val program = entry.program
-            cell.text = program?.title ?: "No EPG"
-            cell.layoutParams = (cell.layoutParams as LinearLayout.LayoutParams).apply {
-                width = dp(TimelineLayout.widthUnits(entry, HOUR_WIDTH_DP))
-                weight = 0f
-            }
-            cell.isEnabled = program != null
-            cell.isFocusable = program != null
-            cell.setOnClickListener(if (program == null) null else View.OnClickListener {
-                onChannelSelected(channel)
-            })
-            cell.setOnFocusChangeListener { _, focused ->
-                if (focused) {
-                    focusedChannelId = channel.id
-                    focusedProgramStart = program?.startEpochSeconds
-                    onProgramFocused(channel, program)
-                }
-            }
-            if (program != null && channel.id == focusedChannelId &&
-                program.startEpochSeconds == focusedProgramStart && !cell.hasFocus()) {
-                cell.post { if (cell.isShown) cell.requestFocus() }
-            }
-        }
+        holder.timelineView.bind(
+            channel = channel,
+            entries = entries,
+            fromEpochSeconds = fromEpochSeconds,
+            toEpochSeconds = toEpochSeconds,
+            preferredProgramStart = if (channel.id == focusedChannelId) {
+                focusedProgramStart
+            } else {
+                null
+            },
+        )
+    }
+
+    private fun handleProgramFocused(channel: Channel, program: GuideProgram?) {
+        focusedChannelId = channel.id
+        focusedProgramStart = program?.startEpochSeconds
+        onProgramFocused(channel, program)
     }
 }
