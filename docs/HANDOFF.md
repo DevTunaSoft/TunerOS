@@ -100,3 +100,5 @@ The code audit identified critical correctness defects; fixes are committed to t
 - **UNVERIFIED:** No Android device test, Gradle build, CI verification, or measured memory benchmark was executed in this session. Changes require CI and device acceptance before merging.
 - **Still open:** Single player reuse/release-on-stop, measured player buffering defaults, real EPG memory baseline, optional retention-window integration, channel model memory reduction, potential future persisted guide database, live D-pad focus and vector banner acceptance.
 - **Integration safety:** Optional guide window and description omission remain opt-in; live Android calls retain their prior full-guide behavior. Be careful not to remove future-only EPG channels when enabling a short window.
+
+- **Playlist allocation:** The M3U parser now reuses one SHA-256 digest per parse and pools identical request-header strings for the duration of the parse. This is source-only optimization; heap savings have not been measured and tests have not run on the updated branch.
