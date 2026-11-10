@@ -77,3 +77,13 @@ User-supplied review identified 11 findings. Rechecked the repository and implem
 **PASS:** [Actions run 42738309789](https://github.com/DevTunaSoft/TunerOS/actions/runs/42738309789), commit `eb0acc68e192e1589a6ace71153d711248d39bc0`: `:core:test`, `:app:assembleDebug`, and APK artifact upload completed. Includes new core regressions and Android source changes. **NOT RUN:** real-device acceptance, Windows bootstrap, performance benchmarks.
 
 The optional `scripts/build.ps1` helper downloads Gradle 8.9 and validates its SHA-256 checksum from the official Gradle distribution endpoint before running tests/build. It is not a standard Gradle wrapper, and is **UNVERIFIED on Windows**. Gradle's official wrapper JAR remains an open repository task.
+
+
+## Optional XMLTV window-retention implementation (branch: perf/windowed-epg-retention)
+
+- Parser API now accepts `GuideWindow(fromEpochSeconds, toEpochSeconds)`, an exclusive-end retention range. A programme is retained if it overlaps the range.
+- Optional `includeDescriptions = false` avoids keeping XMLTV descriptions. Both new options preserve legacy behavior by default, so existing app call sites remain unchanged.
+- Window-excluded programmes do not consume the retained-programme cap. Timezone and invalid-timestamp warnings are still accumulated from the full XML input.
+- Four new core regression tests cover window boundaries/overlaps, cap ordering, description opt-out, and invalid windows.
+- **UNVERIFIED:** Android app does not yet supply a window or opt out of descriptions, so no device memory saving is claimed. JVM tests and APK packaging must pass on this branch before merge. Performance validation against 1 GB and 2 GB Android TV profiles remains NOT RUN.
+- **Next:** Confirm CI for the PR, capture an Android device baseline, and wire a configured moving window into `loadGuide` with a clearly documented refresh/resume policy. Test that hide-no-EPG still means “has schedule” and not merely “playing now.” A too-short window could hide channels with future-only schedules, so product semantics must be preserved.
