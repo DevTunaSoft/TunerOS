@@ -38,6 +38,7 @@ import com.devtunasoft.tuneros.core.GuideSnapshot
 import com.devtunasoft.tuneros.core.GuideProgram
 import com.devtunasoft.tuneros.core.SourceDownloader
 import com.devtunasoft.tuneros.core.PlaylistParser
+import com.devtunasoft.tuneros.core.RecordingPolicy
 import java.io.File
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicInteger
@@ -50,6 +51,8 @@ class MainActivity : Activity() {
     private val guideEpoch = AtomicInteger()
     private val uiHandler = Handler(Looper.getMainLooper())
     private val secureSources by lazy { SecureSourceStore(this) }
+    private val recordingDestinations by lazy { RecordingDestinationStore(this) }
+    private val recordingTreeRequestCode = 1701
     private val downloader = SourceDownloader()
     private var currentPrograms: Map<String, GuideProgram> = emptyMap()
     private val searchRefresh = Runnable { renderChannels() }
@@ -143,6 +146,8 @@ class MainActivity : Activity() {
         root.addView(button("Guide / Recordings") { toggleRecordings() })
         root.addView(button("Protect / Unprotect focused recording") { toggleFocusedRecordingProtection() })
         root.addView(button("Delete focused recording") { deleteFocusedRecording() })
+        root.addView(button("Choose recording storage") { chooseRecordingStorage() })
+        root.addView(button("Use internal recording storage") { useInternalRecordingStorage() })
         timeRail = label("", 14).apply {
             setBackgroundColor(Color.rgb(18, 31, 50))
             setPadding(dp(194), dp(8), dp(8), dp(8))
@@ -662,6 +667,76 @@ class MainActivity : Activity() {
             candidate.path.startsWith(root.path + File.separator)
         }
         return candidate.takeIf { allowed }
+    }
+
+
+    private fun chooseRecordingStorage() {
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).apply {
+            addFlags(
+                Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                    Intent.FLAG_GRANT_WRITE_URI_PERMISSION or
+                    Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION or
+                    Intent.FLAG_GRANT_PREFIX_URI_PERMISSION,
+            )
+        }
+        runCatching {
+            startActivityForResult(intent, recordingTreeRequestCode)
+        }.onFailure {
+            showStatus("This device does not provide a folder picker for external recording storage")
+        }
+    }
+
+    private fun useInternalRecordingStorage() {
+        if (recordingDestinations.clear()) {
+            showStatus("Recording storage: TunerOS internal app storage")
+        } else {
+            showStatus("Could not change recording storage")
+        }
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode != recordingTreeRequestCode || resultCode != RESULT_OK) return
+        val treeUri = data?.data ?: run {
+            showStatus("No recording folder was selected")
+            return
+        }
+        val grantFlags = data.flags and (
+            Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+            )
+        if (grantFlags and Intent.FLAG_GRANT_WRITE_URI_PERMISSION == 0) {
+            showStatus("The selected recording folder is not writable")
+            return
+        }
+
+        val info = SafStorageInspector.inspect(this, treeUri)
+        if (info == null) {
+            showStatus(
+                "Choose writable local shared, SD, or USB storage that reports free space",
+            )
+            return
+        }
+        if (info.availableBytes < RecordingPolicy.DEFAULT_MIN_FREE_BYTES) {
+            showStatus("Selected storage does not have the required 512 MiB safety reserve")
+            return
+        }
+
+        val persisted = runCatching {
+            contentResolver.takePersistableUriPermission(treeUri, grantFlags)
+            recordingDestinations.saveTreeUri(treeUri)
+        }.getOrDefault(false)
+        if (!persisted) {
+            showStatus("Could not retain access to the selected recording folder")
+            return
+        }
+
+        val freeGiB = info.availableBytes / (1024.0 * 1024.0 * 1024.0)
+        showStatus(
+            "Recording storage selected: " +
+                (info.rootTitle ?: "external storage") +
+                " · " + String.format("%.1f GiB free", freeGiB),
+        )
     }
 
     private fun updateKeepScreenOn(isPlaying: Boolean) {
