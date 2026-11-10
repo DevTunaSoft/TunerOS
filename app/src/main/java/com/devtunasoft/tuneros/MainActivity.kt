@@ -6,8 +6,6 @@ import android.os.Handler
 import android.os.Looper
 import android.graphics.Color
 import android.view.WindowManager
-import android.view.View
-import android.view.WindowInsets
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import android.widget.Button
@@ -63,7 +61,6 @@ class MainActivity : Activity() {
     private var channels: List<Channel> = emptyList()
     private var guide: GuideSnapshot? = null
     private var player: ExoPlayer? = null
-    private var activeChannel: Channel? = null
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density + 0.5f).toInt()
     private lateinit var playerView: PlayerView
     private lateinit var channelList: ListView
@@ -83,9 +80,10 @@ class MainActivity : Activity() {
             val vertical = dp(10)
             setPadding(horizontal, vertical, horizontal, vertical)
             setOnApplyWindowInsetsListener { view, insets ->
-                val bars = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout())
-                view.setPadding(horizontal + bars.left, vertical + bars.top,
-                    horizontal + bars.right, vertical + bars.bottom)
+                view.setPadding(horizontal + insets.systemWindowInsetLeft,
+                    vertical + insets.systemWindowInsetTop,
+                    horizontal + insets.systemWindowInsetRight,
+                    vertical + insets.systemWindowInsetBottom)
                 insets
             }
         }
@@ -225,7 +223,6 @@ class MainActivity : Activity() {
 
     private fun play(channel: Channel) {
         releasePlayer()
-        activeChannel = channel
         val headers = mutableMapOf<String, String>()
         channel.userAgent?.let { headers["User-Agent"] = it }
         channel.referer?.let { if (isHttpUrl(it)) headers["Referer"] = it }
