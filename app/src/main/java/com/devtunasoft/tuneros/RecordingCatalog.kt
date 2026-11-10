@@ -94,6 +94,20 @@ internal class RecordingCatalog(context: Context) :
         writableDatabase.update("recordings", values, "id=?", arrayOf(id))
     }
 
+    fun setFilePath(id: String, filePath: String) {
+        val values = ContentValues().apply { put("file_path", filePath) }
+        writableDatabase.update("recordings", values, "id=?", arrayOf(id))
+    }
+
+    fun markInterruptedRecordings(stoppedEpochSeconds: Long): Int {
+        val values = ContentValues().apply {
+            put("state", "PARTIAL")
+            put("stopped_epoch", stoppedEpochSeconds)
+            put("failure_reason", "Recorder process interrupted")
+        }
+        return writableDatabase.update("recordings", values, "state=?", arrayOf("RECORDING"))
+    }
+
     fun finish(
         id: String,
         state: String,
