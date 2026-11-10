@@ -170,7 +170,7 @@ class MainActivity : Activity() {
         showStatus("Importing guide…")
         worker.execute {
             val result = runCatching {
-                downloader.open(url, 64L * 1024 * 1024).use(GuideParser::parse).also { it.prepareIndex() }
+                downloader.open(url, 64L * 1024 * 1024).use { GuideParser.parse(it) }.also { it.prepareIndex() }
                     .let { snapshot -> snapshot to snapshot.currentProgramsAt(System.currentTimeMillis() / 1000) }
             }
             runOnUiThread {
