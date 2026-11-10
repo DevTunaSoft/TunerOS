@@ -8,6 +8,7 @@ import android.os.Bundle
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.provider.Settings
 import android.graphics.Color
 import android.view.WindowManager
 import android.view.KeyEvent
@@ -461,7 +462,7 @@ class MainActivity : Activity() {
         runCatching {
             startActivity(
                 Intent(
-                    AlarmManager.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
+                    Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
                     Uri.parse("package:$packageName"),
                 ),
             )
