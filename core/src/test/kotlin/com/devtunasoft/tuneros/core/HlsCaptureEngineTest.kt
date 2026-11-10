@@ -16,7 +16,10 @@ class HlsCaptureEngineTest {
         val loadedUrls = ArrayList<String>()
         val copied = ArrayList<Pair<String, HlsByteRange?>>()
 
-        override fun loadPlaylist(url: String): LoadedHlsPlaylist {
+        override fun loadPlaylist(
+            url: String,
+            afterSequenceExclusive: Long?,
+        ): LoadedHlsPlaylist {
             loadedUrls += url
             val queue = queues[url] ?: error("No fake playlist for $url")
             return if (queue.size > 1) queue.removeFirst() else queue.first()
