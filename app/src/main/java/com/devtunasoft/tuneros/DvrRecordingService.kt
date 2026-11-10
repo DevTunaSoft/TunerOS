@@ -34,6 +34,7 @@ class DvrRecordingService : Service() {
 
     private val worker = Executors.newSingleThreadExecutor()
     private val cancelled = AtomicBoolean(false)
+    private val active = AtomicBoolean(false)
 
     override fun onCreate() {
         super.onCreate()
@@ -52,12 +53,18 @@ class DvrRecordingService : Service() {
     }
 
     private fun startRecording(intent: Intent, startId: Int) {
+        if (!active.compareAndSet(false, true)) {
+            stopSelf(startId)
+            return
+        }
         val id = intent.getStringExtra(EXTRA_ID)?.takeIf { it.isNotBlank() } ?: run {
+            active.set(false)
             stopSelf(startId)
             return
         }
         val title = intent.getStringExtra(EXTRA_TITLE)?.takeIf { it.isNotBlank() } ?: "Recording"
         val url = intent.getStringExtra(EXTRA_URL)?.takeIf(::isHttpUrl) ?: run {
+            active.set(false)
             stopSelf(startId)
             return
         }
@@ -74,13 +81,17 @@ class DvrRecordingService : Service() {
                 .build(),
         )
         worker.execute {
-            capture(id, title, url, endEpochSeconds)
-            stopForeground(STOP_FOREGROUND_REMOVE)
-            stopSelf(startId)
+            try {
+                capture(id, url, endEpochSeconds)
+            } finally {
+                active.set(false)
+                stopForeground(STOP_FOREGROUND_REMOVE)
+                stopSelf(startId)
+            }
         }
     }
 
-    private fun capture(id: String, title: String, streamUrl: String, endEpochSeconds: Long) {
+    private fun capture(id: String, streamUrl: String, endEpochSeconds: Long) {
         val directory = (getExternalFilesDir("recordings") ?: File(filesDir, "recordings")).apply { mkdirs() }
         if (!directory.isDirectory) return
         val safeId = id.replace(Regex("[^A-Za-z0-9._-]"), "_").take(96)
@@ -90,7 +101,7 @@ class DvrRecordingService : Service() {
         try {
             connection = openStream(streamUrl)
             connection.inputStream.use { input ->
-                partial.outputStream().buffered(RecordingPolicy.COPY_BUFFER_BYTES).use { output ->
+                partial.outputStream().use { output ->
                     val recorder = StreamRecorder()
                     val result = recorder.copy(
                         input = input,
