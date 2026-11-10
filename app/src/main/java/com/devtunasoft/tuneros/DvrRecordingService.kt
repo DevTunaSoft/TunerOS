@@ -48,6 +48,7 @@ class DvrRecordingService : Service() {
         when (intent?.action) {
             ACTION_STOP -> {
                 cancelled.set(true)
+                if (!active.get()) stopSelf(startId)
                 return START_NOT_STICKY
             }
             ACTION_START -> startRecording(intent, startId)
