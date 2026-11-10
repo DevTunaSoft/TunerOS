@@ -172,6 +172,23 @@ https://example.com/live.m3u8
             loader.open("https://example.org/guide", 10).use { it.readBytes() }
         }
     }
+    @Test fun skippingDecompressedDataStillEnforcesLimit() {
+        val loader = SourceDownloader { StubConnection(it, body = ByteArray(32) { 65 }) }
+        loader.open("https://example.org/feed", 10).use { source ->
+            assertFailsWith<IllegalArgumentException> { source.skip(20) }
+        }
+    }
+
+    @Test fun skipReturnsActualBytesAndSubsequentReadsCountTowardsLimit() {
+        val loader = SourceDownloader { StubConnection(it, body = "abcdefghij".toByteArray()) }
+        loader.open("https://example.org/feed", 10).use { source ->
+            assertEquals(4L, source.skip(4))
+            assertEquals('e'.code, source.read())
+            assertEquals(5L, source.skip(30))
+            assertEquals(-1, source.read())
+        }
+    }
+
     @Test fun httpsRedirectCannotDowngrade() {
         val loader = SourceDownloader { StubConnection(it, status = 302, location = "http://example.org/feed") }
         assertFailsWith<IllegalArgumentException> { loader.open("https://example.org/feed", 100) }
