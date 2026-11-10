@@ -15,7 +15,7 @@
 | Stream Doctor | Planned | Basic error codes only |
 | Guide Doctor | Planned | No mapping repair UI |
 | Multiview selectable audio | NOT IMPLEMENTED | Only capacity policy and input validation; no tile/audio player |
-| Classic Cable full timeline | NOT IMPLEMENTED | Alpha uses virtualized channel list |
+| Classic Cable full timeline | IN PROGRESS, CI PENDING | Pure-Kotlin contiguous timeline/gap model added with Apache-2.0 Egeniq provenance; Android TV grid/focus UI not yet wired |
 | Favorites, profiles, database | NOT IMPLEMENTED | Planned |
 | Android icon and TV banner | Implemented placeholders, device UNVERIFIED | XML vector resources, final branding pending |
 | Standard Gradle wrapper | NOT IMPLEMENTED | CI pins Gradle 8.9; optional Windows bootstrap script can download Gradle 8.9, but is not a wrapper |
