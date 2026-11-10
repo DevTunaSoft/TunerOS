@@ -25,12 +25,10 @@ internal class SecureSourceStore(context: Context) {
             String(cipher.doFinal(bytes, 12, bytes.size - 12), Charsets.UTF_8)
         }.getOrNull()
 
-        // Migrate early alpha plaintext keys; never leave the old value behind.
+        // Migrate early alpha plaintext keys; preserve the only copy if encryption fails.
         val legacy = prefs.getString(name, null) ?: return null
-        return if (save(name, legacy)) legacy else {
-            prefs.edit().remove(name).apply()
-            null
-        }
+        save(name, legacy)
+        return legacy
     }
 
     fun save(name: String, value: String): Boolean = runCatching {
