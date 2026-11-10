@@ -102,3 +102,17 @@ The code audit identified critical correctness defects; fixes are committed to t
 - **Integration safety:** Optional guide window and description omission remain opt-in; live Android calls retain their prior full-guide behavior. Be careful not to remove future-only EPG channels when enabling a short window.
 
 - **Playlist allocation:** The M3U parser now reuses one SHA-256 digest per parse and pools identical request-header strings for the duration of the parse. This is source-only optimization; heap savings have not been measured and tests have not run on the updated branch.
+
+
+## DVR/PVR development checkpoint — 2026-11-10
+
+Current branch `perf/windowed-epg-retention` now contains a bounded DVR foundation:
+
+- Pure-core `StreamRecorder` copies network media directly to storage with a fixed 64 KiB default buffer, free-space reserve checks, cancellation and byte progress. HLS reuses one caller-owned segment buffer instead of allocating a buffer per segment.
+- Android `DvrRecordingService` is a `mediaPlayback` foreground service. It records without decoding/re-encoding, preserves partial files, throttles catalog progress writes, blocks HTTPS downgrades, honors provider User-Agent/Referer headers, and permits only one active recorder.
+- `RecordingCatalog` is built-in SQLite with bounded recent queries. Source stream URLs are not persisted there. Stale in-progress rows recover as partial after process interruption.
+- `RecordingScheduleStore` persists future job metadata separately. Source URLs and optional provider headers use `SecureSourceStore`/Android Keystore. Alarm scheduling uses exact alarms when allowed; missing exact-alarm access leaves the job persisted but unarmed rather than pretending an inexact background start is reliable. Boot and permission-change receivers only re-arm schedules.
+- The UI supports current Record Now, future guide scheduling, cancellation of a focused future schedule, an Exact DVR timing settings path, Stop recording, and a bounded/recycled recent recordings list with local Media3 playback for completed files.
+- HLS core parsing and capture are bounded. Supported initial subset: unencrypted MPEG-TS media playlists, master variant selection when A/V are contained in the selected variant, media-sequence/live-edge tracking, byte ranges, redirects and stalled-playlist detection. Sequence gaps stop as partial. Encrypted HLS, fMP4 `EXT-X-MAP`, separate external audio/video rendition capture, and DASH recording fail closed.
+- Latest verified pre-integration checkpoints include Actions runs 42842154373 (exact-alarm scheduler fix), 42842606376 (bounded HLS parser tests), and 42843062838 (recording header propagation). The final Android HLS integration and subsequent hardening require the latest branch CI result before being called PASS.
+- **UNVERIFIED / NOT RUN:** real Android TV/mobile recording, long-duration memory measurement, reboot-to-scheduled-recording acceptance, provider-specific HLS behavior, USB/SAF destinations, storage removal, and live fault injection.
