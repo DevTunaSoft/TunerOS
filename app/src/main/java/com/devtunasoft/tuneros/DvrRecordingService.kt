@@ -8,9 +8,7 @@ import android.os.Build
 import android.os.IBinder
 import com.devtunasoft.tuneros.core.HlsByteRange
 import com.devtunasoft.tuneros.core.HlsCaptureEngine
-import com.devtunasoft.tuneros.core.RecordingPolicy
 import com.devtunasoft.tuneros.core.StreamRecorder
-import java.io.File
 import java.io.InputStream
 import java.io.PushbackInputStream
 import java.net.HttpURLConnection
@@ -127,23 +125,20 @@ class DvrRecordingService : Service() {
         userAgent: String?,
         referer: String?,
     ) {
-        val directory = (getExternalFilesDir("recordings") ?: File(filesDir, "recordings")).apply { mkdirs() }
-        if (!directory.isDirectory) {
-            catalog.finish(id, "FAILED", nowSeconds(), 0, null, "Recording storage unavailable")
-            return
-        }
-
         val safeId = id.replace(Regex("[^A-Za-z0-9._-]"), "_").take(96)
-        val partial = File(directory, safeId + ".partial")
-        val completed = File(directory, safeId + recordingExtension(streamUrl))
-        catalog.setFilePath(id, partial.absolutePath)
-
+        var sink: RecordingSink? = null
         var initialConnection: HttpURLConnection? = null
         try {
+            sink = RecordingSinkFactory.create(
+                context = this,
+                safeId = safeId,
+                extension = recordingExtension(streamUrl),
+            )
+            catalog.setFilePath(id, sink.location)
+
             val outcome = if (looksLikeHls(streamUrl)) {
                 captureHls(
-                    id, streamUrl, endEpochSeconds, userAgent, referer,
-                    directory, partial,
+                    id, streamUrl, endEpochSeconds, userAgent, referer, sink,
                 )
             } else {
                 val connection = openHttp(streamUrl, userAgent, referer, null)
@@ -158,8 +153,8 @@ class DvrRecordingService : Service() {
                             finalizeFile = false,
                             failureReason = "DASH recording not implemented",
                         )
-                        else -> partial.outputStream().use { output ->
-                            captureRaw(id, input, output, endEpochSeconds, directory)
+                        else -> sink.openOutput().use { output ->
+                            captureRaw(id, input, output, endEpochSeconds, sink)
                         }
                     }
                 }
@@ -169,24 +164,23 @@ class DvrRecordingService : Service() {
                     connection.disconnect()
                     initialConnection = null
                     captureHls(
-                        id, streamUrl, endEpochSeconds, userAgent, referer,
-                        directory, partial,
+                        id, streamUrl, endEpochSeconds, userAgent, referer, sink,
                     )
                 }
             }
-            applyOutcome(id, partial, completed, outcome)
+            applyOutcome(id, sink, outcome)
         } catch (error: Exception) {
-            val bytes = partial.takeIf { it.exists() }?.length() ?: 0L
+            val bytes = sink?.bytesWritten ?: 0L
             val wasCancelled = cancelled.get()
             catalog.finish(
                 id = id,
                 state = if (wasCancelled) "CANCELLED" else if (bytes > 0) "PARTIAL" else "FAILED",
                 stoppedEpochSeconds = nowSeconds(),
                 bytesWritten = bytes,
-                filePath = partial.takeIf { it.exists() && bytes > 0 }?.absolutePath,
+                filePath = sink?.location?.takeIf { bytes > 0 },
                 failureReason = if (wasCancelled) null else error.javaClass.simpleName,
             )
-            if (bytes == 0L) partial.delete()
+            if (bytes == 0L) sink?.delete()
         } finally {
             initialConnection?.disconnect()
             activeConnection?.disconnect()
@@ -199,13 +193,13 @@ class DvrRecordingService : Service() {
         input: InputStream,
         output: java.io.OutputStream,
         endEpochSeconds: Long,
-        directory: File,
+        sink: RecordingSink,
     ): CaptureOutcome {
         var lastCatalogBytes = 0L
         val result = StreamRecorder().copy(
             input = input,
             output = output,
-            freeBytes = { directory.usableSpace },
+            freeBytes = sink::freeBytes,
             cancelled = { cancelled.get() || nowSeconds() >= endEpochSeconds },
             onProgress = { total ->
                 if (total - lastCatalogBytes >= CATALOG_PROGRESS_BYTES) {
@@ -245,16 +239,15 @@ class DvrRecordingService : Service() {
         endEpochSeconds: Long,
         userAgent: String?,
         referer: String?,
-        directory: File,
-        partial: File,
+        sink: RecordingSink,
     ): CaptureOutcome {
         var lastCatalogBytes = 0L
-        partial.outputStream().use { output ->
+        sink.openOutput().use { output ->
             val source = AndroidHlsCaptureSource(
                 openConnection = { url, range ->
                     openHttp(url, userAgent, referer, range)
                 },
-                freeBytes = { directory.usableSpace },
+                freeBytes = sink::freeBytes,
             )
             val result = HlsCaptureEngine().record(
                 initialUrl = streamUrl,
@@ -309,31 +302,30 @@ class DvrRecordingService : Service() {
 
     private fun applyOutcome(
         id: String,
-        partial: File,
-        completed: File,
+        sink: RecordingSink,
         outcome: CaptureOutcome,
     ) {
         if (outcome.finalizeFile) {
-            if (completed.exists()) completed.delete()
-            val finalized = partial.renameTo(completed)
+            val finalizedLocation = sink.finalizeRecording()
             catalog.finish(
                 id = id,
-                state = if (finalized) "COMPLETED" else "PARTIAL",
+                state = if (finalizedLocation != null) "COMPLETED" else "PARTIAL",
                 stoppedEpochSeconds = nowSeconds(),
                 bytesWritten = outcome.bytesWritten,
-                filePath = (if (finalized) completed else partial).takeIf { it.exists() }?.absolutePath,
-                failureReason = if (finalized) null else "Unable to finalize recording file",
+                filePath = finalizedLocation ?: sink.location.takeIf { outcome.bytesWritten > 0 },
+                failureReason = if (finalizedLocation != null) null else
+                    "Unable to finalize recording output",
             )
             return
         }
 
-        if (outcome.bytesWritten == 0L && outcome.state == "FAILED") partial.delete()
+        if (outcome.bytesWritten == 0L && outcome.state == "FAILED") sink.delete()
         catalog.finish(
             id = id,
             state = outcome.state,
             stoppedEpochSeconds = nowSeconds(),
             bytesWritten = outcome.bytesWritten,
-            filePath = partial.takeIf { it.exists() && outcome.bytesWritten > 0 }?.absolutePath,
+            filePath = sink.location.takeIf { outcome.bytesWritten > 0 },
             failureReason = outcome.failureReason,
         )
     }
