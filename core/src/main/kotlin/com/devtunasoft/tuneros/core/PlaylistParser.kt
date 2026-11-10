@@ -30,7 +30,7 @@ object PlaylistParser {
         var totalLines = 0
         var skipped = 0
         while (true) {
-            val raw = readBoundedLine(input) ?: break
+            val raw = BoundedLines.read(input, MAX_LINE_LENGTH, "Playlist") ?: break
             totalLines++
             if (totalLines > MAX_LINES) throw IllegalArgumentException("Playlist exceeds $MAX_LINES lines")
             val line = raw.trim().removePrefix("\uFEFF")
@@ -64,17 +64,6 @@ object PlaylistParser {
         }
         val warnings = if (skipped > 0) listOf("$skipped channels omitted: limit $maxChannels") else emptyList()
         return PlaylistImport(result, warnings)
-    }
-
-    private fun readBoundedLine(reader: BufferedReader): String? {
-        val line = StringBuilder()
-        while (true) {
-            val c = reader.read()
-            if (c == -1) return if (line.isEmpty()) null else line.toString().removeSuffix("\r")
-            if (c == '\n'.code) return line.toString().removeSuffix("\r")
-            if (line.length >= MAX_LINE_LENGTH) throw IllegalArgumentException("Playlist line exceeds $MAX_LINE_LENGTH characters")
-            line.append(c.toChar())
-        }
     }
 
     private fun isAllowedUrl(value: String): Boolean = runCatching {
