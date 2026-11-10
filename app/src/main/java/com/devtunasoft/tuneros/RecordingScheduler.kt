@@ -9,7 +9,7 @@ import android.net.Uri
 import android.os.Build
 
 internal object RecordingScheduler {
-    enum class Mode { EXACT, INEXACT }
+    enum class Mode { EXACT, PERMISSION_REQUIRED }
 
     fun schedule(context: Context, entry: RecordingScheduleEntry): Mode {
         val alarmManager = context.getSystemService(AlarmManager::class.java)
@@ -24,21 +24,16 @@ internal object RecordingScheduler {
                 triggerAtMillis,
                 pendingIntent,
             )
-        } else {
-            alarmManager.setAndAllowWhileIdle(
-                AlarmManager.RTC_WAKEUP,
-                triggerAtMillis,
-                pendingIntent,
-            )
         }
         RecordingScheduleStore(context).use {
             it.updateAlarmMode(
                 entry.id,
                 exact = exactAllowed,
-                lastError = if (exactAllowed) null else "Exact alarm access not granted; start may be delayed",
+                lastError = if (exactAllowed) null else
+                    "Exact alarm access required before this recording can be armed",
             )
         }
-        return if (exactAllowed) Mode.EXACT else Mode.INEXACT
+        return if (exactAllowed) Mode.EXACT else Mode.PERMISSION_REQUIRED
     }
 
     fun cancel(context: Context, id: String) {
