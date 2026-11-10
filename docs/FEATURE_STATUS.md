@@ -14,6 +14,7 @@
 | Media3 playback | Implemented, device UNVERIFIED | HLS/DASH/native media player; real streams untested |
 | Stream Doctor | Planned | Basic error codes only |
 | Guide Doctor | Planned | No mapping repair UI |
+| DVR/PVR recording foundation | IN PROGRESS, CI PENDING | Platform-neutral recording requests/states, padding/conflict policy and fixed 64 KiB copy-buffer policy added; raw stream writer, persistence, Android foreground service, scheduler, HLS recorder and recording library still pending |
 | Multiview selectable audio | NOT IMPLEMENTED | Only capacity policy and input validation; no tile/audio player |
 | Classic Cable full timeline | IN PROGRESS, CI PENDING | Pure-Kotlin timeline plus recycled Android TV rows wired for a three-hour window; fixed eight-cell pool per visible row, indexed window queries, focus details and select-to-play. Half-hour time rail and bounded left/right navigation now wired; current-time indicator and device focus acceptance still pending |
 | Favorites, profiles, database | NOT IMPLEMENTED | Planned |
