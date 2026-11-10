@@ -138,10 +138,13 @@ internal class ProgramTimelineView(
         val next = TimelineFocusPolicy.nextIndex(entries, selectedIndex, direction)
         if (next >= 0) {
             setSelectedIndex(next)
-        } else {
-            onWindowShift(direction)
+            return true
         }
-        return true
+        if (direction > 0) {
+            onWindowShift(direction)
+            return true
+        }
+        return false
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
