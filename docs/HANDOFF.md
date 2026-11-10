@@ -87,3 +87,16 @@ The optional `scripts/build.ps1` helper downloads Gradle 8.9 and validates its S
 - Four new core regression tests cover window boundaries/overlaps, cap ordering, description opt-out, and invalid windows.
 - **UNVERIFIED:** Android app does not yet supply a window or opt out of descriptions, so no device memory saving is claimed. JVM tests and APK packaging must pass on this branch before merge. Performance validation against 1 GB and 2 GB Android TV profiles remains NOT RUN.
 - **Next:** Confirm CI for the PR, capture an Android device baseline, and wire a configured moving window into `loadGuide` with a clearly documented refresh/resume policy. Test that hide-no-EPG still means “has schedule” and not merely “playing now.” A too-short window could hide channels with future-only schedules, so product semantics must be preserved.
+
+
+## Follow-up hardening checkpoint — 2026-11-10
+
+The code audit identified critical correctness defects; fixes are committed to the same draft PR to avoid duplicate work.
+
+- **Fixed in source:** Legacy plaintext URL survives failed Keystore encryption/migration. If an encrypted value cannot be decrypted, an existing legacy URL is returned instead of discarded. Missing UI warning for failed startup migration remains an outstanding usability task.
+- **Fixed in source:** Keystore decrypt/key generation during startup and encrypted URL saves during import now execute on the existing single-thread import worker. UI fields are populated on the main thread only if still empty, avoiding overwriting text typed during startup.
+- **Fixed in source:** SourceDownloader now implements `skip()` through its size-counted `read()` path, with regression cases for cap bypass and EOF.
+- **Cleaned up:** XMLTV fallback timestamp regex and SAX capture limit are shared constants.
+- **UNVERIFIED:** No Android device test, Gradle build, CI verification, or measured memory benchmark was executed in this session. Changes require CI and device acceptance before merging.
+- **Still open:** Single player reuse/release-on-stop, measured player buffering defaults, real EPG memory baseline, optional retention-window integration, channel model memory reduction, potential future persisted guide database, live D-pad focus and vector banner acceptance.
+- **Integration safety:** Optional guide window and description omission remain opt-in; live Android calls retain their prior full-guide behavior. Be careful not to remove future-only EPG channels when enabling a short window.
