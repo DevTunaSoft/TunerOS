@@ -59,17 +59,20 @@ class DvrRecordingService : Service() {
     }
 
     private fun startRecording(intent: Intent, startId: Int) {
-        if (!active.compareAndSet(false, true)) return
-        val id = intent.getStringExtra(EXTRA_ID)?.takeIf { it.isNotBlank() } ?: run {
-            active.set(false)
-            stopSelf(startId)
-            return
-        }
+        val id = intent.getStringExtra(EXTRA_ID)?.takeIf { it.isNotBlank() } ?: return
         val title = intent.getStringExtra(EXTRA_TITLE)?.takeIf { it.isNotBlank() } ?: "Recording"
         val channelId = intent.getStringExtra(EXTRA_CHANNEL_ID)?.takeIf { it.isNotBlank() } ?: "unknown"
-        val url = intent.getStringExtra(EXTRA_URL)?.takeIf(::isRawRecordableUrl) ?: run {
-            active.set(false)
-            stopSelf(startId)
+        val url = intent.getStringExtra(EXTRA_URL)?.takeIf(::isRawRecordableUrl) ?: return
+        if (!active.compareAndSet(false, true)) {
+            catalog.upsertStart(id, title, channelId, System.currentTimeMillis() / 1000)
+            catalog.finish(
+                id = id,
+                state = "FAILED",
+                stoppedEpochSeconds = System.currentTimeMillis() / 1000,
+                bytesWritten = 0,
+                filePath = null,
+                failureReason = "Recorder busy",
+            )
             return
         }
         val endEpochSeconds = intent.getLongExtra(EXTRA_END_EPOCH_SECONDS, Long.MAX_VALUE)
