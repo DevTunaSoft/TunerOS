@@ -15,7 +15,8 @@ TunerOS is a television app being built for Android TV boxes and Android phones.
 9. On Android 12 and later, choose **Exact DVR timing** and allow **Alarms & reminders** before relying on a future scheduled recording. TunerOS keeps an unarmed schedule if this access is unavailable and re-arms pending schedules after access is granted or after reboot.
 10. Choose **Stop recording** to cancel the active recording. Choose **Guide / Recordings** to switch the same recycled list between the guide and the most recent recordings; completed recordings can be selected for local playback.
 11. To remove a future job before it starts, focus that same future program and choose **Cancel focused scheduled recording**.
-12. In **Recordings**, focus an item and choose **Protect / Unprotect focused recording** to guard it from deletion. Choose **Delete focused recording** to remove an unprotected, inactive recording and its catalog row. TunerOS refuses to delete paths outside its own app-managed recording directories.
+12. In **Recordings**, focus an item and choose **Protect / Unprotect focused recording** to guard it from deletion. Choose **Delete focused recording** to remove an unprotected, inactive recording and its catalog row. TunerOS validates the recording location before playback or deletion.
+13. Choose **Choose recording storage** to select writable local shared, SD-card, or USB storage through Android's folder picker. TunerOS requires persisted read/write access and a provider-reported free-space value with at least the 512 MiB safety reserve. If the selected drive is unavailable, a new recording fails rather than silently switching destinations. Choose **Use internal recording storage** for future recordings to return to TunerOS app storage; existing external recordings keep their persisted access grant.
 
 **DVR format limits in this alpha:** Raw/progressive HTTP(S) streams and unencrypted MPEG-TS HLS are implemented in source. HLS master playlists, media sequences, byte ranges and provider User-Agent/Referer headers are handled. TunerOS deliberately refuses encrypted HLS, fMP4 HLS using `EXT-X-MAP`, HLS variants that require separate audio/video rendition capture, and DASH recording until those paths can be written without corrupt or incomplete output. A missing live HLS sequence is treated as a partial recording rather than silently skipped. Real-device recording remains unverified.
 
@@ -39,3 +40,6 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build.ps1
 ```
 
 The script downloads Gradle 8.9 to your user profile if it is missing, checks the official distribution SHA-256, and runs the tests and debug APK build. This helper has **not yet been tested on a Windows computer**. You can also install Gradle 8.9 manually and run `gradle --no-daemon :core:test :app:assembleDebug`.
+
+
+**External-storage status:** The SAF/USB/SD path is implemented in source and passes automated APK build/tests, but physical media insertion/removal/reinsertion and real recording playback on Android hardware are still unverified.
