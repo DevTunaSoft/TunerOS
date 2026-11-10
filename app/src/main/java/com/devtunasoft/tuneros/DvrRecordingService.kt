@@ -97,7 +97,17 @@ class DvrRecordingService : Service() {
 
     private fun capture(id: String, streamUrl: String, endEpochSeconds: Long) {
         val directory = (getExternalFilesDir("recordings") ?: File(filesDir, "recordings")).apply { mkdirs() }
-        if (!directory.isDirectory) return
+        if (!directory.isDirectory) {
+            catalog.finish(
+                id = id,
+                state = "FAILED",
+                stoppedEpochSeconds = System.currentTimeMillis() / 1000,
+                bytesWritten = 0,
+                filePath = null,
+                failureReason = "Recording storage unavailable",
+            )
+            return
+        }
         val safeId = id.replace(Regex("[^A-Za-z0-9._-]"), "_").take(96)
         val partial = File(directory, "$safeId.partial")
         val completed = File(directory, "$safeId${recordingExtension(streamUrl)}")
