@@ -5,9 +5,10 @@ The master research backlog contains 134 prioritized items. Short-term release s
 1. **Foundation** — native application, source parsing, EPG, channel selection, basic playback, CI, verified APK.
 2. **Guide** — full classic cable grid, channel search, user-controlled hide without EPG, favorites, stable channel mappings, Guide Doctor.
 3. **Playback** — hardened switching, HLS/DASH/non-HLS validation, Stream Doctor, recovery, diagnostics.
-4. **Multiview** — two concurrent streams and audio selection first, then adaptive three/four tiles; never exceed decoder or provider concurrent-stream limits.
-5. **Personalization** — guide themes, profiles, backups, parental controls, accessible TV focus.
-6. **Later** — DVR, recording, advanced source adapters and optional authorized channel catalog.
+4. **DVR/PVR (in progress)** — bounded direct-to-disk raw and MPEG-TS HLS capture, Record Now, exact-alarm future scheduling, recording library/playback, recovery and conflict handling. Next: delete/protect controls, storage destinations, series rules, timeshift, encrypted/fMP4 compatibility where safe, and real-device acceptance.
+5. **Multiview** — two concurrent streams and audio selection first, then adaptive three/four tiles; never exceed decoder or provider concurrent-stream limits.
+6. **Personalization** — guide themes, profiles, backups, parental controls, accessible TV focus.
+7. **Later** — advanced source adapters and optional authorized channel catalog.
 
 **Deferred:** FastChannels serving from the Android box. Preserve this feature as an architectural proposal, not a current acceptance target.
 
@@ -25,3 +26,8 @@ Address source audit findings before adding new UI features. Changes include vir
 
 
 Windows bootstrap helper added as a temporary alternative to manually installing Gradle. A **standard Gradle wrapper** is still open; verify the helper on a Windows 11 machine and commit the official wrapper JAR/scripts after source verification.
+
+
+## DVR implementation checkpoint — 2026-11-10
+
+DVR is now active development rather than a later placeholder. The recorder is designed so recording duration does not grow its working buffer: raw streams use a fixed 64 KiB copy buffer, and HLS reuses one 64 KiB segment buffer while polling bounded manifests and retaining only new segment metadata. Future jobs are persisted separately from recording history; credential-bearing source URLs and provider headers are kept in Android Keystore-backed encrypted storage rather than plaintext SQLite. Exact-alarm permission is required before a background future recording is armed on modern Android. Encrypted HLS, fMP4 HLS, separate rendition muxing and DASH recording remain explicitly unsupported until implemented and tested.
