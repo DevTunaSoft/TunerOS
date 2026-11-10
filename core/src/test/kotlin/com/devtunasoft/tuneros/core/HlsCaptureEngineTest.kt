@@ -238,4 +238,66 @@ class HlsCaptureEngineTest {
         }
         assertTrue(result.isFailure)
     }
+    @Test fun masterWithSeparateAudioFailsClosed() {
+        val masterUrl = "https://example.test/master.m3u8"
+        val source = FakeSource(
+            mapOf(
+                masterUrl to listOf(
+                    LoadedHlsPlaylist(
+                        masterUrl,
+                        HlsMasterPlaylist(
+                            variants = listOf(
+                                HlsVariant(
+                                    uri = "video.m3u8",
+                                    bandwidth = 2_000_000,
+                                    audioGroup = "aud",
+                                ),
+                            ),
+                            externalAudioGroups = setOf("aud"),
+                        ),
+                    ),
+                ),
+            ),
+        )
+        val result = HlsCaptureEngine().record(
+            masterUrl, ByteArrayOutputStream(), 1_000, source, { false }, { 100 }, {},
+        )
+        assertEquals(HlsCaptureEngine.StopReason.UNSUPPORTED, result.stopReason)
+        assertTrue(result.detail.orEmpty().contains("separate audio/video"))
+        assertTrue(source.copied.isEmpty())
+    }
+
+    @Test fun missingLiveSequenceStopsAsGapInsteadOfSilentlySkipping() {
+        val url = "https://example.test/live.m3u8"
+        val first = LoadedHlsPlaylist(
+            url,
+            HlsMediaPlaylist(
+                10, 4, false,
+                listOf(
+                    HlsSegment(10, "10.ts", 4.0, null, false, "NONE", null, null),
+                    HlsSegment(11, "11.ts", 4.0, null, false, "NONE", null, null),
+                ),
+            ),
+        )
+        val jumped = LoadedHlsPlaylist(
+            url,
+            HlsMediaPlaylist(
+                13, 4, false,
+                listOf(
+                    HlsSegment(13, "13.ts", 4.0, null, false, "NONE", null, null),
+                ),
+            ),
+        )
+        val source = FakeSource(
+            playlists = mapOf(url to listOf(first, jumped)),
+            segmentBytes = mapOf("https://example.test/11.ts" to byteArrayOf(11)),
+        )
+        val result = HlsCaptureEngine().record(
+            url, ByteArrayOutputStream(), 1_000, source, { false }, { 100 }, {},
+        )
+        assertEquals(HlsCaptureEngine.StopReason.GAP, result.stopReason)
+        assertEquals(11L, result.lastSequence)
+        assertTrue(result.detail.orEmpty().contains("expected 12"))
+    }
+
 }
