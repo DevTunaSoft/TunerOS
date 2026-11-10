@@ -139,17 +139,10 @@ class DvrRecordingService : Service() {
             } else {
                 val connection = openHttp(streamUrl, userAgent, referer, null)
                 initialConnection = connection
-                connection.inputStream.use { rawInput ->
+                val probedOutcome = connection.inputStream.use { rawInput ->
                     val input = PushbackInputStream(rawInput, 512)
                     when (detectManifestType(connection, input)) {
-                        "HLS" -> {
-                            connection.disconnect()
-                            initialConnection = null
-                            captureHls(
-                                id, streamUrl, endEpochSeconds, userAgent, referer,
-                                directory, partial,
-                            )
-                        }
+                        "HLS" -> null
                         "DASH" -> CaptureOutcome(
                             state = "FAILED",
                             bytesWritten = 0,
@@ -160,6 +153,16 @@ class DvrRecordingService : Service() {
                             captureRaw(id, input, output, endEpochSeconds, directory)
                         }
                     }
+                }
+                if (probedOutcome != null) {
+                    probedOutcome
+                } else {
+                    connection.disconnect()
+                    initialConnection = null
+                    captureHls(
+                        id, streamUrl, endEpochSeconds, userAgent, referer,
+                        directory, partial,
+                    )
                 }
             }
             applyOutcome(id, partial, completed, outcome)
