@@ -85,6 +85,23 @@ internal class RecordingScheduleStore(context: Context) :
         return result
     }
 
+    fun findOverlap(
+        id: String,
+        startEpochSeconds: Long,
+        endEpochSeconds: Long,
+    ): RecordingScheduleEntry? =
+        readableDatabase.query(
+            "schedules",
+            COLUMNS,
+            "state=? AND id<>? AND start_epoch<? AND end_epoch>?",
+            arrayOf("SCHEDULED", id, endEpochSeconds.toString(), startEpochSeconds.toString()),
+            null, null,
+            "start_epoch ASC",
+            "1",
+        ).use { cursor ->
+            if (!cursor.moveToFirst()) null else cursor.toEntry()
+        }
+
     fun updateAlarmMode(id: String, exact: Boolean, lastError: String?) {
         val values = ContentValues().apply {
             put("exact_alarm", if (exact) 1 else 0)
