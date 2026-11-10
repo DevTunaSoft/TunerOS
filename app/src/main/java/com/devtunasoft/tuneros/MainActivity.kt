@@ -76,10 +76,10 @@ class MainActivity : Activity() {
         }
         setContentView(root)
         root.addView(label("TunerOS · Classic Cable Alpha", 22))
-        playlistUrl = urlField("M3U playlist URL", secureSources.load("playlist").orEmpty())
+        playlistUrl = urlField("M3U playlist URL", "")
         root.addView(playlistUrl)
         root.addView(button("Load channels") { loadPlaylist() })
-        guideUrl = urlField("XMLTV guide URL (optional)", secureSources.load("guide").orEmpty())
+        guideUrl = urlField("XMLTV guide URL (optional)", "")
         root.addView(guideUrl)
         root.addView(button("Load guide") { loadGuide() })
         search = urlField("Search channels", "")
@@ -111,6 +111,16 @@ class MainActivity : Activity() {
             }
         }
         root.addView(channelList, LinearLayout.LayoutParams(-1, 0, 1.0f))
+        worker.execute {
+            val playlist = runCatching { secureSources.load("playlist") }.getOrNull()
+            val epg = runCatching { secureSources.load("guide") }.getOrNull()
+            runOnUiThread {
+                if (!isFinishing && !isDestroyed) {
+                    if (playlistUrl.text.isEmpty()) playlist?.let { playlistUrl.setText(it) }
+                    if (guideUrl.text.isEmpty()) epg?.let { guideUrl.setText(it) }
+                }
+            }
+        }
         search.addTextChangedListener(object : android.text.TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
@@ -145,10 +155,10 @@ class MainActivity : Activity() {
     private fun loadPlaylist() {
         val url = playlistUrl.text.toString().trim()
         if (!isHttpUrl(url)) { showStatus("Enter a valid HTTP or HTTPS playlist URL"); return }
-        val saved = secureSources.save("playlist", url)
         val epoch = playlistEpoch.incrementAndGet()
         showStatus("Importing channels…")
         worker.execute {
+            val saved = secureSources.save("playlist", url)
             val result = runCatching { downloader.open(url, 16L * 1024 * 1024).bufferedReader().use { PlaylistParser.parseReport(it) } }
             runOnUiThread {
                 if (epoch != playlistEpoch.get() || isFinishing || isDestroyed) return@runOnUiThread
@@ -165,10 +175,10 @@ class MainActivity : Activity() {
     private fun loadGuide() {
         val url = guideUrl.text.toString().trim()
         if (!isHttpUrl(url)) { showStatus("Enter a valid HTTP or HTTPS XMLTV URL"); return }
-        val saved = secureSources.save("guide", url)
         val epoch = guideEpoch.incrementAndGet()
         showStatus("Importing guide…")
         worker.execute {
+            val saved = secureSources.save("guide", url)
             val result = runCatching {
                 downloader.open(url, 64L * 1024 * 1024).use { GuideParser.parse(it) }.also { it.prepareIndex() }
                     .let { snapshot -> snapshot to snapshot.currentProgramsAt(System.currentTimeMillis() / 1000) }
