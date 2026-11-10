@@ -44,6 +44,48 @@ https://example.com/live.m3u8
         assertEquals("Morning News", guide.programs.single().title)
         assertEquals(guide.programs.single(), guide.now("news.us", guide.programs.single().startEpochSeconds + 1))
     }
+    @Test fun windowRetainsOverlapsButExcludesOutOfRangeProgrammes() {
+        val xml = """<tv>
+            <programme channel="c" start="20261108080000 +0000" stop="20261108090000 +0000"><title>Before</title></programme>
+            <programme channel="c" start="20261108093000 +0000" stop="20261108103000 +0000"><title>Crosses start</title></programme>
+            <programme channel="c" start="20261108100000 +0000" stop="20261108110000 +0000"><title>Inside</title></programme>
+            <programme channel="c" start="20261108113000 +0000" stop="20261108123000 +0000"><title>Crosses end</title></programme>
+            <programme channel="c" start="20261108120000 +0000" stop="20261108130000 +0000"><title>After</title></programme>
+        </tv>"""
+        val start = LocalDateTime.of(2026, 11, 8, 10, 0).toEpochSecond(ZoneOffset.UTC)
+        val guide = GuideParser.parse(ByteArrayInputStream(xml.toByteArray()),
+            window = GuideWindow(start, start + 7200))
+        assertEquals(listOf("Crosses start", "Inside", "Crosses end"), guide.programs.map { it.title })
+        assertEquals("Inside", guide.now("c", start + 3600)?.title)
+        assertTrue(guide.warnings.isEmpty())
+    }
+
+    @Test fun windowExcludedProgrammesDoNotConsumeProgrammeCap() {
+        val xml = """<tv>
+            <programme channel="c" start="20261108080000 +0000" stop="20261108090000 +0000"><title>Outside</title></programme>
+            <programme channel="c" start="20261108100000 +0000" stop="20261108110000 +0000"><title>Inside</title></programme>
+        </tv>"""
+        val start = LocalDateTime.of(2026, 11, 8, 10, 0).toEpochSecond(ZoneOffset.UTC)
+        val guide = GuideParser.parse(ByteArrayInputStream(xml.toByteArray()),
+            maxPrograms = 1, window = GuideWindow(start, start + 3600))
+        assertEquals(listOf("Inside"), guide.programs.map { it.title })
+        assertTrue(guide.warnings.isEmpty())
+    }
+
+    @Test fun descriptionsCanBeDroppedWithoutChangingDefault() {
+        val xml = """<tv><programme channel="c" start="20261108100000 +0000" stop="20261108110000 +0000">
+            <title>News</title><desc>Detailed synopsis</desc></programme></tv>"""
+        val defaultGuide = GuideParser.parse(ByteArrayInputStream(xml.toByteArray()))
+        val leanGuide = GuideParser.parse(ByteArrayInputStream(xml.toByteArray()), includeDescriptions = false)
+        assertEquals("Detailed synopsis", defaultGuide.programs.single().description)
+        assertEquals(null, leanGuide.programs.single().description)
+    }
+
+    @Test fun invalidWindowBoundariesAreRejected() {
+        assertFailsWith<IllegalArgumentException> { GuideWindow(10, 10) }
+        assertFailsWith<IllegalArgumentException> { GuideWindow(10, 9) }
+    }
+
     @Test fun futureEpgCountsAsScheduleEvenWithoutCurrentProgram() {
         val future = GuideProgram("news.us", "Tomorrow", 1_000_000L, 1_003_600L)
         val guide = GuideSnapshot(listOf(future), mapOf("news.us" to "News"))
