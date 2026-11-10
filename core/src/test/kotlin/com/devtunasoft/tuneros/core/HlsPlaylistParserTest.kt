@@ -35,6 +35,7 @@ high/index.m3u8
         assertEquals(6L, playlist.targetDurationSeconds)
         assertEquals(listOf(101L, 102L), playlist.segments.map { it.sequence })
         assertEquals(listOf("101.ts", "102.ts"), playlist.segments.map { it.uri })
+        assertEquals(102L, playlist.latestSequence)
     }
 
     @Test fun byteRangesDiscontinuityKeyAndMapArePreserved() {
@@ -83,4 +84,35 @@ two.ts
             HlsPlaylistParserCore.parse(text.reader())
         }
     }
+    @Test fun filteringWithoutMediaSequenceKeepsSyntheticSequenceMonotonic() {
+        val text = """#EXTM3U
+#EXTINF:4,
+zero.ts
+#EXTINF:4,
+one.ts
+#EXTINF:4,
+two.ts
+"""
+        val playlist = HlsPlaylistParserCore.parse(
+            text.reader(),
+            afterSequenceExclusive = 0,
+        ) as HlsMediaPlaylist
+        assertEquals(listOf(1L, 2L), playlist.segments.map { it.sequence })
+        assertEquals(listOf("one.ts", "two.ts"), playlist.segments.map { it.uri })
+        assertEquals(2L, playlist.latestSequence)
+    }
+
+    @Test fun totalManifestCharactersAreBounded() {
+        val line = "#" + "A".repeat(999) + "\n"
+        val text = buildString(HlsPlaylistParserCore.MAX_TOTAL_CHARACTERS + 4096) {
+            append("#EXTM3U\n")
+            repeat(HlsPlaylistParserCore.MAX_TOTAL_CHARACTERS / line.length + 2) {
+                append(line)
+            }
+        }
+        assertFailsWith<IllegalArgumentException> {
+            HlsPlaylistParserCore.parse(text.reader())
+        }
+    }
+
 }
