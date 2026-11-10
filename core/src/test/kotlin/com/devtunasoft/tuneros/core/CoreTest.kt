@@ -286,4 +286,59 @@ https://example.com/live.m3u8
         assertEquals(64 * 1024, RecordingPolicy.COPY_BUFFER_BYTES)
     }
 
+    @Test fun streamRecorderCopiesWithoutGrowingBufferWithRecordingLength() {
+        val payload = ByteArray(RecordingPolicy.COPY_BUFFER_BYTES * 5 + 17) { (it % 251).toByte() }
+        val output = ByteArrayOutputStream()
+        var lastProgress = 0L
+        val result = StreamRecorder(minFreeBytes = 0).copy(
+            ByteArrayInputStream(payload), output, freeBytes = { Long.MAX_VALUE },
+            onProgress = { lastProgress = it },
+        )
+        assertEquals(StreamRecorder.StopReason.END_OF_STREAM, result.stopReason)
+        assertEquals(payload.size.toLong(), result.bytesWritten)
+        assertEquals(payload.size.toLong(), lastProgress)
+        assertTrue(payload.contentEquals(output.toByteArray()))
+    }
+
+    @Test fun streamRecorderCancelsAndPreservesPartialOutput() {
+        val payload = ByteArray(200_000) { 7 }
+        val output = ByteArrayOutputStream()
+        var copied = 0L
+        val result = StreamRecorder(bufferBytes = 4 * 1024, minFreeBytes = 0).copy(
+            ByteArrayInputStream(payload), output,
+            freeBytes = { Long.MAX_VALUE },
+            cancelled = { copied >= 12 * 1024 },
+            onProgress = { copied = it },
+        )
+        assertEquals(StreamRecorder.StopReason.CANCELLED, result.stopReason)
+        assertEquals(copied, result.bytesWritten)
+        assertEquals(copied.toInt(), output.size())
+        assertTrue(result.bytesWritten in 12 * 1024L until payload.size.toLong())
+    }
+
+    @Test fun streamRecorderStopsBeforeWritingWhenStorageReserveIsTooLow() {
+        val recorder = StreamRecorder(bufferBytes = 4 * 1024, minFreeBytes = 10_000)
+        val output = ByteArrayOutputStream()
+        assertFailsWith<IllegalArgumentException> {
+            recorder.copy(ByteArrayInputStream(ByteArray(100)), output, freeBytes = { 9_999 })
+        }
+        assertEquals(0, output.size())
+    }
+
+    @Test fun streamRecorderStopsMidCaptureWhenStorageFallsBelowReserve() {
+        val output = ByteArrayOutputStream()
+        var freeChecks = 0
+        val result = StreamRecorder(bufferBytes = 4 * 1024, minFreeBytes = 10_000).copy(
+            ByteArrayInputStream(ByteArray(50_000) { 1 }), output,
+            freeBytes = {
+                freeChecks++
+                if (freeChecks < 4) 20_000 else 9_000
+            },
+        )
+        assertEquals(StreamRecorder.StopReason.LOW_STORAGE, result.stopReason)
+        assertTrue(result.bytesWritten > 0)
+        assertTrue(result.bytesWritten < 50_000)
+        assertEquals(result.bytesWritten.toInt(), output.size())
+    }
+
 }
