@@ -18,3 +18,7 @@ The master research backlog contains 134 prioritized items. Short-term release s
 - 2026-11-08: Native Android player is Kotlin + Media3, shared testable JVM core, TV/mobile shell.
 - 2026-11-08: Move two-to-four channel selectable-audio Multiview into early Android roadmap, after basic player stability.
 - 2026-11-08: Defer the FastChannels on-device server until the core app is working.
+
+## Stabilization checkpoint — 2026-11-10
+
+Address source audit findings before adding new UI features. Changes include virtualized search, binary-search guide index, timezone/truncation warnings, secure source URL storage, redirect and gzip handling, and targeted regression tests. Validate CI and on-device behavior. Add a standard Gradle wrapper when the binary can be committed safely. Real Multiview audio selection remains future work, not a tested feature.

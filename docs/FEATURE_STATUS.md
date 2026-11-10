@@ -1,21 +1,24 @@
 # Feature status — TunerOS
 
-Status labels mean *code present*, not real-device acceptance.
+**Status snapshot: 2026-11-10.** Source changes are not equivalent to a passing CI build or device acceptance.
 
 | Capability | Status | Evidence / limitation |
 |---|---|---|
-| Android TV + phone single app | Initial scaffold | Manifest has launcher and Leanback entries; real-device validation pending |
-| M3U import | Initial implementation | Bounded streaming parser; source download from URL; JVM smoke test passed |
-| XMLTV import | Initial implementation | Secure SAX parser and JVM smoke test; large-feed integration unverified |
-| Search channel by name | Initial implementation | UI code; no device test |
-| Optional hide channels with no EPG schedule | Initial implementation | Indexed guide schedule filter; JVM regression test, no device test |
-| Click/OK channel playback | Initial implementation | Media3 UI; not device tested |
-| Stream Doctor | Planned | Error code reporting only in alpha |
-| Guide Doctor | Planned | Foundation available; no repair UI yet |
-| 2–4 tile Multiview, selectable audio | Planned | Capacity and selection validation functions present; no player UI yet |
-| Classic Cable full timeline | Planned | Current alpha uses channel list; timeline not built |
-| Favorites, profiles, local database | Planned | Not implemented |
-| Built-in channel catalog | Deferred | Requires content redistribution rights audit |
-| FastChannels on-device server | Deferred | Explicitly outside current implementation |
-| Android debug APK build | PASS (CI) | GitHub Actions run 42737228695 built and uploaded APK on 2026-11-10; next changes require new CI |
-| Installation, real-device acceptance | NOT RUN | No physical Android TV or phone validation yet |
+| Android TV + phone single app | Implemented, UNVERIFIED on devices | Launcher and Leanback entries, placeholder icon/banner |
+| M3U import | Implemented, CI pending latest | Bounded reader, truncation warnings, source-scoped IDs; new regressions |
+| XMLTV import | Implemented, CI pending latest | XXE protection, bounded data, missing-timezone warning, truncation warnings |
+| EPG lookup/search responsiveness | Implemented, CI pending latest | Per-channel sorted binary search; precomputed current-program map; virtualized rows; debounce |
+| Hide channels without EPG | Implemented, CI pending latest | Checks for any schedule, including future programmes |
+| Playlist/guide URL confidentiality | Implemented, device UNVERIFIED | Android Keystore AES-GCM; migrates legacy plaintext preferences |
+| HTTP source downloader | Implemented, CI pending latest | HTTPS downgrade blocked, gzip sniffing, decompressed size limit; unit regressions |
+| Media3 playback | Implemented, device UNVERIFIED | HLS/DASH/native media player; real streams untested |
+| Stream Doctor | Planned | Basic error codes only |
+| Guide Doctor | Planned | No mapping repair UI |
+| Multiview selectable audio | NOT IMPLEMENTED | Only capacity policy and input validation; no tile/audio player |
+| Classic Cable full timeline | NOT IMPLEMENTED | Alpha uses virtualized channel list |
+| Favorites, profiles, database | NOT IMPLEMENTED | Planned |
+| Android icon and TV banner | Implemented placeholders, device UNVERIFIED | XML vector resources, final branding pending |
+| Gradle wrapper | NOT IMPLEMENTED | CI pins Gradle 8.9; local builds still require installed Gradle |
+| FastChannels on-device server | DEFERRED | Explicitly out of current scope |
+| Android APK | PASS for prior baseline | [Run 42737399473](https://github.com/DevTunaSoft/TunerOS/actions/runs/42737399473); latest changes pending verification |
+| Real-device installation and playback | NOT RUN | Requires Android TV and mobile acceptance |

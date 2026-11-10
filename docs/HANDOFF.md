@@ -45,3 +45,28 @@ This is a new native Android app, not a verified import of the unknown browser V
 5. Introduce playback failure diagnostics, recovery, stream format detection, and two-view selectable-audio controller.
 6. Run property/fuzz tests, malformed M3U and XMLTV tests, fault injection, and app lifecycle tests.
 7. Keep docs and acceptance evidence updated with every change.
+
+
+## 2026-11-10 targeted stabilization after source audit
+
+User-supplied review identified 11 findings. Rechecked the repository and implemented:
+- Sorted per-channel EPG index with binary search and overlap-aware prefix max-end.
+- Worker-computed current-program map with periodic refresh; virtualized Android ListView and debounced channel search.
+- Timezone-less XMLTV timestamps now assumed UTC with a visible warning (provider-specific fallback zone can be supplied in code; UI setting still pending).
+- XMLTV/playlist record caps now return partial imports and warnings rather than discarding the whole feed.
+- Bounded M3U line reader (limit checked before allocating an unbounded line).
+- Source URL encryption using Android Keystore AES-GCM; migration removes legacy plaintext preference keys. Hardware validation pending.
+- HTTP downloader extracted into JVM core with HTTPS downgrade rejection, gzip magic sniffing, and decompressed size limit.
+- Stream ID hash now includes source ID, guide ID, and URL, avoiding collisions when tvg-id repeats with different streams.
+- Placeholder launcher icon and Android TV banner.
+- Reproducible unit/randomized regression checks; CI concurrency cancels superseded same-branch builds.
+
+**Outstanding:** Multiview playback and audio selection are not implemented. Gradle wrapper binary is absent; CI installs Gradle 8.9. Android device acceptance, UI performance benchmarks, and real-network fault injection have not run.
+
+**Testing integrity:** `scripts/FuzzSmoke.kt` is a *seeded randomized smoke script*, not a coverage-guided fuzzer. Its 250 XXE iterations used one payload template with changing IDs. New JUnit regression tests cover download redirects, gzip detection, byte caps, timezone fallback, cap warnings, duplicate guide IDs, overlapping schedules and bounded lines. `RandomizedRegressionTest.kt` adds seeded property checks, but does not replace real fuzzing.
+
+**CI baseline before stabilization:** [run 42737399473](https://github.com/DevTunaSoft/TunerOS/actions/runs/42737399473) PASS. Intermediate stabilization runs failed on an outdated cap test and a UTC warning label; root causes were corrected. Check the latest Actions run for the definitive status of these changes.
+
+**Recovery:** From the repository root run `gradle --no-daemon :core:test :app:assembleDebug` using JDK 17, Gradle 8.9 and Android SDK 35. The debug APK is under `app/build/outputs/apk/debug/` on success. GitHub Actions uploads the APK only after success. Do not post private source URLs or credentials in public issues.
+
+**Next:** Confirm CI green; investigate failures without duplicate retries. Then add instrumentation/performance acceptance, secure-source migration device tests, and the full TV guide. Keep FastChannels serving deferred.

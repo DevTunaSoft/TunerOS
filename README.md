@@ -6,7 +6,7 @@ TunerOS aims to provide a classic-cable electronic program guide, reliable Media
 
 ## Status
 
-**Early alpha / under construction.** Code and documentation are being brought into this repository. A debug APK was built in GitHub Actions on 2026-11-10 ([successful run](https://github.com/DevTunaSoft/TunerOS/actions/runs/42737228695)); device acceptance and production readiness are not claimed. See `docs/FEATURE_STATUS.md`, `docs/ROADMAP.md`, and `docs/HANDOFF.md` for precise status and engineering constraints.
+**Early alpha / under construction.** Code and documentation are being brought into this repository. A debug APK was built in GitHub Actions on 2026-11-10 ([verified baseline](https://github.com/DevTunaSoft/TunerOS/actions/runs/42737399473)). Security/performance stabilization changes are being validated in CI. No physical-device acceptance or production readiness is claimed. See `docs/FEATURE_STATUS.md`, `docs/ROADMAP.md`, `docs/AUDIT_FINDINGS_2026-11-10.md`, and `docs/HANDOFF.md` for precise status and engineering constraints.
 
 ## Build prerequisites
 
