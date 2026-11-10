@@ -42,6 +42,10 @@ internal class ProgramTimelineView(
         color = Color.WHITE
         textSize = 14f * resources.displayMetrics.scaledDensity
     }
+    private val nowPaint = Paint().apply {
+        color = Color.rgb(255, 116, 64)
+        strokeWidth = 2f * density
+    }
     private val textBaselineOffset = run {
         val metrics = textPaint.fontMetrics
         -(metrics.ascent + metrics.descent) / 2f
@@ -51,6 +55,7 @@ internal class ProgramTimelineView(
     private var entries: List<TimelineEntry> = emptyList()
     private var fromEpochSeconds: Long = 0
     private var toEpochSeconds: Long = 1
+    private var nowEpochSeconds: Long = 0
     private var selectedIndex: Int = -1
 
     init {
@@ -65,6 +70,7 @@ internal class ProgramTimelineView(
         entries: List<TimelineEntry>,
         fromEpochSeconds: Long,
         toEpochSeconds: Long,
+        nowEpochSeconds: Long,
         preferredProgramStart: Long?,
     ) {
         require(toEpochSeconds > fromEpochSeconds)
@@ -72,6 +78,7 @@ internal class ProgramTimelineView(
         this.entries = entries
         this.fromEpochSeconds = fromEpochSeconds
         this.toEpochSeconds = toEpochSeconds
+        this.nowEpochSeconds = nowEpochSeconds
         selectedIndex = TimelineFocusPolicy.preferredIndex(entries, preferredProgramStart)
 
         val selectable = selectedIndex >= 0
@@ -120,6 +127,11 @@ internal class ProgramTimelineView(
                 textPaint,
             )
             canvas.restoreToCount(save)
+        }
+
+        if (nowEpochSeconds in fromEpochSeconds until toEpochSeconds) {
+            val nowX = (((nowEpochSeconds - fromEpochSeconds) / duration) * contentWidth).toFloat()
+            canvas.drawLine(nowX, 0f, nowX, contentHeight, nowPaint)
         }
     }
 
