@@ -259,4 +259,31 @@ https://example.com/live.m3u8
         assertFailsWith<IllegalArgumentException> { guide.programsBetween("c", 100, 100) }
     }
 
+    @Test fun recordingRequestUsesPaddingWithoutMediaState() {
+        val channel = Channel("ch", "News", "https://example.org/live.ts")
+        val program = GuideProgram("guide", "Evening News", 1_000, 2_000)
+        val request = RecordingPolicy.fromProgram(channel, program, "rec-1", 60, 120)
+        assertEquals(940L, request.captureStartEpochSeconds)
+        assertEquals(2_120L, request.captureEndEpochSeconds)
+        assertEquals("https://example.org/live.ts", request.streamUrl)
+    }
+
+    @Test fun recordingConflictUsesPaddedCaptureWindow() {
+        val first = RecordingRequest("a", "c1", "A", "https://example.org/a", 1_000, 2_000, endPaddingSeconds = 60)
+        val overlapsPadding = RecordingRequest("b", "c2", "B", "https://example.org/b", 2_030, 3_000)
+        val afterPadding = RecordingRequest("c", "c3", "C", "https://example.org/c", 2_060, 3_000)
+        assertTrue(RecordingPolicy.conflicts(first, overlapsPadding))
+        assertEquals(false, RecordingPolicy.conflicts(first, afterPadding))
+        assertFailsWith<IllegalArgumentException> {
+            RecordingRequest("bad", "c", "Bad", "file:///tmp/a", 1, 2)
+        }
+    }
+
+    @Test fun recordingProgressRejectsNegativeByteCounts() {
+        assertFailsWith<IllegalArgumentException> {
+            RecordingProgress("rec", RecordingState.RECORDING, bytesWritten = -1)
+        }
+        assertEquals(64 * 1024, RecordingPolicy.COPY_BUFFER_BYTES)
+    }
+
 }
