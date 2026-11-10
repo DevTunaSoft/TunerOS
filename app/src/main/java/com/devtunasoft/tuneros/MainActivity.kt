@@ -409,7 +409,7 @@ class MainActivity : Activity() {
                     val suffix = if (mode == RecordingScheduler.Mode.EXACT) {
                         "scheduled"
                     } else {
-                        "scheduled; exact-alarm access is off, so start may be delayed"
+                        "saved; enable Exact DVR timing before it can be armed"
                     }
                     showStatus(program.title + " · " + suffix)
                 }.onFailure {
