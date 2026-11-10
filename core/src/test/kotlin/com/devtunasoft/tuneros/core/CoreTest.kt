@@ -394,4 +394,14 @@ https://example.com/live.m3u8
         }
     }
 
+    @Test fun denseTimelineIsNotTruncatedToLegacyEightCells() {
+        val programs = (0 until 24).map { index ->
+            val start = index * 450L
+            GuideProgram("dense", "P$index", start, start + 450L)
+        }
+        val row = TimelineLayout.row(programs, 0, 24 * 450L)
+        assertEquals(24, row.size)
+        assertEquals((0 until 24).map { "P$it" }, row.mapNotNull { it.program?.title })
+    }
+
 }
