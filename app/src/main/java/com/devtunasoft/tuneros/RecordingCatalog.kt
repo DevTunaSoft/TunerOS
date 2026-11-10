@@ -13,7 +13,7 @@ internal data class RecordingCatalogEntry(
     val startedEpochSeconds: Long?,
     val stoppedEpochSeconds: Long?,
     val bytesWritten: Long,
-    val filePath: String?,
+    val storageLocation: String?,
     val failureReason: String?,
     val isProtected: Boolean,
 )
@@ -110,8 +110,8 @@ internal class RecordingCatalog(context: Context) :
         writableDatabase.update("recordings", values, "id=?", arrayOf(id))
     }
 
-    fun setFilePath(id: String, filePath: String) {
-        val values = ContentValues().apply { put("file_path", filePath) }
+    fun setStorageLocation(id: String, storageLocation: String) {
+        val values = ContentValues().apply { put("file_path", storageLocation) }
         writableDatabase.update("recordings", values, "id=?", arrayOf(id))
     }
 
@@ -137,14 +137,14 @@ internal class RecordingCatalog(context: Context) :
         state: String,
         stoppedEpochSeconds: Long,
         bytesWritten: Long,
-        filePath: String?,
+        storageLocation: String?,
         failureReason: String?,
     ) {
         val values = ContentValues().apply {
             put("state", state)
             put("stopped_epoch", stoppedEpochSeconds)
             put("bytes_written", bytesWritten)
-            if (filePath == null) putNull("file_path") else put("file_path", filePath)
+            if (storageLocation == null) putNull("file_path") else put("file_path", storageLocation)
             if (failureReason == null) putNull("failure_reason") else put("failure_reason", failureReason)
         }
         writableDatabase.update("recordings", values, "id=?", arrayOf(id))
@@ -182,7 +182,7 @@ internal class RecordingCatalog(context: Context) :
                     startedEpochSeconds = if (cursor.isNull(startedCol)) null else cursor.getLong(startedCol),
                     stoppedEpochSeconds = if (cursor.isNull(stoppedCol)) null else cursor.getLong(stoppedCol),
                     bytesWritten = cursor.getLong(bytesCol),
-                    filePath = if (cursor.isNull(pathCol)) null else cursor.getString(pathCol),
+                    storageLocation = if (cursor.isNull(pathCol)) null else cursor.getString(pathCol),
                     failureReason = if (cursor.isNull(failureCol)) null else cursor.getString(failureCol),
                     isProtected = cursor.getInt(protectedCol) != 0,
                 )
