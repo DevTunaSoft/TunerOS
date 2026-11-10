@@ -115,4 +115,18 @@ two.ts
         }
     }
 
+    @Test fun masterTracksExternalAudioAndVideoRenditions() {
+        val text = """#EXTM3U
+#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="aud",NAME="English",URI="audio/en.m3u8"
+#EXT-X-MEDIA:TYPE=VIDEO,GROUP-ID="cam",NAME="Main",URI="video/main.m3u8"
+#EXT-X-STREAM-INF:BANDWIDTH=2000000,AUDIO="aud",VIDEO="cam"
+mux/index.m3u8
+"""
+        val playlist = HlsPlaylistParserCore.parse(text.reader()) as HlsMasterPlaylist
+        assertEquals(setOf("aud"), playlist.externalAudioGroups)
+        assertEquals(setOf("cam"), playlist.externalVideoGroups)
+        assertEquals("aud", playlist.variants.single().audioGroup)
+        assertEquals("cam", playlist.variants.single().videoGroup)
+    }
+
 }
