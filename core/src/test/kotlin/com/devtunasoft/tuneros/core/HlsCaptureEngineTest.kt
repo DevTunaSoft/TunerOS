@@ -14,6 +14,7 @@ class HlsCaptureEngineTest {
     ) : HlsCaptureSource {
         private val queues = playlists.mapValues { ArrayDeque(it.value) }
         val loadedUrls = ArrayList<String>()
+        val requestedAfter = ArrayList<Long?>()
         val copied = ArrayList<Pair<String, HlsByteRange?>>()
 
         override fun loadPlaylist(
@@ -21,6 +22,7 @@ class HlsCaptureEngineTest {
             afterSequenceExclusive: Long?,
         ): LoadedHlsPlaylist {
             loadedUrls += url
+            requestedAfter += afterSequenceExclusive
             val queue = queues[url] ?: error("No fake playlist for $url")
             return if (queue.size > 1) queue.removeFirst() else queue.first()
         }
@@ -104,6 +106,7 @@ class HlsCaptureEngineTest {
         assertEquals("BC", output.toString())
         assertTrue(source.loadedUrls.contains(highUrl))
         assertTrue(source.loadedUrls.none { it.contains("/low/") })
+        assertEquals(listOf(null, null, 11L), source.requestedAfter)
     }
 
     @Test fun encryptedPlaylistFailsBeforeWritingMedia() {
