@@ -345,7 +345,9 @@ class MainActivity : Activity() {
             scheduleProgram(channel, program)
             return
         }
-        val recordingId = channel.id.take(40).replace(Regex("[^A-Za-z0-9._-]"), "_") + "-" + now
+        val recordingId = channel.id.take(40)
+            .replace(Regex("[^A-Za-z0-9._-]"), "_") +
+            "-" + now + "-" + java.lang.Long.toUnsignedString(System.nanoTime(), 36)
         val intent = Intent(this, DvrRecordingService::class.java).apply {
             action = DvrRecordingService.ACTION_START
             putExtra(DvrRecordingService.EXTRA_ID, recordingId)
