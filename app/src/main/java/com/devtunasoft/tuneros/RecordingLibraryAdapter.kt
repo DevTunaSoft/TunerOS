@@ -47,7 +47,7 @@ internal class RecordingLibraryAdapter(
             timeFormat.format(Instant.ofEpochSecond(it).atZone(ZoneId.systemDefault()))
         } ?: "Unknown time"
         val sizeMiB = entry.bytesWritten / (1024.0 * 1024.0)
-        val playable = entry.state == "COMPLETED" && entry.filePath != null
+        val playable = entry.state == "COMPLETED" && entry.storageLocation != null
         view.text = buildString {
             append(entry.title)
             append("  ·  ")
