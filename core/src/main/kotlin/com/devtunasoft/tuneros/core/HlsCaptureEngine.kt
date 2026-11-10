@@ -34,6 +34,7 @@ class HlsCaptureEngine(
         DEADLINE,
         LOW_STORAGE,
         STALLED,
+        GAP,
         UNSUPPORTED,
     }
 
@@ -78,13 +79,19 @@ class HlsCaptureEngine(
                             "Nested HLS master playlist",
                         )
                     }
-                    val variant = playlist.variants.maxWithOrNull(
+                    val supportedVariants = playlist.variants.filter { variant ->
+                        (variant.audioGroup == null ||
+                            variant.audioGroup !in playlist.externalAudioGroups) &&
+                            (variant.videoGroup == null ||
+                                variant.videoGroup !in playlist.externalVideoGroups)
+                    }
+                    val variant = supportedVariants.maxWithOrNull(
                         compareBy<HlsVariant> { it.bandwidth ?: 0L }.thenBy { it.uri },
                     ) ?: return Result(
                         totalBytes,
                         lastSequence,
                         StopReason.UNSUPPORTED,
-                        "HLS master has no variants",
+                        "HLS master requires separate audio/video rendition capture",
                     )
                     playlistUrl = resolveHttp(loaded.effectiveUrl, variant.uri)
                     selectedVariant = true
@@ -102,6 +109,18 @@ class HlsCaptureEngine(
                             StopReason.UNSUPPORTED,
                             "HLS media sequence reset",
                         )
+                    }
+                    if (lastSequence != null) {
+                        val expected = if (lastSequence == Long.MAX_VALUE) Long.MAX_VALUE else lastSequence + 1
+                        val firstAvailable = available.firstOrNull()?.sequence
+                        if (firstAvailable != null && firstAvailable > expected) {
+                            return Result(
+                                totalBytes,
+                                lastSequence,
+                                StopReason.GAP,
+                                "HLS segment gap: expected $expected but first available is $firstAvailable",
+                            )
+                        }
                     }
 
                     val candidates = when {
