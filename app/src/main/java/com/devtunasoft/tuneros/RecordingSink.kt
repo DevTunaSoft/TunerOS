@@ -132,9 +132,23 @@ private class SafRecordingSink(
         val renamed = runCatching {
             DocumentsContract.renameDocument(resolver, documentUri, finalDisplayName)
         }.getOrNull()
-        if (renamed != null) documentUri = renamed
-        return documentUri.toString()
+        if (renamed != null) {
+            documentUri = renamed
+            return documentUri.toString()
+        }
+        return documentUri.toString().takeIf { documentStillExists() }
     }
+
+    private fun documentStillExists(): Boolean =
+        runCatching {
+            resolver.query(
+                documentUri,
+                arrayOf(DocumentsContract.Document.COLUMN_DOCUMENT_ID),
+                null,
+                null,
+                null,
+            )?.use { it.moveToFirst() } == true
+        }.getOrDefault(false)
 
     override fun delete(): Boolean = runCatching {
         DocumentsContract.deleteDocument(resolver, documentUri)
