@@ -352,6 +352,8 @@ class MainActivity : Activity() {
             putExtra(DvrRecordingService.EXTRA_TITLE, program.title)
             putExtra(DvrRecordingService.EXTRA_CHANNEL_ID, channel.id)
             putExtra(DvrRecordingService.EXTRA_URL, channel.streamUrl)
+            channel.userAgent?.let { putExtra(DvrRecordingService.EXTRA_USER_AGENT, it) }
+            channel.referer?.let { putExtra(DvrRecordingService.EXTRA_REFERER, it) }
             putExtra(DvrRecordingService.EXTRA_END_EPOCH_SECONDS, program.endEpochSeconds)
         }
         startForegroundService(intent)
@@ -375,7 +377,12 @@ class MainActivity : Activity() {
                 }
                 return@execute
             }
-            if (!secureSources.save(sourceKey, channel.streamUrl)) {
+            if (!ScheduledRecordingSecrets.save(
+                    secureSources,
+                    sourceKey,
+                    ScheduledRecordingSource(channel.streamUrl, channel.userAgent, channel.referer),
+                )
+            ) {
                 runOnUiThread {
                     if (!isFinishing && !isDestroyed) {
                         showStatus("Could not securely save the recording source")
@@ -402,7 +409,7 @@ class MainActivity : Activity() {
                 RecordingScheduleStore(this).use {
                     it.markFailed(id, result.exceptionOrNull()?.javaClass?.simpleName ?: "Schedule failure")
                 }
-                secureSources.delete(sourceKey)
+                ScheduledRecordingSecrets.delete(secureSources, sourceKey)
             }
             runOnUiThread {
                 if (isFinishing || isDestroyed) return@runOnUiThread
@@ -442,7 +449,7 @@ class MainActivity : Activity() {
             }
             RecordingScheduler.cancel(this, id)
             RecordingScheduleStore(this).use { it.delete(id) }
-            secureSources.delete(sourceKey)
+            ScheduledRecordingSecrets.delete(secureSources, sourceKey)
             runOnUiThread {
                 if (!isFinishing && !isDestroyed) showStatus("Scheduled recording cancelled: " + program.title)
             }
