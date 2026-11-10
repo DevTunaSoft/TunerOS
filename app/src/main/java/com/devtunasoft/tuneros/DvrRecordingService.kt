@@ -6,7 +6,6 @@ import android.app.Service
 import android.content.Intent
 import android.os.Build
 import android.os.IBinder
-import androidx.core.app.NotificationCompat
 import com.devtunasoft.tuneros.core.RecordingPolicy
 import com.devtunasoft.tuneros.core.StreamRecorder
 import java.io.File
@@ -66,7 +65,7 @@ class DvrRecordingService : Service() {
         cancelled.set(false)
         startForeground(
             NOTIFICATION_ID,
-            NotificationCompat.Builder(this, CHANNEL_ID)
+            android.app.Notification.Builder(this, CHANNEL_ID)
                 .setSmallIcon(com.devtunasoft.tuneros.R.drawable.tuneros_icon)
                 .setContentTitle("Recording")
                 .setContentText(title)
