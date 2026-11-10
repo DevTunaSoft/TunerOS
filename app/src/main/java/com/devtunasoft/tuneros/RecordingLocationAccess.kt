@@ -108,8 +108,8 @@ internal object RecordingLocationAccess {
         }
     }
 
-    private fun contentDocumentState(context: Context, uri: Uri): ContentState =
-        try {
+    private fun contentDocumentState(context: Context, uri: Uri): ContentState {
+        return try {
             val exists = context.contentResolver.query(
                 uri,
                 arrayOf(DocumentsContract.Document.COLUMN_DOCUMENT_ID),
@@ -121,4 +121,5 @@ internal object RecordingLocationAccess {
         } catch (_: Exception) {
             ContentState.UNAVAILABLE
         }
+    }
 }
