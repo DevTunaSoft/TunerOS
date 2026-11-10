@@ -29,6 +29,8 @@ class DvrRecordingService : Service() {
         const val EXTRA_TITLE = "recording_title"
         const val EXTRA_CHANNEL_ID = "recording_channel_id"
         const val EXTRA_URL = "recording_url"
+        const val EXTRA_USER_AGENT = "recording_user_agent"
+        const val EXTRA_REFERER = "recording_referer"
         const val EXTRA_END_EPOCH_SECONDS = "recording_end_epoch_seconds"
         private const val CHANNEL_ID = "tuneros_recording"
         private const val NOTIFICATION_ID = 4001
@@ -63,6 +65,8 @@ class DvrRecordingService : Service() {
         val title = intent.getStringExtra(EXTRA_TITLE)?.takeIf { it.isNotBlank() } ?: "Recording"
         val channelId = intent.getStringExtra(EXTRA_CHANNEL_ID)?.takeIf { it.isNotBlank() } ?: "unknown"
         val url = intent.getStringExtra(EXTRA_URL)?.takeIf(::isRawRecordableUrl) ?: return
+        val userAgent = intent.getStringExtra(EXTRA_USER_AGENT)?.takeIf { it.isNotBlank() }?.take(512)
+        val referer = intent.getStringExtra(EXTRA_REFERER)?.takeIf(::isHttpUrl)?.take(2048)
         if (!active.compareAndSet(false, true)) {
             catalog.upsertStart(id, title, channelId, System.currentTimeMillis() / 1000)
             catalog.finish(
@@ -90,7 +94,7 @@ class DvrRecordingService : Service() {
         )
         worker.execute {
             try {
-                capture(id, url, endEpochSeconds)
+                capture(id, url, endEpochSeconds, userAgent, referer)
             } finally {
                 active.set(false)
                 stopForeground(STOP_FOREGROUND_REMOVE)
@@ -99,7 +103,13 @@ class DvrRecordingService : Service() {
         }
     }
 
-    private fun capture(id: String, streamUrl: String, endEpochSeconds: Long) {
+    private fun capture(
+        id: String,
+        streamUrl: String,
+        endEpochSeconds: Long,
+        userAgent: String?,
+        referer: String?,
+    ) {
         val directory = (getExternalFilesDir("recordings") ?: File(filesDir, "recordings")).apply { mkdirs() }
         if (!directory.isDirectory) {
             catalog.finish(
@@ -120,7 +130,7 @@ class DvrRecordingService : Service() {
         var bytesWritten = 0L
         var lastCatalogBytes = 0L
         try {
-            connection = openStream(streamUrl)
+            connection = openStream(streamUrl, userAgent, referer)
             connection.inputStream.use { rawInput ->
                 val input = PushbackInputStream(rawInput, 512)
                 val manifestType = detectUnsupportedManifest(connection, input)
@@ -190,14 +200,19 @@ class DvrRecordingService : Service() {
         }
     }
 
-    private fun openStream(value: String): HttpURLConnection {
+    private fun openStream(
+        value: String,
+        userAgent: String?,
+        referer: String?,
+    ): HttpURLConnection {
         var current = URL(value)
         repeat(6) {
             val connection = current.openConnection() as HttpURLConnection
             connection.instanceFollowRedirects = false
             connection.connectTimeout = 12_000
             connection.readTimeout = 30_000
-            connection.setRequestProperty("User-Agent", "TunerOS/0.1")
+            connection.setRequestProperty("User-Agent", userAgent ?: "TunerOS/0.1")
+            referer?.let { connection.setRequestProperty("Referer", it) }
             val code = connection.responseCode
             if (code !in 300..399) return connection
             val location = connection.getHeaderField("Location") ?: error("Redirect without Location")
@@ -246,6 +261,11 @@ class DvrRecordingService : Service() {
             )
         }
     }
+
+    private fun isHttpUrl(value: String): Boolean = runCatching {
+        val url = URL(value)
+        (url.protocol == "http" || url.protocol == "https") && !url.host.isNullOrBlank()
+    }.getOrDefault(false)
 
     private fun isRawRecordableUrl(value: String): Boolean = runCatching {
         val url = URL(value)
