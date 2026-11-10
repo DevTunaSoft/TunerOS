@@ -88,6 +88,7 @@ object HlsPlaylistParserCore {
         var lastRangeUri: String? = null
         var lastRangeEnd: Long? = null
         var sawHeader = false
+        var sawMasterTag = false
         var sawMediaTag = false
         var sawSegmentUri = false
         var latestSequence: Long? = null
@@ -114,14 +115,16 @@ object HlsPlaylistParserCore {
 
             when {
                 line.startsWith("#EXT-X-STREAM-INF:", ignoreCase = true) -> {
-                    require(segments.isEmpty()) { "Mixed HLS master and media playlist" }
+                    require(!sawMediaTag && !sawSegmentUri) { "Mixed HLS master and media playlist" }
+                    sawMasterTag = true
                     expectingVariantUri = true
                     pendingVariantBandwidth = attribute(line, "BANDWIDTH")?.toLongOrNull()
                     pendingVariantAudioGroup = attribute(line, "AUDIO")
                     pendingVariantVideoGroup = attribute(line, "VIDEO")
                 }
                 line.startsWith("#EXT-X-MEDIA:", ignoreCase = true) -> {
-                    require(segments.isEmpty()) { "Mixed HLS master and media playlist" }
+                    require(!sawMediaTag && !sawSegmentUri) { "Mixed HLS master and media playlist" }
+                    sawMasterTag = true
                     val type = attribute(line, "TYPE")?.uppercase()
                     val group = attribute(line, "GROUP-ID")
                     val uri = attribute(line, "URI")
@@ -136,6 +139,7 @@ object HlsPlaylistParserCore {
                     }
                 }
                 line.startsWith("#EXT-X-MEDIA-SEQUENCE:", ignoreCase = true) -> {
+                    require(!sawMasterTag) { "Mixed HLS master and media playlist" }
                     require(variants.isEmpty()) { "Mixed HLS master and media playlist" }
                     mediaSequence = line.substringAfter(':').trim().toLong()
                     nextSequence = mediaSequence
@@ -143,32 +147,39 @@ object HlsPlaylistParserCore {
                     sawMediaTag = true
                 }
                 line.startsWith("#EXT-X-TARGETDURATION:", ignoreCase = true) -> {
+                    require(!sawMasterTag) { "Mixed HLS master and media playlist" }
                     targetDuration = line.substringAfter(':').trim().toLong()
                     sawMediaTag = true
                 }
                 line.startsWith("#EXTINF:", ignoreCase = true) -> {
+                    require(!sawMasterTag) { "Mixed HLS master and media playlist" }
                     pendingDuration = line.substringAfter(':').substringBefore(',').trim().toDouble()
                     sawMediaTag = true
                 }
                 line.startsWith("#EXT-X-BYTERANGE:", ignoreCase = true) -> {
+                    require(!sawMasterTag) { "Mixed HLS master and media playlist" }
                     pendingRange = parseRange(line.substringAfter(':').trim())
                     sawMediaTag = true
                 }
                 line.equals("#EXT-X-DISCONTINUITY", ignoreCase = true) -> {
+                    require(!sawMasterTag) { "Mixed HLS master and media playlist" }
                     pendingDiscontinuity = true
                     sawMediaTag = true
                 }
                 line.startsWith("#EXT-X-KEY:", ignoreCase = true) -> {
+                    require(!sawMasterTag) { "Mixed HLS master and media playlist" }
                     currentKeyMethod = attribute(line, "METHOD")?.uppercase() ?: "NONE"
                     currentKeyUri = if (currentKeyMethod == "NONE") null else attribute(line, "URI")
                     sawMediaTag = true
                 }
                 line.startsWith("#EXT-X-MAP:", ignoreCase = true) -> {
+                    require(!sawMasterTag) { "Mixed HLS master and media playlist" }
                     currentMapUri = attribute(line, "URI")
                         ?: throw IllegalArgumentException("EXT-X-MAP missing URI")
                     sawMediaTag = true
                 }
                 line.equals("#EXT-X-ENDLIST", ignoreCase = true) -> {
+                    require(!sawMasterTag) { "Mixed HLS master and media playlist" }
                     endList = true
                     sawMediaTag = true
                 }
@@ -189,7 +200,9 @@ object HlsPlaylistParserCore {
                     expectingVariantUri = false
                 }
                 else -> {
-                    require(variants.isEmpty()) { "Mixed HLS master and media playlist" }
+                    require(!sawMasterTag && variants.isEmpty()) {
+                        "Mixed HLS master and media playlist"
+                    }
                     if (!mediaSequenceSeen && !sawSegmentUri) nextSequence = 0L
 
                     val range = pendingRange?.let { pending ->
