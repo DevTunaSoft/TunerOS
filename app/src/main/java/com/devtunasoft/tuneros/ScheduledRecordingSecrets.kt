@@ -16,11 +16,23 @@ internal object ScheduledRecordingSecrets {
         source: ScheduledRecordingSource,
     ): Boolean {
         if (!store.save(key, source.url)) return false
-        if (source.userAgent != null && !store.save(key + USER_AGENT_SUFFIX, source.userAgent)) {
+
+        val userAgentSaved = if (source.userAgent == null) {
+            store.delete(key + USER_AGENT_SUFFIX)
+        } else {
+            store.save(key + USER_AGENT_SUFFIX, source.userAgent)
+        }
+        if (!userAgentSaved) {
             delete(store, key)
             return false
         }
-        if (source.referer != null && !store.save(key + REFERER_SUFFIX, source.referer)) {
+
+        val refererSaved = if (source.referer == null) {
+            store.delete(key + REFERER_SUFFIX)
+        } else {
+            store.save(key + REFERER_SUFFIX, source.referer)
+        }
+        if (!refererSaved) {
             delete(store, key)
             return false
         }
