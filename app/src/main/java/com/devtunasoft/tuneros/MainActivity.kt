@@ -39,7 +39,6 @@ import com.devtunasoft.tuneros.core.GuideProgram
 import com.devtunasoft.tuneros.core.SourceDownloader
 import com.devtunasoft.tuneros.core.PlaylistParser
 import com.devtunasoft.tuneros.core.RecordingPolicy
-import java.io.File
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -586,26 +585,26 @@ class MainActivity : Activity() {
         }
 
         if (playingRecordingId == entry.id) releasePlayer()
-        val file = allowedRecordingFile(entry.filePath)
-        if (entry.filePath != null && file == null && File(entry.filePath).exists()) {
-            showStatus("Refusing to delete a recording path outside TunerOS storage")
-            return
-        }
-
         worker.execute {
-            val fileDeleted = file == null || !file.exists() || file.delete()
-            val rowDeleted = if (fileDeleted) {
+            val result = RecordingLocationAccess.delete(this, entry.storageLocation)
+            val mediaRemoved = result == RecordingLocationAccess.DeleteResult.DELETED ||
+                result == RecordingLocationAccess.DeleteResult.MISSING
+            val rowDeleted = if (mediaRemoved) {
                 RecordingCatalog(this).use { it.delete(entry.id) == 1 }
             } else {
                 false
             }
             runOnUiThread {
                 if (isFinishing || isDestroyed) return@runOnUiThread
-                if (fileDeleted && rowDeleted) {
-                    focusedRecording = null
-                    refreshRecordingLibrary("Deleted recording: " + entry.title)
-                } else {
-                    showStatus("Could not delete recording: " + entry.title)
+                when {
+                    mediaRemoved && rowDeleted -> {
+                        focusedRecording = null
+                        refreshRecordingLibrary("Deleted recording: " + entry.title)
+                    }
+                    result == RecordingLocationAccess.DeleteResult.INVALID ->
+                        showStatus("Refusing to delete a recording outside approved TunerOS storage")
+                    else ->
+                        showStatus("Could not delete recording: " + entry.title)
                 }
             }
         }
@@ -616,11 +615,21 @@ class MainActivity : Activity() {
             showStatus("Only completed recordings can be played")
             return
         }
-        val file = allowedRecordingFile(entry.filePath)
-        if (file == null) {
-            showStatus("Recording file is missing or outside TunerOS storage")
-            return
+        showStatus("Opening recording: " + entry.title)
+        worker.execute {
+            val uri = RecordingLocationAccess.playableUri(this, entry.storageLocation)
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                if (uri == null) {
+                    showStatus("Recording is missing or access to its storage was lost")
+                    return@runOnUiThread
+                }
+                startRecordingPlayback(entry, uri)
+            }
         }
+    }
+
+    private fun startRecordingPlayback(entry: RecordingCatalogEntry, uri: Uri) {
         releasePlayer()
         val newPlayer = ExoPlayer.Builder(applicationContext).build().apply {
             setAudioAttributes(
@@ -649,26 +658,10 @@ class MainActivity : Activity() {
                 }
             }
         })
-        newPlayer.setMediaItem(MediaItem.fromUri(Uri.fromFile(file)))
+        newPlayer.setMediaItem(MediaItem.fromUri(uri))
         newPlayer.prepare()
         newPlayer.playWhenReady = true
-        showStatus("Opening recording: " + entry.title)
     }
-
-    private fun allowedRecordingFile(path: String?): File? {
-        if (path.isNullOrBlank()) return null
-        val candidate = runCatching { File(path).canonicalFile }.getOrNull() ?: return null
-        if (!candidate.isFile) return null
-        val roots = listOfNotNull(
-            getExternalFilesDir("recordings"),
-            File(filesDir, "recordings"),
-        ).mapNotNull { runCatching { it.canonicalFile }.getOrNull() }
-        val allowed = roots.any { root ->
-            candidate.path.startsWith(root.path + File.separator)
-        }
-        return candidate.takeIf { allowed }
-    }
-
 
     private fun chooseRecordingStorage() {
         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).apply {
