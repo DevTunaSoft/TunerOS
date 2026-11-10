@@ -35,6 +35,7 @@ data class HlsMediaPlaylist(
     val targetDurationSeconds: Long?,
     val endList: Boolean,
     val segments: List<HlsSegment>,
+    val latestSequence: Long? = segments.lastOrNull()?.sequence,
 ) : HlsPlaylistSnapshot
 
 /**
@@ -79,6 +80,8 @@ object HlsPlaylistParserCore {
         var lastRangeEnd: Long? = null
         var sawHeader = false
         var sawMediaTag = false
+        var sawSegmentUri = false
+        var latestSequence: Long? = null
 
         while (true) {
             val raw = BoundedLines.read(input, MAX_LINE_LENGTH, "HLS") ?: break
@@ -154,7 +157,7 @@ object HlsPlaylistParserCore {
                 }
                 else -> {
                     require(variants.isEmpty()) { "Mixed HLS master and media playlist" }
-                    if (!mediaSequenceSeen && segments.isEmpty()) nextSequence = 0L
+                    if (!mediaSequenceSeen && !sawSegmentUri) nextSequence = 0L
 
                     val range = pendingRange?.let { pending ->
                         val offset = pending.offset ?: run {
@@ -175,6 +178,8 @@ object HlsPlaylistParserCore {
                     }
 
                     val sequence = nextSequence++
+                    sawSegmentUri = true
+                    latestSequence = sequence
                     if (afterSequenceExclusive == null || sequence > afterSequenceExclusive) {
                         if (segments.size >= MAX_RESULT_SEGMENTS) {
                             throw IllegalArgumentException(
@@ -208,6 +213,7 @@ object HlsPlaylistParserCore {
             targetDurationSeconds = targetDuration,
             endList = endList,
             segments = segments,
+            latestSequence = latestSequence,
         )
     }
 
