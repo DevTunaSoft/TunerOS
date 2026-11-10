@@ -337,8 +337,8 @@ class MainActivity : Activity() {
             return
         }
         val lower = channel.streamUrl.substringBefore('?').lowercase()
-        if (lower.endsWith(".m3u8") || lower.endsWith(".mpd")) {
-            showStatus("HLS/DASH recording is not enabled yet; playback is unaffected")
+        if (lower.endsWith(".mpd")) {
+            showStatus("DASH recording is not enabled yet; playback is unaffected")
             return
         }
         if (now < program.startEpochSeconds) {
