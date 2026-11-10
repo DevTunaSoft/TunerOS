@@ -261,9 +261,21 @@ class DvrRecordingService : Service() {
             )
             output.flush()
             return when (result.stopReason) {
-                HlsCaptureEngine.StopReason.END_LIST,
                 HlsCaptureEngine.StopReason.DEADLINE ->
                     CaptureOutcome("COMPLETED", result.bytesWritten, true)
+
+                HlsCaptureEngine.StopReason.END_LIST -> {
+                    if (nowSeconds() >= endEpochSeconds) {
+                        CaptureOutcome("COMPLETED", result.bytesWritten, true)
+                    } else {
+                        CaptureOutcome(
+                            state = if (result.bytesWritten > 0) "PARTIAL" else "FAILED",
+                            bytesWritten = result.bytesWritten,
+                            finalizeFile = false,
+                            failureReason = "HLS stream ended before scheduled stop",
+                        )
+                    }
+                }
 
                 HlsCaptureEngine.StopReason.CANCELLED ->
                     CaptureOutcome("CANCELLED", result.bytesWritten, false)
@@ -272,6 +284,7 @@ class DvrRecordingService : Service() {
                     CaptureOutcome("PARTIAL", result.bytesWritten, false, "Storage reserve reached")
 
                 HlsCaptureEngine.StopReason.STALLED,
+                HlsCaptureEngine.StopReason.GAP,
                 HlsCaptureEngine.StopReason.UNSUPPORTED -> CaptureOutcome(
                     state = if (result.bytesWritten > 0) "PARTIAL" else "FAILED",
                     bytesWritten = result.bytesWritten,
