@@ -8,10 +8,14 @@ sealed interface HlsPlaylistSnapshot
 data class HlsVariant(
     val uri: String,
     val bandwidth: Long?,
+    val audioGroup: String? = null,
+    val videoGroup: String? = null,
 )
 
 data class HlsMasterPlaylist(
     val variants: List<HlsVariant>,
+    val externalAudioGroups: Set<String> = emptySet(),
+    val externalVideoGroups: Set<String> = emptySet(),
 ) : HlsPlaylistSnapshot
 
 data class HlsByteRange(
@@ -51,6 +55,7 @@ object HlsPlaylistParserCore {
     const val MAX_TOTAL_CHARACTERS = 2_000_000
     const val MAX_RESULT_SEGMENTS = 10_000
     const val MAX_VARIANTS = 256
+    const val MAX_EXTERNAL_RENDITION_GROUPS = 256
 
     private data class PendingRange(val length: Long, val offset: Long?)
 
@@ -60,6 +65,8 @@ object HlsPlaylistParserCore {
     ): HlsPlaylistSnapshot {
         val input = if (reader is BufferedReader) reader else BufferedReader(reader)
         val variants = ArrayList<HlsVariant>()
+        val externalAudioGroups = HashSet<String>()
+        val externalVideoGroups = HashSet<String>()
         val segments = ArrayList<HlsSegment>()
         var totalLines = 0
         var totalCharacters = 0
@@ -75,6 +82,8 @@ object HlsPlaylistParserCore {
         var currentKeyUri: String? = null
         var currentMapUri: String? = null
         var pendingVariantBandwidth: Long? = null
+        var pendingVariantAudioGroup: String? = null
+        var pendingVariantVideoGroup: String? = null
         var expectingVariantUri = false
         var lastRangeUri: String? = null
         var lastRangeEnd: Long? = null
@@ -108,6 +117,23 @@ object HlsPlaylistParserCore {
                     require(segments.isEmpty()) { "Mixed HLS master and media playlist" }
                     expectingVariantUri = true
                     pendingVariantBandwidth = attribute(line, "BANDWIDTH")?.toLongOrNull()
+                    pendingVariantAudioGroup = attribute(line, "AUDIO")
+                    pendingVariantVideoGroup = attribute(line, "VIDEO")
+                }
+                line.startsWith("#EXT-X-MEDIA:", ignoreCase = true) -> {
+                    require(segments.isEmpty()) { "Mixed HLS master and media playlist" }
+                    val type = attribute(line, "TYPE")?.uppercase()
+                    val group = attribute(line, "GROUP-ID")
+                    val uri = attribute(line, "URI")
+                    if (group != null && uri != null && type in setOf("AUDIO", "VIDEO")) {
+                        val target = if (type == "AUDIO") externalAudioGroups else externalVideoGroups
+                        if (target.size >= MAX_EXTERNAL_RENDITION_GROUPS && group !in target) {
+                            throw IllegalArgumentException(
+                                "HLS master exceeds $MAX_EXTERNAL_RENDITION_GROUPS external rendition groups",
+                            )
+                        }
+                        target += group
+                    }
                 }
                 line.startsWith("#EXT-X-MEDIA-SEQUENCE:", ignoreCase = true) -> {
                     require(variants.isEmpty()) { "Mixed HLS master and media playlist" }
@@ -151,8 +177,15 @@ object HlsPlaylistParserCore {
                     if (variants.size >= MAX_VARIANTS) {
                         throw IllegalArgumentException("HLS master exceeds $MAX_VARIANTS variants")
                     }
-                    variants += HlsVariant(line, pendingVariantBandwidth)
+                    variants += HlsVariant(
+                        uri = line,
+                        bandwidth = pendingVariantBandwidth,
+                        audioGroup = pendingVariantAudioGroup,
+                        videoGroup = pendingVariantVideoGroup,
+                    )
                     pendingVariantBandwidth = null
+                    pendingVariantAudioGroup = null
+                    pendingVariantVideoGroup = null
                     expectingVariantUri = false
                 }
                 else -> {
@@ -206,7 +239,13 @@ object HlsPlaylistParserCore {
 
         require(sawHeader) { "Empty HLS playlist" }
         require(!expectingVariantUri) { "HLS variant missing URI" }
-        if (variants.isNotEmpty()) return HlsMasterPlaylist(variants)
+        if (variants.isNotEmpty()) {
+            return HlsMasterPlaylist(
+                variants = variants,
+                externalAudioGroups = externalAudioGroups,
+                externalVideoGroups = externalVideoGroups,
+            )
+        }
         require(sawMediaTag || segments.isNotEmpty()) { "HLS playlist contains no media data" }
         return HlsMediaPlaylist(
             mediaSequence = mediaSequence,
