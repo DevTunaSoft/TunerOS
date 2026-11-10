@@ -70,3 +70,10 @@ User-supplied review identified 11 findings. Rechecked the repository and implem
 **Recovery:** From the repository root run `gradle --no-daemon :core:test :app:assembleDebug` using JDK 17, Gradle 8.9 and Android SDK 35. The debug APK is under `app/build/outputs/apk/debug/` on success. GitHub Actions uploads the APK only after success. Do not post private source URLs or credentials in public issues.
 
 **Next:** Confirm CI green; investigate failures without duplicate retries. Then add instrumentation/performance acceptance, secure-source migration device tests, and the full TV guide. Keep FastChannels serving deferred.
+
+
+## Stabilization CI checkpoint — 2026-11-10
+
+**PASS:** [Actions run 42738309789](https://github.com/DevTunaSoft/TunerOS/actions/runs/42738309789), commit `eb0acc68e192e1589a6ace71153d711248d39bc0`: `:core:test`, `:app:assembleDebug`, and APK artifact upload completed. Includes new core regressions and Android source changes. **NOT RUN:** real-device acceptance, Windows bootstrap, performance benchmarks.
+
+The optional `scripts/build.ps1` helper downloads Gradle 8.9 and validates its SHA-256 checksum from the official Gradle distribution endpoint before running tests/build. It is not a standard Gradle wrapper, and is **UNVERIFIED on Windows**. Gradle's official wrapper JAR remains an open repository task.

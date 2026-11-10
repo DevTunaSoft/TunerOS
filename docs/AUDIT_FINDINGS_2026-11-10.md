@@ -4,22 +4,23 @@ The following items were independently checked against `main` as of `80fb008`. S
 
 | # | Finding | Disposition |
 |---|---|---|
-| 1 | EPG/search UI stalls | **FIX IN SOURCE, CI PENDING** — sorted per-channel binary search, worker current-program cache, virtualized ListView, 160 ms search debounce |
-| 2 | Missing XMLTV timezone silently dropped | **FIX IN SOURCE, CI PENDING** — parse timezone-less timestamps as UTC, warn; provider-specific timezone setting still needed |
-| 3 | Caps discard entire import | **FIX IN SOURCE, CI PENDING** — partial import and visible warning for programme and channel caps |
-| 4 | readLine allocates oversized line | **FIX IN SOURCE, CI PENDING** — bounded character-by-character reader |
-| 5 | URLs stored plaintext | **FIX IN SOURCE, DEVICE UNVERIFIED** — Android Keystore AES-GCM and legacy preference migration |
-| 6 | HTTPS redirect downgrade | **FIX IN SOURCE, CI PENDING** — reject HTTPS to HTTP redirects |
-| 7 | Gzip detected only by headers/suffix | **FIX IN SOURCE, CI PENDING** — magic-byte sniffing |
+| 1 | EPG/search UI stalls | **PASS (CI), DEVICE UNVERIFIED** — sorted per-channel binary search, worker current-program cache, virtualized ListView, 160 ms search debounce |
+| 2 | Missing XMLTV timezone silently dropped | **PASS (CI), DEVICE UNVERIFIED** — parse timezone-less timestamps as UTC, warn; provider-specific timezone setting still needed |
+| 3 | Caps discard entire import | **PASS (CI), DEVICE UNVERIFIED** — partial import and visible warning for programme and channel caps |
+| 4 | readLine allocates oversized line | **PASS (CI), DEVICE UNVERIFIED** — bounded character-by-character reader |
+| 5 | URLs stored plaintext | **IMPLEMENTED, DEVICE UNVERIFIED** — Android Keystore AES-GCM and legacy preference migration |
+| 6 | HTTPS redirect downgrade | **PASS (CI), DEVICE UNVERIFIED** — reject HTTPS to HTTP redirects |
+| 7 | Gzip detected only by headers/suffix | **PASS (CI), DEVICE UNVERIFIED** — magic-byte sniffing |
 | 8 | Multiview test implies audio switching | **NOT IMPLEMENTED** — policy validation only, actual audio controller future work |
-| 9 | Fuzz evidence overstated | **DOC CORRECTED** — seeded smoke distinguished from coverage-guided fuzzing; added JUnit randomized checks and downloader tests |
+| 9 | Fuzz evidence overstated | **DOC CORRECTED; CI REGRESSIONS PASS** — seeded smoke distinguished from coverage-guided fuzzing; added JUnit randomized checks and downloader tests |
 | 10 | Missing launcher icon/banner | **FIX IN SOURCE, DEVICE UNVERIFIED** — placeholder vector resources; final brand assets pending |
-| 11 | No Gradle wrapper | **OPEN** — Gradle 8.9 installed in CI, local install still required |
+| 11 | No Gradle wrapper | **PARTIAL** — Windows bootstrap script can fetch Gradle 8.9 with SHA-256 check; standard wrapper still absent and script not Windows-tested |
 
 ## Verified earlier evidence
 - 2026-11-10 baseline [Actions 42737399473](https://github.com/DevTunaSoft/TunerOS/actions/runs/42737399473): core unit tests, debug APK assembly, artifact upload **PASS**.
 - Intermediate runs for stabilization failed because `boundChannels` still expected an exception after changing to partial import, and a UTC warning used `Z` rather than `UTC`. Both were addressed in subsequent commits.
-- **NOT RUN:** Real Android TV and phone validation, source-URL encryption/migration on hardware, UI search benchmark, real IPTV network fault injection.
+- 2026-11-10 stabilization [Actions 42738309789](https://github.com/DevTunaSoft/TunerOS/actions/runs/42738309789): unit/randomized regression tests, debug APK assembly, artifact upload **PASS**.
+- **NOT RUN:** Real Android TV and phone validation, source-URL encryption/migration on hardware, UI search benchmark, real IPTV network fault injection, Windows bootstrap script.
 
 ## Security limits
 - User-supplied HTTP sources remain supported for compatibility; they are not encrypted on the wire. HTTPS-to-HTTP redirect downgrade is blocked.

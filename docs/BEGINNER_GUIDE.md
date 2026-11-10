@@ -21,3 +21,14 @@ TunerOS is a television app being built for Android TV boxes and Android phones.
 Install Android SDK API 35, JDK 17 and Gradle 8.9. From the repository root run `gradle :core:test :app:assembleDebug`. If successful, the debug installer will be under `app/build/outputs/apk/debug/`.
 
 For problems, save the build errors and Android device logs with timestamps. Avoid putting private playlist URLs, tokens or passwords into publicly shared logs.
+
+
+## Windows build shortcut (experimental)
+
+If you have JDK 17 and Android SDK API 35 installed, open PowerShell in the TunerOS repository and run:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\build.ps1
+```
+
+The script downloads Gradle 8.9 to your user profile if it is missing, checks the official distribution SHA-256, and runs the tests and debug APK build. This helper has **not yet been tested on a Windows computer**. You can also install Gradle 8.9 manually and run `gradle --no-daemon :core:test :app:assembleDebug`.

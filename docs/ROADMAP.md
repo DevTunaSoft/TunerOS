@@ -22,3 +22,6 @@ The master research backlog contains 134 prioritized items. Short-term release s
 ## Stabilization checkpoint — 2026-11-10
 
 Address source audit findings before adding new UI features. Changes include virtualized search, binary-search guide index, timezone/truncation warnings, secure source URL storage, redirect and gzip handling, and targeted regression tests. Validate CI and on-device behavior. Add a standard Gradle wrapper when the binary can be committed safely. Real Multiview audio selection remains future work, not a tested feature.
+
+
+Windows bootstrap helper added as a temporary alternative to manually installing Gradle. A **standard Gradle wrapper** is still open; verify the helper on a Windows 11 machine and commit the official wrapper JAR/scripts after source verification.

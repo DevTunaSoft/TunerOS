@@ -24,5 +24,5 @@ fun main() {
         val cap = MultiviewPolicy.allowedTiles(MultiviewPolicy.Capacity(decoders, connections))
         check(cap in 0..4 && cap <= decoders.coerceAtLeast(0) && cap <= connections.coerceAtLeast(0))
     }
-    println("FUZZ SMOKE PASS: 1000 playlists, 250 XXE attempts, 81 capacity combinations")
+    println("SEEDED RANDOMIZED SMOKE PASS: 1000 playlists, 250 XXE attempts, 81 capacity combinations")
 }
