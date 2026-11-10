@@ -243,4 +243,20 @@ https://example.com/live.m3u8
         assertFailsWith<IllegalArgumentException> { TimelineLayout.row(emptyList(), 10, 10) }
     }
 
+    @Test fun indexedGuideWindowReturnsOnlyIntersectingPrograms() {
+        val guide = GuideSnapshot(
+            listOf(
+                GuideProgram("c", "Before", 0, 100),
+                GuideProgram("c", "Crosses", 90, 150),
+                GuideProgram("c", "Inside", 120, 180),
+                GuideProgram("c", "After", 200, 300),
+            ),
+            emptyMap(),
+        )
+        guide.prepareIndex()
+        assertEquals(listOf("Crosses", "Inside"), guide.programsBetween("c", 100, 200).map { it.title })
+        assertTrue(guide.programsBetween("missing", 100, 200).isEmpty())
+        assertFailsWith<IllegalArgumentException> { guide.programsBetween("c", 100, 100) }
+    }
+
 }
