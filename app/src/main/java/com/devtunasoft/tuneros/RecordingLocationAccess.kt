@@ -6,7 +6,8 @@ import android.provider.DocumentsContract
 import java.io.File
 
 internal object RecordingLocationAccess {
-    enum class DeleteResult { DELETED, MISSING, INVALID, FAILED }
+    enum class DeleteResult { DELETED, MISSING, INVALID, UNAVAILABLE, FAILED }
+    private enum class ContentState { EXISTS, MISSING, UNAVAILABLE }
 
     fun playableUri(context: Context, location: String?): Uri? {
         if (location.isNullOrBlank()) return null
@@ -14,7 +15,7 @@ internal object RecordingLocationAccess {
         return when (parsed.scheme?.lowercase()) {
             "content" -> parsed.takeIf {
                 hasPersistedAccess(context, it, requireWrite = false) &&
-                    contentDocumentExists(context, it)
+                    contentDocumentState(context, it) == ContentState.EXISTS
             }
             "file" -> internalFile(context, parsed.path)?.let(Uri::fromFile)
             null -> internalFile(context, location)?.let(Uri::fromFile)
@@ -45,7 +46,11 @@ internal object RecordingLocationAccess {
         if (!hasPersistedAccess(context, uri, requireWrite = true)) {
             return DeleteResult.INVALID
         }
-        if (!contentDocumentExists(context, uri)) return DeleteResult.MISSING
+        when (contentDocumentState(context, uri)) {
+            ContentState.MISSING -> return DeleteResult.MISSING
+            ContentState.UNAVAILABLE -> return DeleteResult.UNAVAILABLE
+            ContentState.EXISTS -> Unit
+        }
         return if (runCatching {
                 DocumentsContract.deleteDocument(context.contentResolver, uri)
             }.getOrDefault(false)
@@ -103,14 +108,17 @@ internal object RecordingLocationAccess {
         }
     }
 
-    private fun contentDocumentExists(context: Context, uri: Uri): Boolean =
-        runCatching {
-            context.contentResolver.query(
+    private fun contentDocumentState(context: Context, uri: Uri): ContentState =
+        try {
+            val exists = context.contentResolver.query(
                 uri,
                 arrayOf(DocumentsContract.Document.COLUMN_DOCUMENT_ID),
                 null,
                 null,
                 null,
-            )?.use { it.moveToFirst() } == true
-        }.getOrDefault(false)
+            )?.use { it.moveToFirst() } ?: return ContentState.UNAVAILABLE
+            if (exists) ContentState.EXISTS else ContentState.MISSING
+        } catch (_: Exception) {
+            ContentState.UNAVAILABLE
+        }
 }
