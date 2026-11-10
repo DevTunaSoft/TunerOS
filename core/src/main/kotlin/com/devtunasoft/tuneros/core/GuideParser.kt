@@ -1,73 +1,93 @@
 package com.devtunasoft.tuneros.core
 
 import java.io.InputStream
+import java.time.LocalDateTime
 import java.time.OffsetDateTime
+import java.time.ZoneId
+import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import javax.xml.XMLConstants
 import javax.xml.parsers.SAXParserFactory
 import org.xml.sax.Attributes
 import org.xml.sax.helpers.DefaultHandler
 
-/** Streaming XMLTV SAX import: rejects DTD/external entities and excessive guide size. */
+/** Secure SAX XMLTV parser with explicit truncation and timestamp warnings. */
 object GuideParser {
-    private val timestamp = DateTimeFormatter.ofPattern("yyyyMMddHHmmss Z")
     const val MAX_PROGRAMS = 250_000
     const val MAX_CHANNELS = 25_000
+    private val withOffset = DateTimeFormatter.ofPattern("yyyyMMddHHmmss Z")
+    private val withoutOffset = DateTimeFormatter.ofPattern("yyyyMMddHHmmss")
 
-    fun parse(input: InputStream): GuideSnapshot {
+    fun parse(input: InputStream, maxPrograms: Int = MAX_PROGRAMS,
+              maxChannels: Int = MAX_CHANNELS, fallbackZone: ZoneId = ZoneOffset.UTC): GuideSnapshot {
+        require(maxPrograms in 1..MAX_PROGRAMS && maxChannels in 1..MAX_CHANNELS)
         val channels = LinkedHashMap<String, String>()
         val programs = ArrayList<GuideProgram>()
+        var skippedPrograms = 0
+        var skippedChannels = 0
+        var assumedZone = 0
+        var invalidTimestamps = 0
         val handler = object : DefaultHandler() {
-            private var currentChannel: String? = null
+            private var channelId: String? = null
+            private var programme = false
             private var start: Long? = null
             private var stop: Long? = null
             private var title: String? = null
             private var description: String? = null
-            private var element: String? = null
+            private var capture: String? = null
+            private var assumedForProgramme = false
             private val buffer = StringBuilder()
 
             override fun startElement(uri: String?, localName: String?, qName: String, attrs: Attributes) {
                 val name = localName?.takeIf { it.isNotEmpty() } ?: qName
-                element = name
-                buffer.setLength(0)
                 when (name) {
-                    "channel" -> currentChannel = attrs.getValue("id")?.take(256)
+                    "channel" -> { channelId = attrs.getValue("id")?.take(256); programme = false }
                     "programme" -> {
-                        currentChannel = attrs.getValue("channel")?.take(256)
-                        start = parseTime(attrs.getValue("start"))
-                        stop = parseTime(attrs.getValue("stop"))
+                        programme = true
+                        channelId = attrs.getValue("channel")?.take(256)
+                        val from = parseTime(attrs.getValue("start"), fallbackZone)
+                        val to = parseTime(attrs.getValue("stop"), fallbackZone)
+                        start = from.first; stop = to.first
+                        assumedForProgramme = from.second || to.second
                         title = null; description = null
                     }
+                    "display-name", "title", "desc" -> { capture = name; buffer.setLength(0) }
                 }
             }
             override fun characters(ch: CharArray, start: Int, length: Int) {
-                if (element in setOf("display-name", "title", "desc") && buffer.length < 4096) {
+                if (capture != null && buffer.length < 4096) {
                     buffer.append(ch, start, minOf(length, 4096 - buffer.length))
                 }
             }
             override fun endElement(uri: String?, localName: String?, qName: String) {
                 val name = localName?.takeIf { it.isNotEmpty() } ?: qName
-                val value = buffer.toString().trim()
-                when (name) {
-                    "display-name" -> if (currentChannel != null && !channels.containsKey(currentChannel) && value.isNotEmpty()) {
-                        if (channels.size == MAX_CHANNELS) throw IllegalArgumentException("Guide exceeds channel limit")
-                        channels[currentChannel!!] = value
+                if (capture == name) {
+                    val value = buffer.toString().trim()
+                    when (name) {
+                        "display-name" -> if (!programme && channelId != null && value.isNotEmpty() &&
+                            !channels.containsKey(channelId)) {
+                            if (channels.size < maxChannels) channels[channelId!!] = value else skippedChannels++
+                        }
+                        "title" -> if (programme) title = value
+                        "desc" -> if (programme) description = value
                     }
-                    "title" -> title = value
-                    "desc" -> description = value
+                    capture = null; buffer.setLength(0)
+                }
+                when (name) {
                     "programme" -> {
-                        val id = currentChannel
+                        val id = channelId
                         val from = start
                         val to = stop
+                        if (assumedForProgramme) assumedZone++
+                        if (from == null || to == null) invalidTimestamps++
                         if (id != null && from != null && to != null && to > from && !title.isNullOrBlank()) {
-                            if (programs.size == MAX_PROGRAMS) throw IllegalArgumentException("Guide exceeds program limit")
-                            programs += GuideProgram(id, title!!, from, to, description)
+                            if (programs.size < maxPrograms) programs += GuideProgram(id, title!!, from, to, description)
+                            else skippedPrograms++
                         }
-                        currentChannel = null
+                        channelId = null; programme = false
                     }
+                    "channel" -> channelId = null
                 }
-                element = null
-                buffer.setLength(0)
             }
         }
         val factory = SAXParserFactory.newInstance().apply {
@@ -77,13 +97,25 @@ object GuideParser {
             setFeature("http://xml.org/sax/features/external-parameter-entities", false)
             setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false)
             setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true)
+            isXIncludeAware = false
         }
         factory.newSAXParser().parse(input, handler)
-        return GuideSnapshot(programs, channels)
+        val warnings = buildList {
+            if (skippedPrograms > 0) add("$skippedPrograms programmes omitted: limit $maxPrograms")
+            if (skippedChannels > 0) add("$skippedChannels channel names omitted: limit $maxChannels")
+            if (assumedZone > 0) add("$assumedZone programmes lacked timezone: assumed $fallbackZone")
+            if (invalidTimestamps > 0) add("$invalidTimestamps programmes had invalid timestamps")
+        }
+        return GuideSnapshot(programs, channels, warnings)
     }
 
-    private fun parseTime(raw: String?): Long? {
-        if (raw == null) return null
-        return runCatching { OffsetDateTime.parse(raw.trim(), timestamp).toEpochSecond() }.getOrNull()
+    private fun parseTime(raw: String?, fallbackZone: ZoneId): Pair<Long?, Boolean> {
+        if (raw == null) return null to false
+        val value = raw.trim()
+        return if (value.matches(Regex("""\d{14}"""))) {
+            runCatching { LocalDateTime.parse(value, withoutOffset).atZone(fallbackZone).toEpochSecond() }.getOrNull() to true
+        } else {
+            runCatching { OffsetDateTime.parse(value, withOffset).toEpochSecond() }.getOrNull() to false
+        }
     }
 }

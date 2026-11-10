@@ -2,32 +2,38 @@ package com.devtunasoft.tuneros.core
 
 import java.io.BufferedReader
 import java.io.Reader
+import java.net.URI
 import java.security.MessageDigest
 
-/** Bounded, streaming M3U parser. Does not download streams while importing. */
+data class PlaylistImport(val channels: List<Channel>, val warnings: List<String>)
+
+/** Streaming M3U parser with a bounded line reader, source-scoped IDs, and truncation warnings. */
 object PlaylistParser {
     const val MAX_CHANNELS = 25_000
     const val MAX_LINE_LENGTH = 32_768
+    private const val MAX_LINES = 200_000
 
-    fun parse(reader: Reader, maxChannels: Int = MAX_CHANNELS): List<Channel> {
+    fun parse(reader: Reader, maxChannels: Int = MAX_CHANNELS): List<Channel> =
+        parseReport(reader, maxChannels).channels
+
+    fun parseReport(reader: Reader, maxChannels: Int = MAX_CHANNELS, sourceId: String = "default"): PlaylistImport {
         require(maxChannels in 1..MAX_CHANNELS)
         val result = ArrayList<Channel>()
-        val input = BufferedReader(reader)
+        val seen = HashSet<String>()
+        val input = if (reader is BufferedReader) reader else BufferedReader(reader)
         var pending: Pending? = null
         var userAgent: String? = null
         var referer: String? = null
         var totalLines = 0
+        var skipped = 0
         while (true) {
-            val raw = input.readLine() ?: break
+            val raw = readBoundedLine(input) ?: break
             totalLines++
-            if (totalLines > 200_000) throw IllegalArgumentException("Playlist exceeds line limit")
-            if (raw.length > MAX_LINE_LENGTH) throw IllegalArgumentException("Playlist line too long")
+            if (totalLines > MAX_LINES) throw IllegalArgumentException("Playlist exceeds $MAX_LINES lines")
             val line = raw.trim().removePrefix("\uFEFF")
             when {
                 line.startsWith("#EXTINF:", ignoreCase = true) -> {
-                    pending = parseExtinf(line)
-                    userAgent = null
-                    referer = null
+                    pending = parseExtinf(line); userAgent = null; referer = null
                 }
                 line.startsWith("#EXTVLCOPT:", ignoreCase = true) -> {
                     val pair = line.substringAfter(':').split('=', limit = 2)
@@ -39,30 +45,42 @@ object PlaylistParser {
                 line.isNotBlank() && !line.startsWith('#') -> {
                     val metadata = pending ?: continue
                     pending = null
-                    val url = line.trim()
-                    if (!isAllowedUrl(url) || metadata.name.isBlank()) continue
-                    if (result.size == maxChannels) throw IllegalArgumentException("Playlist exceeds channel limit")
-                    val stableKey = metadata.guideId?.takeIf { it.isNotBlank() } ?: url
+                    if (!isAllowedUrl(line) || metadata.name.isBlank()) continue
+                    val stableKey = sourceId + "\u0000" + metadata.guideId.orEmpty() + "\u0000" + line
+                    val id = stableId(stableKey)
+                    if (!seen.add(id)) continue
+                    if (result.size == maxChannels) { skipped++; continue }
                     result += Channel(
-                        id = stableId(stableKey), name = metadata.name.take(256),
-                        streamUrl = url, guideId = metadata.guideId,
-                        logoUrl = metadata.logo?.takeIf(::isAllowedUrl),
-                        group = metadata.group?.take(128),
-                        userAgent = userAgent, referer = referer,
+                        id = id, name = metadata.name.take(256), streamUrl = line,
+                        guideId = metadata.guideId, logoUrl = metadata.logo?.takeIf(::isAllowedUrl),
+                        group = metadata.group?.take(128), userAgent = userAgent, referer = referer,
                     )
-                    userAgent = null
-                    referer = null
+                    userAgent = null; referer = null
                 }
             }
         }
-        return result.distinctBy { it.id to it.streamUrl }
+        val warnings = if (skipped > 0) listOf("$skipped channels omitted: limit $maxChannels") else emptyList()
+        return PlaylistImport(result, warnings)
     }
 
-    private fun isAllowedUrl(value: String) =
-        value.startsWith("http://", ignoreCase = true) || value.startsWith("https://", ignoreCase = true)
+    private fun readBoundedLine(reader: BufferedReader): String? {
+        val line = StringBuilder()
+        while (true) {
+            val c = reader.read()
+            if (c == -1) return if (line.isEmpty()) null else line.toString().removeSuffix("\r")
+            if (c == '\n'.code) return line.toString().removeSuffix("\r")
+            if (line.length >= MAX_LINE_LENGTH) throw IllegalArgumentException("Playlist line exceeds $MAX_LINE_LENGTH characters")
+            line.append(c.toChar())
+        }
+    }
+
+    private fun isAllowedUrl(value: String): Boolean = runCatching {
+        val uri = URI(value)
+        uri.scheme?.lowercase() in setOf("http", "https") && !uri.host.isNullOrBlank() &&
+            value.none { it.code < 32 || it.code == 127 }
+    }.getOrDefault(false)
 
     private data class Pending(val name: String, val guideId: String?, val logo: String?, val group: String?)
-
     private val attribute = Regex("([A-Za-z][A-Za-z0-9_-]*)\\s*=\\s*(?:\"([^\"]*)\"|'([^']*)'|([^\\s,]+))")
 
     private fun parseExtinf(line: String): Pending {
