@@ -11,6 +11,12 @@ TunerOS is a television app being built for Android TV boxes and Android phones.
 5. Search for channels by typing part of their names.
 6. Turn **Hide channels with no EPG** on or off to suit your preference.
 7. Select a channel on the TV remote (OK) or touch it to attempt playback.
+8. To record the program currently under guide focus, choose **Record focused program**. A current program starts immediately; a future program is stored as a schedule.
+9. On Android 12 and later, choose **Exact DVR timing** and allow **Alarms & reminders** before relying on a future scheduled recording. TunerOS keeps an unarmed schedule if this access is unavailable and re-arms pending schedules after access is granted or after reboot.
+10. Choose **Stop recording** to cancel the active recording. Choose **Guide / Recordings** to switch the same recycled list between the guide and the most recent recordings; completed recordings can be selected for local playback.
+11. To remove a future job before it starts, focus that same future program and choose **Cancel focused scheduled recording**.
+
+**DVR format limits in this alpha:** Raw/progressive HTTP(S) streams and unencrypted MPEG-TS HLS are implemented in source. HLS master playlists, media sequences, byte ranges and provider User-Agent/Referer headers are handled. TunerOS deliberately refuses encrypted HLS, fMP4 HLS using `EXT-X-MAP`, HLS variants that require separate audio/video rendition capture, and DASH recording until those paths can be written without corrupt or incomplete output. A missing live HLS sequence is treated as a partial recording rather than silently skipped. Real-device recording remains unverified.
 
 **Privacy and import notes:** Playlist and guide URLs may contain account credentials. TunerOS now attempts to encrypt saved URLs using Android Keystore; if secure saving fails, the URL is used for the current import without being saved. Prefer HTTPS sources. If XMLTV times omit a timezone, TunerOS assumes UTC and displays a warning; contact the provider if listings are shifted. If an import exceeds channel/programme caps, TunerOS displays a truncation warning.
 
