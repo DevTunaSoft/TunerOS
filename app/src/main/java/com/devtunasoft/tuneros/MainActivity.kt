@@ -358,6 +358,17 @@ class MainActivity : Activity() {
         val id = "$safeChannel-${program.startEpochSeconds}"
         val sourceKey = "scheduled_recording.$id"
         worker.execute {
+            val overlap = RecordingScheduleStore(this).use {
+                it.findOverlap(id, program.startEpochSeconds, program.endEpochSeconds)
+            }
+            if (overlap != null) {
+                runOnUiThread {
+                    if (!isFinishing && !isDestroyed) {
+                        showStatus("Recording conflict with: " + overlap.title)
+                    }
+                }
+                return@execute
+            }
             if (!secureSources.save(sourceKey, channel.streamUrl)) {
                 runOnUiThread {
                     if (!isFinishing && !isDestroyed) {
