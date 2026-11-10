@@ -92,14 +92,15 @@ class RecordingAlarmReceiver : BroadcastReceiver() {
         val now = System.currentTimeMillis() / 1000
         if (entry.endEpochSeconds <= now) {
             RecordingScheduleStore(context).use { it.markFailed(id, "Scheduled recording window already ended") }
-            SecureSourceStore(context).delete(entry.secureSourceKey)
+            ScheduledRecordingSecrets.delete(SecureSourceStore(context), entry.secureSourceKey)
             return
         }
 
-        val source = SecureSourceStore(context).load(entry.secureSourceKey)
-        if (source.isNullOrBlank()) {
+        val secrets = SecureSourceStore(context)
+        val source = ScheduledRecordingSecrets.load(secrets, entry.secureSourceKey)
+        if (source == null) {
             RecordingScheduleStore(context).use { it.markFailed(id, "Secure recording source unavailable") }
-            SecureSourceStore(context).delete(entry.secureSourceKey)
+            ScheduledRecordingSecrets.delete(secrets, entry.secureSourceKey)
             return
         }
 
@@ -108,7 +109,9 @@ class RecordingAlarmReceiver : BroadcastReceiver() {
             putExtra(DvrRecordingService.EXTRA_ID, entry.id)
             putExtra(DvrRecordingService.EXTRA_TITLE, entry.title)
             putExtra(DvrRecordingService.EXTRA_CHANNEL_ID, entry.channelId)
-            putExtra(DvrRecordingService.EXTRA_URL, source)
+            putExtra(DvrRecordingService.EXTRA_URL, source.url)
+            source.userAgent?.let { putExtra(DvrRecordingService.EXTRA_USER_AGENT, it) }
+            source.referer?.let { putExtra(DvrRecordingService.EXTRA_REFERER, it) }
             putExtra(DvrRecordingService.EXTRA_END_EPOCH_SECONDS, entry.endEpochSeconds)
         }
 
@@ -116,12 +119,12 @@ class RecordingAlarmReceiver : BroadcastReceiver() {
             context.startForegroundService(serviceIntent)
         }.onSuccess {
             RecordingScheduleStore(context).use { it.markStarted(id) }
-            SecureSourceStore(context).delete(entry.secureSourceKey)
+            ScheduledRecordingSecrets.delete(secrets, entry.secureSourceKey)
         }.onFailure { error ->
             RecordingScheduleStore(context).use {
                 it.markFailed(id, error.javaClass.simpleName)
             }
-            SecureSourceStore(context).delete(entry.secureSourceKey)
+            ScheduledRecordingSecrets.delete(secrets, entry.secureSourceKey)
         }
     }
 }
