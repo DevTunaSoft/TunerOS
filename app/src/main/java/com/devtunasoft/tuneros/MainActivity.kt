@@ -2,6 +2,7 @@ package com.devtunasoft.tuneros
 
 import android.app.Activity
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -34,6 +35,7 @@ import com.devtunasoft.tuneros.core.GuideSnapshot
 import com.devtunasoft.tuneros.core.GuideProgram
 import com.devtunasoft.tuneros.core.SourceDownloader
 import com.devtunasoft.tuneros.core.PlaylistParser
+import java.io.File
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -76,6 +78,8 @@ class MainActivity : Activity() {
     private lateinit var playerView: PlayerView
     private lateinit var channelList: ListView
     private lateinit var channelAdapter: CableGuideAdapter
+    private lateinit var recordingAdapter: RecordingLibraryAdapter
+    private var showingRecordings = false
     private lateinit var playlistUrl: EditText
     private lateinit var guideUrl: EditText
     private lateinit var search: EditText
@@ -129,6 +133,7 @@ class MainActivity : Activity() {
         root.addView(status)
         root.addView(button("Record focused program") { recordFocusedProgram() })
         root.addView(button("Stop recording") { stopRecording() })
+        root.addView(button("Guide / Recordings") { toggleRecordings() })
         timeRail = label("", 14).apply {
             setBackgroundColor(Color.rgb(18, 31, 50))
             setPadding(dp(194), dp(8), dp(8), dp(8))
@@ -143,6 +148,7 @@ class MainActivity : Activity() {
                 showStatus(channel.name + (program?.let { " · " + it.title } ?: ""))
             },
         )
+        recordingAdapter = RecordingLibraryAdapter(this, ::playRecording)
         channelList = ListView(this).apply {
             adapter = channelAdapter
             isFocusable = true
@@ -348,6 +354,87 @@ class MainActivity : Activity() {
         })
         showStatus("Stopping recording…")
     }
+
+    private fun toggleRecordings() {
+        if (showingRecordings) {
+            showingRecordings = false
+            channelList.adapter = channelAdapter
+            timeRail.visibility = android.view.View.VISIBLE
+            renderChannels()
+            showStatus("Guide")
+            return
+        }
+        showStatus("Loading recordings…")
+        worker.execute {
+            val items = RecordingCatalog(this).use { it.recent(100) }
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                recordingAdapter.update(items)
+                channelList.adapter = recordingAdapter
+                timeRail.visibility = android.view.View.GONE
+                showingRecordings = true
+                showStatus(if (items.isEmpty()) "No recordings yet" else "Recordings: " + items.size)
+            }
+        }
+    }
+
+    private fun playRecording(entry: RecordingCatalogEntry) {
+        if (entry.state != "COMPLETED") {
+            showStatus("Only completed recordings can be played")
+            return
+        }
+        val file = allowedRecordingFile(entry.filePath)
+        if (file == null) {
+            showStatus("Recording file is missing or outside TunerOS storage")
+            return
+        }
+        releasePlayer()
+        val newPlayer = ExoPlayer.Builder(applicationContext).build().apply {
+            setAudioAttributes(
+                AudioAttributes.Builder()
+                    .setUsage(C.USAGE_MEDIA)
+                    .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
+                    .build(),
+                true,
+            )
+        }
+        player = newPlayer
+        playerView.player = newPlayer
+        newPlayer.addListener(object : Player.Listener {
+            override fun onIsPlayingChanged(isPlaying: Boolean) {
+                updateKeepScreenOn(isPlaying)
+            }
+            override fun onPlayerError(error: PlaybackException) {
+                if (player === newPlayer) {
+                    showStatus("Recording playback problem: " + error.errorCodeName)
+                }
+            }
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                if (player === newPlayer && playbackState == Player.STATE_READY) {
+                    showStatus("Playing recording: " + entry.title)
+                }
+            }
+        })
+        newPlayer.setMediaItem(MediaItem.fromUri(Uri.fromFile(file)))
+        newPlayer.prepare()
+        newPlayer.playWhenReady = true
+        showStatus("Opening recording: " + entry.title)
+    }
+
+    private fun allowedRecordingFile(path: String?): File? {
+        if (path.isNullOrBlank()) return null
+        val candidate = runCatching { File(path).canonicalFile }.getOrNull() ?: return null
+        if (!candidate.isFile) return null
+        val roots = listOfNotNull(
+            getExternalFilesDir("recordings"),
+            File(filesDir, "recordings"),
+        ).mapNotNull { runCatching { it.canonicalFile }.getOrNull() }
+        val allowed = roots.any { root ->
+            candidate.path.startsWith(root.path + File.separator)
+        }
+        return candidate.takeIf { allowed }
+    }
+
     private fun updateKeepScreenOn(isPlaying: Boolean) {
         if (isPlaying) window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         else window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
