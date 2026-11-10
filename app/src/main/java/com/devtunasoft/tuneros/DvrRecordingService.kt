@@ -26,6 +26,7 @@ class DvrRecordingService : Service() {
         const val ACTION_STOP = "com.devtunasoft.tuneros.dvr.STOP"
         const val EXTRA_ID = "recording_id"
         const val EXTRA_TITLE = "recording_title"
+        const val EXTRA_CHANNEL_ID = "recording_channel_id"
         const val EXTRA_URL = "recording_url"
         const val EXTRA_END_EPOCH_SECONDS = "recording_end_epoch_seconds"
         private const val CHANNEL_ID = "tuneros_recording"
@@ -35,6 +36,7 @@ class DvrRecordingService : Service() {
     private val worker = Executors.newSingleThreadExecutor()
     private val cancelled = AtomicBoolean(false)
     private val active = AtomicBoolean(false)
+    private val catalog by lazy { RecordingCatalog(this) }
 
     override fun onCreate() {
         super.onCreate()
@@ -53,16 +55,14 @@ class DvrRecordingService : Service() {
     }
 
     private fun startRecording(intent: Intent, startId: Int) {
-        if (!active.compareAndSet(false, true)) {
-            stopSelf(startId)
-            return
-        }
+        if (!active.compareAndSet(false, true)) return
         val id = intent.getStringExtra(EXTRA_ID)?.takeIf { it.isNotBlank() } ?: run {
             active.set(false)
             stopSelf(startId)
             return
         }
         val title = intent.getStringExtra(EXTRA_TITLE)?.takeIf { it.isNotBlank() } ?: "Recording"
+        val channelId = intent.getStringExtra(EXTRA_CHANNEL_ID)?.takeIf { it.isNotBlank() } ?: "unknown"
         val url = intent.getStringExtra(EXTRA_URL)?.takeIf(::isHttpUrl) ?: run {
             active.set(false)
             stopSelf(startId)
@@ -70,6 +70,7 @@ class DvrRecordingService : Service() {
         }
         val endEpochSeconds = intent.getLongExtra(EXTRA_END_EPOCH_SECONDS, Long.MAX_VALUE)
         cancelled.set(false)
+        catalog.upsertStart(id, title, channelId, url, System.currentTimeMillis() / 1000)
         startForeground(
             NOTIFICATION_ID,
             android.app.Notification.Builder(this, CHANNEL_ID)
@@ -98,6 +99,8 @@ class DvrRecordingService : Service() {
         val partial = File(directory, "$safeId.partial")
         val completed = File(directory, "$safeId.ts")
         var connection: HttpURLConnection? = null
+        var bytesWritten = 0L
+        var lastCatalogBytes = 0L
         try {
             connection = openStream(streamUrl)
             connection.inputStream.use { input ->
@@ -110,17 +113,47 @@ class DvrRecordingService : Service() {
                         cancelled = {
                             cancelled.get() || System.currentTimeMillis() / 1000 >= endEpochSeconds
                         },
+                        onProgress = { total ->
+                            bytesWritten = total
+                            if (total - lastCatalogBytes >= 4L * 1024 * 1024) {
+                                catalog.updateProgress(id, total)
+                                lastCatalogBytes = total
+                            }
+                        },
                     )
                     output.flush()
+                    bytesWritten = result.bytesWritten
                     val endedOnSchedule = System.currentTimeMillis() / 1000 >= endEpochSeconds
                     if (result.stopReason == StreamRecorder.StopReason.END_OF_STREAM || endedOnSchedule) {
                         if (completed.exists()) completed.delete()
-                        partial.renameTo(completed)
+                        val finalized = partial.renameTo(completed)
+                        catalog.finish(
+                            id = id,
+                            state = if (finalized) "COMPLETED" else "PARTIAL",
+                            stoppedEpochSeconds = System.currentTimeMillis() / 1000,
+                            bytesWritten = bytesWritten,
+                            filePath = (if (finalized) completed else partial).absolutePath,
+                            failureReason = if (finalized) null else "Unable to finalize recording file",
+                        )
+                    } else {
+                        val state = if (result.stopReason == StreamRecorder.StopReason.CANCELLED) "CANCELLED" else "PARTIAL"
+                        catalog.finish(
+                            id, state, System.currentTimeMillis() / 1000, bytesWritten,
+                            partial.takeIf { it.exists() }?.absolutePath,
+                            if (result.stopReason == StreamRecorder.StopReason.LOW_STORAGE) "Storage reserve reached" else null,
+                        )
                     }
                 }
             }
-        } catch (_: Exception) {
-            // Keep .partial for diagnostics/recovery; structured catalog status is added next.
+        } catch (error: Exception) {
+            catalog.finish(
+                id = id,
+                state = "FAILED",
+                stoppedEpochSeconds = System.currentTimeMillis() / 1000,
+                bytesWritten = bytesWritten,
+                filePath = partial.takeIf { it.exists() }?.absolutePath,
+                failureReason = error.javaClass.simpleName,
+            )
         } finally {
             connection?.disconnect()
         }
@@ -165,6 +198,7 @@ class DvrRecordingService : Service() {
     override fun onDestroy() {
         cancelled.set(true)
         worker.shutdownNow()
+        if (::catalog.isInitialized) catalog.close()
         super.onDestroy()
     }
 
