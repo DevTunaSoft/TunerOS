@@ -20,6 +20,9 @@ object PlaylistParser {
         require(maxChannels in 1..MAX_CHANNELS)
         val result = ArrayList<Channel>()
         val seen = HashSet<String>()
+        val digest = MessageDigest.getInstance("SHA-256")
+        val sharedHeaders = HashMap<String, String>()
+        fun shareHeader(value: String?): String? = value?.let { sharedHeaders.getOrPut(it) { it } }
         val input = if (reader is BufferedReader) reader else BufferedReader(reader)
         var pending: Pending? = null
         var userAgent: String? = null
@@ -47,13 +50,13 @@ object PlaylistParser {
                     pending = null
                     if (!isAllowedUrl(line) || metadata.name.isBlank()) continue
                     val stableKey = sourceId + "\u0000" + metadata.guideId.orEmpty() + "\u0000" + line
-                    val id = stableId(stableKey)
+                    val id = stableId(digest, stableKey)
                     if (!seen.add(id)) continue
                     if (result.size == maxChannels) { skipped++; continue }
                     result += Channel(
                         id = id, name = metadata.name.take(256), streamUrl = line,
                         guideId = metadata.guideId, logoUrl = metadata.logo?.takeIf(::isAllowedUrl),
-                        group = metadata.group?.take(128), userAgent = userAgent, referer = referer,
+                        group = metadata.group?.take(128), userAgent = shareHeader(userAgent), referer = shareHeader(referer),
                     )
                     userAgent = null; referer = null
                 }
@@ -92,7 +95,7 @@ object PlaylistParser {
         return Pending(name, attrs["tvg-id"], attrs["tvg-logo"], attrs["group-title"])
     }
 
-    private fun stableId(value: String): String = MessageDigest.getInstance("SHA-256")
+    private fun stableId(digest: MessageDigest, value: String): String = digest
         .digest(value.toByteArray(Charsets.UTF_8))
         .take(12).joinToString("") { "%02x".format(it) }
 }
