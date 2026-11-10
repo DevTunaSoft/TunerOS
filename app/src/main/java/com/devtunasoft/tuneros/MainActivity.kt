@@ -43,6 +43,13 @@ import java.util.concurrent.atomic.AtomicInteger
 
 /** First playable TunerOS slice: HTTP M3U/XMLTV import, searchable TV guide, Media3 playback. */
 class MainActivity : Activity() {
+    private data class RetainedGuideState(
+        val channels: List<Channel>,
+        val guide: GuideSnapshot?,
+        val guideWindowStart: Long,
+        val searchQuery: String,
+    )
+
     private val prefs by lazy { getSharedPreferences("tuneros_alpha", MODE_PRIVATE) }
     private val worker = Executors.newSingleThreadExecutor()
     private val playlistEpoch = AtomicInteger()
@@ -85,6 +92,12 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val retained = lastNonConfigurationInstance as? RetainedGuideState
+        if (retained != null) {
+            channels = retained.channels
+            guide = retained.guide
+            guideWindowStart = retained.guideWindowStart
+        }
         window.decorView.setBackgroundColor(Color.rgb(13, 21, 34))
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -107,7 +120,7 @@ class MainActivity : Activity() {
         guideUrl = urlField("XMLTV guide URL (optional)", "")
         root.addView(guideUrl)
         root.addView(button("Load guide") { loadGuide() })
-        search = urlField("Search channels", "")
+        search = urlField("Search channels", retained?.searchQuery.orEmpty())
         root.addView(search)
         hideNoGuide = CheckBox(this).apply {
             text = "Hide channels with no EPG"
@@ -166,6 +179,13 @@ class MainActivity : Activity() {
             dividerHeight = 0
         }
         root.addView(channelList, LinearLayout.LayoutParams(-1, 0, 1.0f))
+        if (retained != null) {
+            renderChannels()
+            showStatus(
+                "Restored ${retained.channels.size} channels" +
+                    if (retained.guide == null) "" else " and guide",
+            )
+        }
         worker.execute {
             val playlist = runCatching { secureSources.load("playlist") }.getOrNull()
             val epg = runCatching { secureSources.load("guide") }.getOrNull()
@@ -748,6 +768,19 @@ class MainActivity : Activity() {
         super.onStop()
         releasePlayer()
     }
+    override fun onRetainNonConfigurationInstance(): Any? {
+        val query = if (::search.isInitialized) search.text.toString() else ""
+        if (channels.isEmpty() && guide == null && guideWindowStart == 0L && query.isEmpty()) {
+            return null
+        }
+        return RetainedGuideState(
+            channels = channels,
+            guide = guide,
+            guideWindowStart = guideWindowStart,
+            searchQuery = query,
+        )
+    }
+
     override fun onDestroy() {
         playlistEpoch.incrementAndGet()
         guideEpoch.incrementAndGet()
