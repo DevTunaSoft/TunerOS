@@ -210,4 +210,37 @@ https://example.com/live.m3u8
         assertEquals(1, MultiviewPolicy.chooseAudioTile(1, 3))
         assertFailsWith<IllegalArgumentException> { MultiviewPolicy.chooseAudioTile(3, 3) }
     }
+    @Test fun timelineCreatesContiguousCableGuideRow() {
+        val programs = listOf(
+            GuideProgram("c", "News", 100, 200),
+            GuideProgram("c", "Weather", 250, 400),
+        )
+        val row = TimelineLayout.row(programs, 50, 350)
+        assertEquals(listOf(50L, 100L, 200L, 250L), row.map { it.startEpochSeconds })
+        assertEquals(listOf(100L, 200L, 250L, 350L), row.map { it.endEpochSeconds })
+        assertEquals(listOf(true, false, true, false), row.map { it.isGap })
+        assertEquals(listOf(null, "News", null, "Weather"), row.map { it.program?.title })
+    }
+
+    @Test fun timelineClipsOverlapsAndWindowEdges() {
+        val programs = listOf(
+            GuideProgram("c", "Early", 0, 120),
+            GuideProgram("c", "Overlap", 100, 180),
+            GuideProgram("c", "Late", 170, 300),
+        )
+        val row = TimelineLayout.row(programs, 50, 250)
+        assertEquals(listOf("Early", "Overlap", "Late"), row.mapNotNull { it.program?.title })
+        assertEquals(50L, row.first().startEpochSeconds)
+        assertEquals(250L, row.last().endEpochSeconds)
+        assertTrue(row.zipWithNext().all { (left, right) -> left.endEpochSeconds == right.startEpochSeconds })
+    }
+
+    @Test fun timelineEmptyWindowBecomesOneGapAndWidthsAreProportional() {
+        val gap = TimelineLayout.row(emptyList(), 0, 3600).single()
+        assertTrue(gap.isGap)
+        assertEquals(240, TimelineLayout.widthUnits(gap))
+        assertEquals(120, TimelineLayout.widthUnits(TimelineEntry(0, 1800)))
+        assertFailsWith<IllegalArgumentException> { TimelineLayout.row(emptyList(), 10, 10) }
+    }
+
 }
