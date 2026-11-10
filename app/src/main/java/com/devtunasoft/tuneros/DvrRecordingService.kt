@@ -11,6 +11,7 @@ import com.devtunasoft.tuneros.core.StreamRecorder
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
+import java.io.PushbackInputStream
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -117,7 +118,20 @@ class DvrRecordingService : Service() {
         var lastCatalogBytes = 0L
         try {
             connection = openStream(streamUrl)
-            connection.inputStream.use { input ->
+            connection.inputStream.use { rawInput ->
+                val input = PushbackInputStream(rawInput, 512)
+                val manifestType = detectUnsupportedManifest(connection, input)
+                if (manifestType != null) {
+                    catalog.finish(
+                        id = id,
+                        state = "FAILED",
+                        stoppedEpochSeconds = System.currentTimeMillis() / 1000,
+                        bytesWritten = 0,
+                        filePath = null,
+                        failureReason = "$manifestType recording not implemented",
+                    )
+                    return
+                }
                 partial.outputStream().use { output ->
                     val recorder = StreamRecorder()
                     val result = recorder.copy(
@@ -193,6 +207,32 @@ class DvrRecordingService : Service() {
             current = next
         }
         error("Too many redirects")
+    }
+
+
+    private fun detectUnsupportedManifest(
+        connection: HttpURLConnection,
+        input: PushbackInputStream,
+    ): String? {
+        val contentType = connection.contentType?.substringBefore(';')?.trim()?.lowercase()
+        if (contentType in setOf(
+                "application/vnd.apple.mpegurl",
+                "application/x-mpegurl",
+                "audio/mpegurl",
+                "audio/x-mpegurl",
+            )
+        ) return "HLS"
+        if (contentType == "application/dash+xml") return "DASH"
+
+        val probe = ByteArray(512)
+        val count = input.read(probe)
+        if (count > 0) input.unread(probe, 0, count)
+        if (count <= 0) return null
+        val text = String(probe, 0, count, Charsets.UTF_8).trimStart()
+        if (text.startsWith("#EXTM3U")) return "HLS"
+        if (text.startsWith("<?xml") && text.contains("<MPD", ignoreCase = true)) return "DASH"
+        if (text.startsWith("<MPD", ignoreCase = true)) return "DASH"
+        return null
     }
 
     private fun createNotificationChannel() {
