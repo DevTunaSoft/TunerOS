@@ -271,12 +271,18 @@ class MainActivity : Activity() {
             .filter { channel -> !hideNoGuide.isChecked || channel.guideId?.let { id -> guide?.hasSchedule(id) } == true }
             .take(500)
             .toList()
+        val now = System.currentTimeMillis() / 1000
         if (guideWindowStart == 0L) {
-            val now = System.currentTimeMillis() / 1000
             guideWindowStart = now - (now % guideStepSeconds)
         }
         updateTimeRail()
-        channelAdapter.update(visible, guide, guideWindowStart, guideWindowStart + guideWindowSeconds)
+        channelAdapter.update(
+            visible,
+            guide,
+            guideWindowStart,
+            guideWindowStart + guideWindowSeconds,
+            now,
+        )
     }
 
     private fun shiftGuideWindow(deltaSeconds: Long) {
