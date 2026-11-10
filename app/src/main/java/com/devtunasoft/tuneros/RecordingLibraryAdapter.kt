@@ -18,6 +18,7 @@ import java.time.format.DateTimeFormatter
 internal class RecordingLibraryAdapter(
     private val context: Context,
     private val onSelected: (RecordingCatalogEntry) -> Unit,
+    private val onFocused: (RecordingCatalogEntry) -> Unit = {},
 ) : BaseAdapter() {
     private var entries: List<RecordingCatalogEntry> = emptyList()
     private val timeFormat = DateTimeFormatter.ofPattern("MMM d, h:mm a")
@@ -51,15 +52,19 @@ internal class RecordingLibraryAdapter(
             append(entry.title)
             append("  ·  ")
             append(entry.state)
+            if (entry.isProtected) append("  ·  PROTECTED")
             append("\n")
             append(whenText)
             append("  ·  ")
             append(String.format("%.1f MiB", sizeMiB))
-            if (!playable) append("  ·  No playable file")
+            if (!playable) append("  ·  Not playable")
         }
-        view.isEnabled = playable
-        view.isFocusable = playable
-        view.setOnClickListener(if (playable) View.OnClickListener { onSelected(entry) } else null)
+        view.isEnabled = true
+        view.isFocusable = true
+        view.setOnClickListener { onSelected(entry) }
+        view.setOnFocusChangeListener { _, focused ->
+            if (focused) onFocused(entry)
+        }
         return view
     }
 
