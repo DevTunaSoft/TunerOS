@@ -1,6 +1,7 @@
 package com.devtunasoft.tuneros
 
 import android.app.Activity
+import android.content.Intent
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -65,6 +66,8 @@ class MainActivity : Activity() {
     private var channels: List<Channel> = emptyList()
     private var guide: GuideSnapshot? = null
     private var player: ExoPlayer? = null
+    private var focusedChannel: Channel? = null
+    private var focusedProgram: GuideProgram? = null
     private var guideWindowStart: Long = 0
     private val guideWindowSeconds = 3 * 3600L
     private val guideStepSeconds = 30 * 60L
@@ -124,6 +127,8 @@ class MainActivity : Activity() {
         root.addView(playerView, LinearLayout.LayoutParams(-1, 0, 1.1f))
         status = label("Enter an M3U URL to begin", 13)
         root.addView(status)
+        root.addView(button("Record focused program") { recordFocusedProgram() })
+        root.addView(button("Stop recording") { stopRecording() })
         timeRail = label("", 14).apply {
             setBackgroundColor(Color.rgb(18, 31, 50))
             setPadding(dp(194), dp(8), dp(8), dp(8))
@@ -133,6 +138,8 @@ class MainActivity : Activity() {
             this,
             onChannelSelected = ::play,
             onProgramFocused = { channel, program ->
+                focusedChannel = channel
+                focusedProgram = program
                 showStatus(channel.name + (program?.let { " · " + it.title } ?: ""))
             },
         )
@@ -305,6 +312,42 @@ class MainActivity : Activity() {
         showStatus("Connecting: ${channel.name}")
     }
 
+    private fun recordFocusedProgram() {
+        val channel = focusedChannel
+        val program = focusedProgram
+        if (channel == null || program == null) {
+            showStatus("Focus a guide program first")
+            return
+        }
+        val now = System.currentTimeMillis() / 1000
+        if (now < program.startEpochSeconds || now >= program.endEpochSeconds) {
+            showStatus("Scheduled recording is not enabled yet; choose a program that is on now")
+            return
+        }
+        val lower = channel.streamUrl.substringBefore('?').lowercase()
+        if (lower.endsWith(".m3u8") || lower.endsWith(".mpd")) {
+            showStatus("HLS/DASH recording is not enabled yet; playback is unaffected")
+            return
+        }
+        val recordingId = channel.id.take(40).replace(Regex("[^A-Za-z0-9._-]"), "_") + "-" + now
+        val intent = Intent(this, DvrRecordingService::class.java).apply {
+            action = DvrRecordingService.ACTION_START
+            putExtra(DvrRecordingService.EXTRA_ID, recordingId)
+            putExtra(DvrRecordingService.EXTRA_TITLE, program.title)
+            putExtra(DvrRecordingService.EXTRA_CHANNEL_ID, channel.id)
+            putExtra(DvrRecordingService.EXTRA_URL, channel.streamUrl)
+            putExtra(DvrRecordingService.EXTRA_END_EPOCH_SECONDS, program.endEpochSeconds)
+        }
+        startForegroundService(intent)
+        showStatus("Recording: " + program.title)
+    }
+
+    private fun stopRecording() {
+        startService(Intent(this, DvrRecordingService::class.java).apply {
+            action = DvrRecordingService.ACTION_STOP
+        })
+        showStatus("Stopping recording…")
+    }
     private fun updateKeepScreenOn(isPlaying: Boolean) {
         if (isPlaying) window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         else window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
