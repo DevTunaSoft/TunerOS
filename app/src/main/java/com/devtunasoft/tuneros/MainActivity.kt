@@ -1,9 +1,11 @@
 package com.devtunasoft.tuneros
 
 import android.app.Activity
+import android.app.AlarmManager
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.graphics.Color
@@ -132,6 +134,8 @@ class MainActivity : Activity() {
         status = label("Enter an M3U URL to begin", 13)
         root.addView(status)
         root.addView(button("Record focused program") { recordFocusedProgram() })
+        root.addView(button("Cancel focused scheduled recording") { cancelFocusedSchedule() })
+        root.addView(button("Exact DVR timing") { openExactAlarmSettings() })
         root.addView(button("Stop recording") { stopRecording() })
         root.addView(button("Guide / Recordings") { toggleRecordings() })
         timeRail = label("", 14).apply {
@@ -166,6 +170,7 @@ class MainActivity : Activity() {
         worker.execute {
             val playlist = runCatching { secureSources.load("playlist") }.getOrNull()
             val epg = runCatching { secureSources.load("guide") }.getOrNull()
+            runCatching { RecordingScheduler.rearmPending(this) }
             runOnUiThread {
                 if (!isFinishing && !isDestroyed) {
                     if (playlistUrl.text.isEmpty()) playlist?.let { playlistUrl.setText(it) }
@@ -411,6 +416,57 @@ class MainActivity : Activity() {
                     showStatus("Could not schedule recording: " + it.javaClass.simpleName)
                 }
             }
+        }
+    }
+
+
+    private fun cancelFocusedSchedule() {
+        val channel = focusedChannel
+        val program = focusedProgram
+        val now = System.currentTimeMillis() / 1000
+        if (channel == null || program == null || program.startEpochSeconds <= now) {
+            showStatus("Focus a future scheduled program first")
+            return
+        }
+        val safeChannel = channel.id.take(40).replace(Regex("[^A-Za-z0-9._-]"), "_")
+        val id = "$safeChannel-${program.startEpochSeconds}"
+        val sourceKey = "scheduled_recording.$id"
+        worker.execute {
+            val existing = RecordingScheduleStore(this).use { it.get(id) }
+            if (existing == null || existing.state != "SCHEDULED") {
+                runOnUiThread {
+                    if (!isFinishing && !isDestroyed) showStatus("No scheduled recording found for that program")
+                }
+                return@execute
+            }
+            RecordingScheduler.cancel(this, id)
+            RecordingScheduleStore(this).use { it.delete(id) }
+            secureSources.delete(sourceKey)
+            runOnUiThread {
+                if (!isFinishing && !isDestroyed) showStatus("Scheduled recording cancelled: " + program.title)
+            }
+        }
+    }
+
+    private fun openExactAlarmSettings() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+            showStatus("Exact DVR timing is already supported on this Android version")
+            return
+        }
+        val alarmManager = getSystemService(AlarmManager::class.java)
+        if (alarmManager.canScheduleExactAlarms()) {
+            showStatus("Exact DVR timing is enabled")
+            return
+        }
+        runCatching {
+            startActivity(
+                Intent(
+                    AlarmManager.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
+                    Uri.parse("package:$packageName"),
+                ),
+            )
+        }.onFailure {
+            showStatus("Open Android Alarms & reminders settings for TunerOS")
         }
     }
 
