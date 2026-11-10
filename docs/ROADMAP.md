@@ -5,7 +5,7 @@ The master research backlog contains 134 prioritized items. Short-term release s
 1. **Foundation** — native application, source parsing, EPG, channel selection, basic playback, CI, verified APK.
 2. **Guide** — full classic cable grid, channel search, user-controlled hide without EPG, favorites, stable channel mappings, Guide Doctor.
 3. **Playback** — hardened switching, HLS/DASH/non-HLS validation, Stream Doctor, recovery, diagnostics.
-4. **DVR/PVR (in progress)** — bounded direct-to-disk raw and MPEG-TS HLS capture, Record Now, exact-alarm future scheduling, recording library/playback, recovery and conflict handling. Protect/delete controls are now implemented in source. Next: storage destinations, series rules, timeshift, encrypted/fMP4 compatibility where safe, and real-device acceptance.
+4. **DVR/PVR (in progress)** — bounded direct-to-disk raw and MPEG-TS HLS capture, Record Now, exact-alarm future scheduling, recording library/playback, recovery and conflict handling. Protect/delete controls and user-selected local SAF recording destinations are now implemented in source. Next: real-device USB/SD acceptance, series rules, timeshift, encrypted/fMP4 compatibility where safe, and real-device acceptance.
 5. **Multiview** — two concurrent streams and audio selection first, then adaptive three/four tiles; never exceed decoder or provider concurrent-stream limits.
 6. **Personalization** — guide themes, profiles, backups, parental controls, accessible TV focus.
 7. **Later** — advanced source adapters and optional authorized channel catalog.
