@@ -72,7 +72,7 @@ class DvrRecordingService : Service() {
         }
         val endEpochSeconds = intent.getLongExtra(EXTRA_END_EPOCH_SECONDS, Long.MAX_VALUE)
         cancelled.set(false)
-        catalog.upsertStart(id, title, channelId, url, System.currentTimeMillis() / 1000)
+        catalog.upsertStart(id, title, channelId, System.currentTimeMillis() / 1000)
         startForeground(
             NOTIFICATION_ID,
             android.app.Notification.Builder(this, CHANNEL_ID)
