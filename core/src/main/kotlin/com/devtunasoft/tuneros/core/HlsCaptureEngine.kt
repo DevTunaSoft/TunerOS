@@ -9,7 +9,10 @@ data class LoadedHlsPlaylist(
 )
 
 interface HlsCaptureSource {
-    fun loadPlaylist(url: String): LoadedHlsPlaylist
+    fun loadPlaylist(
+        url: String,
+        afterSequenceExclusive: Long? = null,
+    ): LoadedHlsPlaylist
 
     fun copySegment(
         url: String,
@@ -64,7 +67,7 @@ class HlsCaptureEngine(
                 return Result(totalBytes, lastSequence, StopReason.DEADLINE)
             }
 
-            val loaded = source.loadPlaylist(playlistUrl)
+            val loaded = source.loadPlaylist(playlistUrl, lastSequence)
             when (val playlist = loaded.playlist) {
                 is HlsMasterPlaylist -> {
                     if (selectedVariant) {
@@ -90,8 +93,8 @@ class HlsCaptureEngine(
 
                 is HlsMediaPlaylist -> {
                     val available = playlist.segments
-                    if (lastSequence != null && available.isNotEmpty() &&
-                        available.last().sequence < lastSequence
+                    if (lastSequence != null && playlist.latestSequence != null &&
+                        playlist.latestSequence < lastSequence
                     ) {
                         return Result(
                             totalBytes,
