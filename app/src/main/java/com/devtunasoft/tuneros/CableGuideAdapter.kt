@@ -42,6 +42,8 @@ internal class CableGuideAdapter(
     private var guide: GuideSnapshot? = null
     private var fromEpochSeconds: Long = 0
     private var toEpochSeconds: Long = 1
+    private var focusedChannelId: String? = null
+    private var focusedProgramStart: Long? = null
 
     private fun dp(value: Int): Int =
         (value * context.resources.displayMetrics.density + 0.5f).toInt()
@@ -145,7 +147,15 @@ internal class CableGuideAdapter(
                 onChannelSelected(channel)
             })
             cell.setOnFocusChangeListener { _, focused ->
-                if (focused) onProgramFocused(channel, program)
+                if (focused) {
+                    focusedChannelId = channel.id
+                    focusedProgramStart = program?.startEpochSeconds
+                    onProgramFocused(channel, program)
+                }
+            }
+            if (program != null && channel.id == focusedChannelId &&
+                program.startEpochSeconds == focusedProgramStart && !cell.hasFocus()) {
+                cell.post { if (cell.isShown) cell.requestFocus() }
             }
         }
     }
