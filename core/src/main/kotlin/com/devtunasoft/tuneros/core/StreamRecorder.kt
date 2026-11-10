@@ -28,14 +28,17 @@ class StreamRecorder(
         freeBytes: () -> Long,
         cancelled: () -> Boolean = { false },
         onProgress: (Long) -> Unit = {},
+        buffer: ByteArray = ByteArray(bufferBytes),
     ): Result {
+        require(buffer.size >= bufferBytes) {
+            "Copy buffer must be at least $bufferBytes bytes"
+        }
         require(freeBytes() >= minFreeBytes) { "Insufficient free storage" }
-        val buffer = ByteArray(bufferBytes)
         var total = 0L
         while (true) {
             if (cancelled()) return Result(total, StopReason.CANCELLED)
             if (freeBytes() < minFreeBytes) return Result(total, StopReason.LOW_STORAGE)
-            val count = input.read(buffer)
+            val count = input.read(buffer, 0, bufferBytes)
             if (count < 0) return Result(total, StopReason.END_OF_STREAM)
             if (count == 0) continue
             output.write(buffer, 0, count)
