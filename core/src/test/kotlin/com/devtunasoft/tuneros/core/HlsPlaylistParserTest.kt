@@ -129,4 +129,20 @@ mux/index.m3u8
         assertEquals("cam", playlist.variants.single().videoGroup)
     }
 
+    @Test fun filteredMediaSegmentsCannotHideMixedMasterTags() {
+        val text = """#EXTM3U
+#EXT-X-MEDIA-SEQUENCE:100
+#EXTINF:4,
+100.ts
+#EXT-X-STREAM-INF:BANDWIDTH=1000000
+variant.m3u8
+"""
+        assertFailsWith<IllegalArgumentException> {
+            HlsPlaylistParserCore.parse(
+                text.reader(),
+                afterSequenceExclusive = 100,
+            )
+        }
+    }
+
 }
