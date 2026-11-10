@@ -2,14 +2,14 @@ package com.devtunasoft.tuneros
 
 import android.app.Activity
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.graphics.Color
-import android.view.Gravity
-import android.view.View
 import android.widget.Button
 import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.LinearLayout
-import android.widget.ScrollView
+import android.widget.ListView
 import android.widget.TextView
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
@@ -23,14 +23,11 @@ import androidx.media3.ui.PlayerView
 import com.devtunasoft.tuneros.core.Channel
 import com.devtunasoft.tuneros.core.GuideParser
 import com.devtunasoft.tuneros.core.GuideSnapshot
+import com.devtunasoft.tuneros.core.GuideProgram
+import com.devtunasoft.tuneros.core.SourceDownloader
 import com.devtunasoft.tuneros.core.PlaylistParser
-import java.io.FilterInputStream
-import java.io.InputStream
-import java.net.HttpURLConnection
-import java.net.URL
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicInteger
-import java.util.zip.GZIPInputStream
 
 /** First playable TunerOS slice: HTTP M3U/XMLTV import, searchable TV guide, Media3 playback. */
 class MainActivity : Activity() {
@@ -38,11 +35,32 @@ class MainActivity : Activity() {
     private val worker = Executors.newSingleThreadExecutor()
     private val playlistEpoch = AtomicInteger()
     private val guideEpoch = AtomicInteger()
+    private val uiHandler = Handler(Looper.getMainLooper())
+    private val secureSources by lazy { SecureSourceStore(this) }
+    private val downloader = SourceDownloader()
+    private var currentPrograms: Map<String, GuideProgram> = emptyMap()
+    private val searchRefresh = Runnable { renderChannels() }
+    private val clockRefresh = object : Runnable {
+        override fun run() {
+            val snapshot = guide
+            if (snapshot != null) worker.execute {
+                val updated = snapshot.currentProgramsAt(System.currentTimeMillis() / 1000)
+                runOnUiThread {
+                    if (guide === snapshot && !isFinishing && !isDestroyed) {
+                        currentPrograms = updated
+                        renderChannels()
+                    }
+                }
+            }
+            uiHandler.postDelayed(this, 60_000)
+        }
+    }
     private var channels: List<Channel> = emptyList()
     private var guide: GuideSnapshot? = null
     private var player: ExoPlayer? = null
     private lateinit var playerView: PlayerView
-    private lateinit var rows: LinearLayout
+    private lateinit var channelList: ListView
+    private lateinit var channelAdapter: ChannelListAdapter
     private lateinit var playlistUrl: EditText
     private lateinit var guideUrl: EditText
     private lateinit var search: EditText
@@ -58,10 +76,10 @@ class MainActivity : Activity() {
         }
         setContentView(root)
         root.addView(label("TunerOS · Classic Cable Alpha", 22))
-        playlistUrl = urlField("M3U playlist URL", prefs.getString("playlist", "").orEmpty())
+        playlistUrl = urlField("M3U playlist URL", secureSources.load("playlist").orEmpty())
         root.addView(playlistUrl)
         root.addView(button("Load channels") { loadPlaylist() })
-        guideUrl = urlField("XMLTV guide URL (optional)", prefs.getString("guide", "").orEmpty())
+        guideUrl = urlField("XMLTV guide URL (optional)", secureSources.load("guide").orEmpty())
         root.addView(guideUrl)
         root.addView(button("Load guide") { loadGuide() })
         search = urlField("Search channels", "")
@@ -84,13 +102,21 @@ class MainActivity : Activity() {
         root.addView(playerView, LinearLayout.LayoutParams(-1, 0, 1.1f))
         status = label("Enter an M3U URL to begin", 13)
         root.addView(status)
-        val scroller = ScrollView(this)
-        rows = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        scroller.addView(rows)
-        root.addView(scroller, LinearLayout.LayoutParams(-1, 0, 1.0f))
+        channelAdapter = ChannelListAdapter(this)
+        channelList = ListView(this).apply {
+            adapter = channelAdapter
+            isFocusable = true
+            onItemClickListener = android.widget.AdapterView.OnItemClickListener { _, _, position, _ ->
+                play(channelAdapter.getItem(position))
+            }
+        }
+        root.addView(channelList, LinearLayout.LayoutParams(-1, 0, 1.0f))
         search.addTextChangedListener(object : android.text.TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = renderChannels()
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                uiHandler.removeCallbacks(searchRefresh)
+                uiHandler.postDelayed(searchRefresh, 160)
+            }
             override fun afterTextChanged(s: android.text.Editable?) = Unit
         })
     }
@@ -118,17 +144,18 @@ class MainActivity : Activity() {
 
     private fun loadPlaylist() {
         val url = playlistUrl.text.toString().trim()
-        if (!isHttpUrl(url)) { showStatus("Enter an HTTP or HTTPS playlist URL"); return }
-        prefs.edit().putString("playlist", url).apply()
+        if (!isHttpUrl(url)) { showStatus("Enter a valid HTTP or HTTPS playlist URL"); return }
+        val saved = secureSources.save("playlist", url)
         val epoch = playlistEpoch.incrementAndGet()
         showStatus("Importing channels…")
         worker.execute {
-            val result = runCatching { boundedDownload(url, 16L * 1024 * 1024).bufferedReader().use { PlaylistParser.parse(it) } }
+            val result = runCatching { downloader.open(url, 16L * 1024 * 1024).bufferedReader().use { PlaylistParser.parseReport(it) } }
             runOnUiThread {
                 if (epoch != playlistEpoch.get() || isFinishing || isDestroyed) return@runOnUiThread
                 result.onSuccess {
-                    channels = it
-                    showStatus("Loaded ${it.size} channels")
+                    channels = it.channels
+                    val warnings = it.warnings + if (saved) emptyList() else listOf("URL not saved securely")
+                    showStatus("Loaded ${it.channels.size} channels" + if (warnings.isEmpty()) "" else "; WARNING: " + warnings.joinToString("; "))
                     renderChannels()
                 }.onFailure { showStatus("Playlist import failed: ${it.javaClass.simpleName}") }
             }
@@ -137,17 +164,23 @@ class MainActivity : Activity() {
 
     private fun loadGuide() {
         val url = guideUrl.text.toString().trim()
-        if (!isHttpUrl(url)) { showStatus("Enter an HTTP or HTTPS XMLTV URL"); return }
-        prefs.edit().putString("guide", url).apply()
+        if (!isHttpUrl(url)) { showStatus("Enter a valid HTTP or HTTPS XMLTV URL"); return }
+        val saved = secureSources.save("guide", url)
         val epoch = guideEpoch.incrementAndGet()
         showStatus("Importing guide…")
         worker.execute {
-            val result = runCatching { boundedDownload(url, 64L * 1024 * 1024).use(GuideParser::parse).also { it.prepareIndex() } }
+            val result = runCatching {
+                downloader.open(url, 64L * 1024 * 1024).use(GuideParser::parse).also { it.prepareIndex() }
+                    .let { snapshot -> snapshot to snapshot.currentProgramsAt(System.currentTimeMillis() / 1000) }
+            }
             runOnUiThread {
                 if (epoch != guideEpoch.get() || isFinishing || isDestroyed) return@runOnUiThread
                 result.onSuccess {
-                    guide = it
-                    showStatus("Loaded ${it.programs.size} programs across ${it.channelNames.size} guide channels")
+                    guide = it.first
+                    currentPrograms = it.second
+                    val warnings = it.first.warnings + if (saved) emptyList() else listOf("URL not saved securely")
+                    showStatus("Loaded ${it.first.programs.size} programs across ${it.first.channelNames.size} guide channels" +
+                        if (warnings.isEmpty()) "" else "; WARNING: " + warnings.joinToString("; "))
                     renderChannels()
                 }.onFailure { showStatus("Guide import failed: ${it.javaClass.simpleName}") }
             }
@@ -155,25 +188,14 @@ class MainActivity : Activity() {
     }
 
     private fun renderChannels() {
-        if (!::rows.isInitialized || !::search.isInitialized) return
-        rows.removeAllViews()
+        if (!::channelAdapter.isInitialized || !::search.isInitialized) return
         val query = search.text.toString().trim()
-        val now = System.currentTimeMillis() / 1000
         val visible = channels.asSequence()
             .filter { query.isEmpty() || it.name.contains(query, ignoreCase = true) }
             .filter { channel -> !hideNoGuide.isChecked || channel.guideId?.let { id -> guide?.hasSchedule(id) } == true }
             .take(500)
             .toList()
-        for (channel in visible) {
-            val current = channel.guideId?.let { guide?.now(it, now) }
-            val caption = if (current == null) "No current EPG" else current.title
-            val row = button("${channel.name}  •  $caption") { play(channel) }
-            row.gravity = Gravity.START or Gravity.CENTER_VERTICAL
-            row.textAlignment = View.TEXT_ALIGNMENT_VIEW_START
-            row.isFocusable = true
-            rows.addView(row, LinearLayout.LayoutParams(-1, -2))
-        }
-        if (channels.size > 500) rows.addView(label("Showing the first 500 matches; use search to narrow the guide.", 12))
+        channelAdapter.update(visible, currentPrograms)
     }
 
     private fun play(channel: Channel) {
@@ -213,54 +235,18 @@ class MainActivity : Activity() {
 
     private fun showStatus(value: String) { status.text = value }
 
-    /** Bounded import includes a decompressed-byte cap. Never open arbitrary non-HTTP schemes. */
-    private fun boundedDownload(source: String, maxBytes: Long): InputStream {
-        if (!isHttpUrl(source)) throw IllegalArgumentException("Unsupported URL scheme")
-        var address = source
-        repeat(5) {
-            val connection = URL(address).openConnection() as HttpURLConnection
-            connection.instanceFollowRedirects = false
-            connection.connectTimeout = 10_000
-            connection.readTimeout = 15_000
-            connection.setRequestProperty("Accept-Encoding", "gzip")
-            val code = connection.responseCode
-            if (code in 300..399) {
-                val location = connection.getHeaderField("Location") ?: throw IllegalArgumentException("Redirect without location")
-                val next = URL(URL(address), location).toString()
-                connection.disconnect()
-                if (!isHttpUrl(next)) throw IllegalArgumentException("Unsafe redirect")
-                address = next
-                return@repeat
-            }
-            if (code != 200) { connection.disconnect(); throw IllegalStateException("HTTP $code") }
-            val raw = connection.inputStream
-            val bytes = if (connection.contentEncoding.equals("gzip", true) || address.endsWith(".gz", true)) GZIPInputStream(raw) else raw
-            return object : FilterInputStream(bytes) {
-                private var size = 0L
-                override fun read(): Int {
-                    val n = super.read()
-                    if (n != -1) checkSize(1)
-                    return n
-                }
-                override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
-                    val n = super.read(buffer, offset, length)
-                    if (n > 0) checkSize(n)
-                    return n
-                }
-                private fun checkSize(n: Int) {
-                    size += n
-                    if (size > maxBytes) throw IllegalArgumentException("Import exceeds size limit")
-                }
-                override fun close() { super.close(); connection.disconnect() }
-            }
-        }
-        throw IllegalArgumentException("Too many redirects")
+    private fun isHttpUrl(value: String): Boolean = runCatching { SourceDownloader.checkedUrl(value) }.isSuccess
+    override fun onStart() { super.onStart(); uiHandler.post(clockRefresh) }
+    override fun onStop() {
+        uiHandler.removeCallbacks(clockRefresh)
+        super.onStop()
+        player?.pause()
     }
-    private fun isHttpUrl(value: String) = value.startsWith("https://", true) || value.startsWith("http://", true)
-    override fun onStop() { super.onStop(); player?.pause() }
     override fun onDestroy() {
         playlistEpoch.incrementAndGet()
         guideEpoch.incrementAndGet()
+        uiHandler.removeCallbacks(clockRefresh)
+        uiHandler.removeCallbacks(searchRefresh)
         worker.shutdownNow()
         playerView.player = null
         player?.release()
