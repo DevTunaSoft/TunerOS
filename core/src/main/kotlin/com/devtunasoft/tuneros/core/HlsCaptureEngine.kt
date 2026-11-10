@@ -79,21 +79,31 @@ class HlsCaptureEngine(
                             "Nested HLS master playlist",
                         )
                     }
-                    val supportedVariants = playlist.variants.filter { variant ->
-                        (variant.audioGroup == null ||
-                            variant.audioGroup !in playlist.externalAudioGroups) &&
-                            (variant.videoGroup == null ||
-                                variant.videoGroup !in playlist.externalVideoGroups)
+                    var variant: HlsVariant? = null
+                    for (candidate in playlist.variants) {
+                        val hasExternalAudio = candidate.audioGroup != null &&
+                            candidate.audioGroup in playlist.externalAudioGroups
+                        val hasExternalVideo = candidate.videoGroup != null &&
+                            candidate.videoGroup in playlist.externalVideoGroups
+                        if (hasExternalAudio || hasExternalVideo) continue
+
+                        val current = variant
+                        val candidateBandwidth = candidate.bandwidth ?: 0L
+                        val currentBandwidth = current?.bandwidth ?: Long.MIN_VALUE
+                        if (current == null ||
+                            candidateBandwidth > currentBandwidth ||
+                            (candidateBandwidth == currentBandwidth && candidate.uri > current.uri)
+                        ) {
+                            variant = candidate
+                        }
                     }
-                    val variant = supportedVariants.maxWithOrNull(
-                        compareBy<HlsVariant> { it.bandwidth ?: 0L }.thenBy { it.uri },
-                    ) ?: return Result(
+                    val selected = variant ?: return Result(
                         totalBytes,
                         lastSequence,
                         StopReason.UNSUPPORTED,
                         "HLS master requires separate audio/video rendition capture",
                     )
-                    playlistUrl = resolveHttp(loaded.effectiveUrl, variant.uri)
+                    playlistUrl = resolveHttp(loaded.effectiveUrl, selected.uri)
                     selectedVariant = true
                     continue
                 }
