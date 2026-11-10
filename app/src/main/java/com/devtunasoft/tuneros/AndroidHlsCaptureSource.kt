@@ -15,11 +15,14 @@ internal class AndroidHlsCaptureSource(
 ) : HlsCaptureSource {
     private val recorder = StreamRecorder()
     private val segmentBuffer = ByteArray(RecordingPolicy.COPY_BUFFER_BYTES)
-    override fun loadPlaylist(url: String): LoadedHlsPlaylist {
+    override fun loadPlaylist(
+        url: String,
+        afterSequenceExclusive: Long?,
+    ): LoadedHlsPlaylist {
         val connection = openConnection(url, null)
         return try {
             val playlist = connection.inputStream.bufferedReader(Charsets.UTF_8).use {
-                HlsPlaylistParserCore.parse(it)
+                HlsPlaylistParserCore.parse(it, afterSequenceExclusive)
             }
             LoadedHlsPlaylist(
                 effectiveUrl = connection.url.toString(),
