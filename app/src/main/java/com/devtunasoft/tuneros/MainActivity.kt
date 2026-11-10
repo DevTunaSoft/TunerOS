@@ -154,7 +154,7 @@ class MainActivity : Activity() {
             isFocusable = true
             dividerHeight = 0
             setOnKeyListener { _, keyCode, event ->
-                if (event.action != KeyEvent.ACTION_DOWN) return@setOnKeyListener false
+                if (event.action != KeyEvent.ACTION_DOWN || showingRecordings) return@setOnKeyListener false
                 when (keyCode) {
                     KeyEvent.KEYCODE_DPAD_LEFT -> { shiftGuideWindow(-guideStepSeconds); true }
                     KeyEvent.KEYCODE_DPAD_RIGHT -> { shiftGuideWindow(guideStepSeconds); true }
