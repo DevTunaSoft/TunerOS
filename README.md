@@ -14,6 +14,6 @@ Android SDK (API 35), JDK 17, and Gradle 8.9. From project root, run `gradle :co
 
 ## License and upstream sources
 
-No external IPTV project source is imported into this repository. Future adoption of upstream code requires an explicit license and provenance audit. Users must have the rights to access their streams; bundling any catalog requires separately verified redistribution permissions.
+Compatible open-source code may be selectively adapted after license and provenance review. The Classic Cable timeline model incorporates concepts adapted from Egeniq's Apache-2.0 `android-tv-program-guide`; attribution and modifications are recorded in `docs/THIRD_PARTY_PROVENANCE.md`. Users must have the rights to access their streams; bundling any catalog requires separately verified redistribution permissions.
 
 Copyright (c) 2026 TunerOS contributors. Licensing decision is pending source and dependency review.
