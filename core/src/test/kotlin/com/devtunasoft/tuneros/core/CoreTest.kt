@@ -341,4 +341,39 @@ https://example.com/live.m3u8
         assertEquals(result.bytesWritten.toInt(), output.size())
     }
 
+    @Test fun streamRecorderCanReuseCallerOwnedBuffer() {
+        val provided = ByteArray(4 * 1024)
+        var sawProvidedBuffer = false
+        val input = object : InputStream() {
+            private var emitted = false
+            override fun read(): Int = -1
+            override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
+                assertTrue(buffer === provided)
+                sawProvidedBuffer = true
+                if (emitted) return -1
+                emitted = true
+                buffer[offset] = 42
+                return 1
+            }
+        }
+        val output = ByteArrayOutputStream()
+        val result = StreamRecorder(bufferBytes = provided.size, minFreeBytes = 0).copy(
+            input = input,
+            output = output,
+            freeBytes = { Long.MAX_VALUE },
+            buffer = provided,
+        )
+        assertTrue(sawProvidedBuffer)
+        assertEquals(1L, result.bytesWritten)
+        assertEquals(42, output.toByteArray().single().toInt())
+        assertFailsWith<IllegalArgumentException> {
+            StreamRecorder(bufferBytes = 4 * 1024, minFreeBytes = 0).copy(
+                input = ByteArrayInputStream(byteArrayOf(1)),
+                output = ByteArrayOutputStream(),
+                freeBytes = { Long.MAX_VALUE },
+                buffer = ByteArray(1024),
+            )
+        }
+    }
+
 }
