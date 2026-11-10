@@ -36,6 +36,9 @@ internal class SecureSourceStore(context: Context) {
         return legacy
     }
 
+    fun delete(name: String): Boolean =
+        prefs.edit().remove("$name.secure").remove(name).commit()
+
     fun save(name: String, value: String): Boolean = runCatching {
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
         cipher.init(Cipher.ENCRYPT_MODE, key())
