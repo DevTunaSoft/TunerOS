@@ -5,6 +5,11 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.graphics.Color
+import android.view.WindowManager
+import android.view.View
+import android.view.WindowInsets
+import androidx.media3.common.AudioAttributes
+import androidx.media3.common.C
 import android.widget.Button
 import android.widget.CheckBox
 import android.widget.EditText
@@ -58,6 +63,8 @@ class MainActivity : Activity() {
     private var channels: List<Channel> = emptyList()
     private var guide: GuideSnapshot? = null
     private var player: ExoPlayer? = null
+    private var activeChannel: Channel? = null
+    private fun dp(value: Int): Int = (value * resources.displayMetrics.density + 0.5f).toInt()
     private lateinit var playerView: PlayerView
     private lateinit var channelList: ListView
     private lateinit var channelAdapter: ChannelListAdapter
@@ -72,7 +79,15 @@ class MainActivity : Activity() {
         window.decorView.setBackgroundColor(Color.rgb(13, 21, 34))
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(12, 10, 12, 10)
+            val horizontal = dp(12)
+            val vertical = dp(10)
+            setPadding(horizontal, vertical, horizontal, vertical)
+            setOnApplyWindowInsetsListener { view, insets ->
+                val bars = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout())
+                view.setPadding(horizontal + bars.left, vertical + bars.top,
+                    horizontal + bars.right, vertical + bars.bottom)
+                insets
+            }
         }
         setContentView(root)
         root.addView(label("TunerOS · Classic Cable Alpha", 22))
@@ -135,7 +150,7 @@ class MainActivity : Activity() {
         text = value
         textSize = size.toFloat()
         setTextColor(Color.WHITE)
-        setPadding(4, 3, 4, 3)
+        setPadding(dp(4), dp(3), dp(4), dp(3))
     }
     private fun urlField(hintText: String, initial: String): EditText = EditText(this).apply {
         hint = hintText
@@ -209,8 +224,8 @@ class MainActivity : Activity() {
     }
 
     private fun play(channel: Channel) {
-        playerView.player = null
-        player?.release()
+        releasePlayer()
+        activeChannel = channel
         val headers = mutableMapOf<String, String>()
         channel.userAgent?.let { headers["User-Agent"] = it }
         channel.referer?.let { if (isHttpUrl(it)) headers["Referer"] = it }
@@ -219,11 +234,16 @@ class MainActivity : Activity() {
             .setReadTimeoutMs(15_000)
             .setAllowCrossProtocolRedirects(false)
             .setDefaultRequestProperties(headers)
-        val sourceFactory = DefaultMediaSourceFactory(DefaultDataSource.Factory(this, http))
-        val newPlayer = ExoPlayer.Builder(this).setMediaSourceFactory(sourceFactory).build()
+        val sourceFactory = DefaultMediaSourceFactory(DefaultDataSource.Factory(applicationContext, http))
+        val newPlayer = ExoPlayer.Builder(applicationContext).setMediaSourceFactory(sourceFactory).build().apply {
+            setAudioAttributes(AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build(), true)
+        }
         player = newPlayer
         playerView.player = newPlayer
         newPlayer.addListener(object : Player.Listener {
+            override fun onIsPlayingChanged(isPlaying: Boolean) {
+                updateKeepScreenOn(isPlaying)
+            }
             override fun onPlayerError(error: PlaybackException) {
                 if (player === newPlayer) showStatus("Playback problem on ${channel.name}: ${error.errorCodeName}")
             }
@@ -243,6 +263,18 @@ class MainActivity : Activity() {
         showStatus("Connecting: ${channel.name}")
     }
 
+    private fun updateKeepScreenOn(isPlaying: Boolean) {
+        if (isPlaying) window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        else window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+    }
+
+    private fun releasePlayer() {
+        updateKeepScreenOn(false)
+        playerView.player = null
+        player?.release()
+        player = null
+    }
+
     private fun showStatus(value: String) { status.text = value }
 
     private fun isHttpUrl(value: String): Boolean = runCatching { SourceDownloader.checkedUrl(value) }.isSuccess
@@ -250,7 +282,7 @@ class MainActivity : Activity() {
     override fun onStop() {
         uiHandler.removeCallbacks(clockRefresh)
         super.onStop()
-        player?.pause()
+        releasePlayer()
     }
     override fun onDestroy() {
         playlistEpoch.incrementAndGet()
@@ -258,9 +290,7 @@ class MainActivity : Activity() {
         uiHandler.removeCallbacks(clockRefresh)
         uiHandler.removeCallbacks(searchRefresh)
         worker.shutdownNow()
-        playerView.player = null
-        player?.release()
-        player = null
+        releasePlayer()
         super.onDestroy()
     }
 }
