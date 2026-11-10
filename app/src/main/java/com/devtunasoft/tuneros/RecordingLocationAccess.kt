@@ -94,7 +94,12 @@ internal object RecordingLocationAccess {
             val treeId = runCatching {
                 DocumentsContract.getTreeDocumentId(permission.uri)
             }.getOrNull() ?: return@any false
-            targetDocumentId == treeId || targetDocumentId.startsWith("$treeId/")
+            targetDocumentId == treeId ||
+                if (treeId.endsWith(":")) {
+                    targetDocumentId.startsWith(treeId)
+                } else {
+                    targetDocumentId.startsWith("$treeId/")
+                }
         }
     }
 
