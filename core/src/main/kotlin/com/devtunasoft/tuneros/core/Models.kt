@@ -24,6 +24,19 @@ data class GuideSnapshot(
     val programs: List<GuideProgram>,
     val channelNames: Map<String, String>,
 ) {
+    // Build the index off the UI thread after import. Avoid O(channels × all programs)
+    // scans when rendering a large guide or searching channels.
+    private val byChannel by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
+        programs.groupBy { it.channelId }
+    }
+
+    fun prepareIndex() { byChannel.size }
+
+    /** A channel with future schedule entries still counts as having EPG. */
+    fun hasSchedule(channelId: String): Boolean = byChannel[channelId]?.isNotEmpty() == true
+
     fun now(channelId: String, epochSeconds: Long): GuideProgram? =
-        programs.firstOrNull { it.channelId == channelId && it.startEpochSeconds <= epochSeconds && epochSeconds < it.endEpochSeconds }
+        byChannel[channelId]?.firstOrNull {
+            it.startEpochSeconds <= epochSeconds && epochSeconds < it.endEpochSeconds
+        }
 }

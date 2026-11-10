@@ -142,7 +142,7 @@ class MainActivity : Activity() {
         val epoch = guideEpoch.incrementAndGet()
         showStatus("Importing guide…")
         worker.execute {
-            val result = runCatching { boundedDownload(url, 64L * 1024 * 1024).use(GuideParser::parse) }
+            val result = runCatching { boundedDownload(url, 64L * 1024 * 1024).use(GuideParser::parse).also { it.prepareIndex() } }
             runOnUiThread {
                 if (epoch != guideEpoch.get() || isFinishing || isDestroyed) return@runOnUiThread
                 result.onSuccess {
@@ -161,7 +161,7 @@ class MainActivity : Activity() {
         val now = System.currentTimeMillis() / 1000
         val visible = channels.asSequence()
             .filter { query.isEmpty() || it.name.contains(query, ignoreCase = true) }
-            .filter { channel -> !hideNoGuide.isChecked || channel.guideId?.let { id -> guide?.now(id, now) } != null }
+            .filter { channel -> !hideNoGuide.isChecked || channel.guideId?.let { id -> guide?.hasSchedule(id) } == true }
             .take(500)
             .toList()
         for (channel in visible) {

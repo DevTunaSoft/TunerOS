@@ -8,7 +8,7 @@ Status labels mean *code present*, not real-device acceptance.
 | M3U import | Initial implementation | Bounded streaming parser; source download from URL; JVM smoke test passed |
 | XMLTV import | Initial implementation | Secure SAX parser and JVM smoke test; large-feed integration unverified |
 | Search channel by name | Initial implementation | UI code; no device test |
-| Optional hide channels with no current EPG | Initial implementation | UI filter; no device test |
+| Optional hide channels with no EPG schedule | Initial implementation | Indexed guide schedule filter; JVM regression test, no device test |
 | Click/OK channel playback | Initial implementation | Media3 UI; not device tested |
 | Stream Doctor | Planned | Error code reporting only in alpha |
 | Guide Doctor | Planned | Foundation available; no repair UI yet |
@@ -17,4 +17,5 @@ Status labels mean *code present*, not real-device acceptance.
 | Favorites, profiles, local database | Planned | Not implemented |
 | Built-in channel catalog | Deferred | Requires content redistribution rights audit |
 | FastChannels on-device server | Deferred | Explicitly outside current implementation |
-| Signing, installation, real-device acceptance | Unverified | No Android SDK available in current local execution environment |
+| Android debug APK build | PASS (CI) | GitHub Actions run 42737228695 built and uploaded APK on 2026-11-10; next changes require new CI |
+| Installation, real-device acceptance | NOT RUN | No physical Android TV or phone validation yet |

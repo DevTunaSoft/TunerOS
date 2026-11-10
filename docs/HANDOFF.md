@@ -19,13 +19,16 @@ This is a new native Android app, not a verified import of the unknown browser V
 - Verified output: `CORE SMOKE PASS: M3U, XMLTV, multiview admission` (JVM Kotlin 1.9.0, Java 21).
 - Local property/fuzz smoke: `kotlinc core/src/main/kotlin/com/devtunasoft/tuneros/core/*.kt scripts/FuzzSmoke.kt -include-runtime -d /tmp/tuneros-fuzz.jar && java -jar /tmp/tuneros-fuzz.jar`.
 - Verified output: `FUZZ SMOKE PASS: 1000 playlists, 250 XXE attempts, 81 capacity combinations`.
-- Native Android Gradle compile and APK install have **not** yet been verified; local Android SDK and Gradle executable unavailable. CI is configured to attempt a build with Gradle 8.9, Android SDK 35, JDK 17.
+- **PASS:** GitHub Actions run [42737228695](https://github.com/DevTunaSoft/TunerOS/actions/runs/42737228695) on commit `91ff70623fc0c0a3514faa19cb68743095a4fe80` completed `:core:test`, `:app:assembleDebug`, and artifact upload. Build tools: Gradle 8.9, Android SDK 35, JDK 17.
+- **FAIL resolved:** Prior CI run 42508571401 failed at `MainActivity.kt:164` due to a cross-module nullable property smart cast. Fixed by local `let` binding in commit `91ff706`.
+- **NOT RUN:** Physical device installation, actual live stream playback, Android TV remote focus, multiview, and release signing.
+- Follow-on changes after the successful run require a new CI result before claiming build success for latest main.
 
 ## Known gaps and risks
 
 - Alpha UI is deliberately minimal, not the final classic cable timeline.
 - Only HTTP(S) M3U/XMLTV URL imports; no on-disk provider database or offline snapshots yet.
-- XMLTV memory bounded by import bytes and program cap but list storage needs paging for large feeds.
+- XMLTV memory bounded by import bytes and program cap; an in-memory per-channel index avoids quadratic guide filtering, but guide storage needs paging for large feeds. New index/filter behavior requires CI regression verification.
 - Channel identity based on tvg-id or stream URL; duplicate `tvg-id`s can collide across sources. Introduce provider-scoped stable IDs.
 - Playback engine creates a new player per channel; test rapid switching and hardware decoder stress.
 - HTTP imports permit cleartext transport for user feeds; warn about credentials and prefer HTTPS.

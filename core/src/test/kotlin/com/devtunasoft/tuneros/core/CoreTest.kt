@@ -33,6 +33,15 @@ https://example.com/live.m3u8
         assertEquals("Morning News", guide.programs.single().title)
         assertEquals(guide.programs.single(), guide.now("news.us", guide.programs.single().startEpochSeconds + 1))
     }
+    @Test fun futureEpgCountsAsScheduleEvenWithoutCurrentProgram() {
+        val future = GuideProgram("news.us", "Tomorrow", 1_000_000L, 1_003_600L)
+        val guide = GuideSnapshot(listOf(future), mapOf("news.us" to "News"))
+        guide.prepareIndex()
+        assertEquals(true, guide.hasSchedule("news.us"))
+        assertEquals(false, guide.hasSchedule("missing"))
+        assertEquals(null, guide.now("news.us", 999_999L))
+        assertEquals(future, guide.now("news.us", 1_000_001L))
+    }
     @Test fun xxeIsBlocked() {
         val xml = "<!DOCTYPE tv [<!ENTITY xxe SYSTEM \"file:///etc/passwd\">]><tv><channel id=\"a\"><display-name>&xxe;</display-name></channel></tv>"
         assertFailsWith<Exception> { GuideParser.parse(ByteArrayInputStream(xml.toByteArray())) }
