@@ -6,6 +6,10 @@ import android.os.Handler
 import android.os.Looper
 import android.graphics.Color
 import android.view.WindowManager
+import android.view.KeyEvent
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import android.widget.Button
@@ -61,6 +65,10 @@ class MainActivity : Activity() {
     private var channels: List<Channel> = emptyList()
     private var guide: GuideSnapshot? = null
     private var player: ExoPlayer? = null
+    private var guideWindowStart: Long = 0
+    private val guideWindowSeconds = 3 * 3600L
+    private val guideStepSeconds = 30 * 60L
+    private val timeFormatter = DateTimeFormatter.ofPattern("h:mm a")
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density + 0.5f).toInt()
     private lateinit var playerView: PlayerView
     private lateinit var channelList: ListView
@@ -70,6 +78,7 @@ class MainActivity : Activity() {
     private lateinit var search: EditText
     private lateinit var hideNoGuide: CheckBox
     private lateinit var status: TextView
+    private lateinit var timeRail: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -115,6 +124,11 @@ class MainActivity : Activity() {
         root.addView(playerView, LinearLayout.LayoutParams(-1, 0, 1.1f))
         status = label("Enter an M3U URL to begin", 13)
         root.addView(status)
+        timeRail = label("", 14).apply {
+            setBackgroundColor(Color.rgb(18, 31, 50))
+            setPadding(dp(194), dp(8), dp(8), dp(8))
+        }
+        root.addView(timeRail)
         channelAdapter = CableGuideAdapter(
             this,
             onChannelSelected = ::play,
@@ -126,6 +140,14 @@ class MainActivity : Activity() {
             adapter = channelAdapter
             isFocusable = true
             dividerHeight = 0
+            setOnKeyListener { _, keyCode, event ->
+                if (event.action != KeyEvent.ACTION_DOWN) return@setOnKeyListener false
+                when (keyCode) {
+                    KeyEvent.KEYCODE_DPAD_LEFT -> { shiftGuideWindow(-guideStepSeconds); true }
+                    KeyEvent.KEYCODE_DPAD_RIGHT -> { shiftGuideWindow(guideStepSeconds); true }
+                    else -> false
+                }
+            }
         }
         root.addView(channelList, LinearLayout.LayoutParams(-1, 0, 1.0f))
         worker.execute {
@@ -222,9 +244,26 @@ class MainActivity : Activity() {
             .filter { channel -> !hideNoGuide.isChecked || channel.guideId?.let { id -> guide?.hasSchedule(id) } == true }
             .take(500)
             .toList()
-        val now = System.currentTimeMillis() / 1000
-        val windowStart = now - (now % 1800)
-        channelAdapter.update(visible, guide, windowStart, windowStart + 3 * 3600)
+        if (guideWindowStart == 0L) {
+            val now = System.currentTimeMillis() / 1000
+            guideWindowStart = now - (now % guideStepSeconds)
+        }
+        updateTimeRail()
+        channelAdapter.update(visible, guide, guideWindowStart, guideWindowStart + guideWindowSeconds)
+    }
+
+    private fun shiftGuideWindow(deltaSeconds: Long) {
+        guideWindowStart += deltaSeconds
+        renderChannels()
+    }
+
+    private fun updateTimeRail() {
+        if (!::timeRail.isInitialized || guideWindowStart == 0L) return
+        val zone = ZoneId.systemDefault()
+        val labels = (0..6).joinToString("     ") { halfHour ->
+            timeFormatter.format(Instant.ofEpochSecond(guideWindowStart + halfHour * guideStepSeconds).atZone(zone))
+        }
+        timeRail.text = labels
     }
 
     private fun play(channel: Channel) {
