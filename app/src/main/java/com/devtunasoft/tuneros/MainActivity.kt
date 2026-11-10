@@ -83,6 +83,8 @@ class MainActivity : Activity() {
     private lateinit var channelAdapter: CableGuideAdapter
     private lateinit var recordingAdapter: RecordingLibraryAdapter
     private var showingRecordings = false
+    private var focusedRecording: RecordingCatalogEntry? = null
+    private var playingRecordingId: String? = null
     private lateinit var playlistUrl: EditText
     private lateinit var guideUrl: EditText
     private lateinit var search: EditText
@@ -139,6 +141,8 @@ class MainActivity : Activity() {
         root.addView(button("Exact DVR timing") { openExactAlarmSettings() })
         root.addView(button("Stop recording") { stopRecording() })
         root.addView(button("Guide / Recordings") { toggleRecordings() })
+        root.addView(button("Protect / Unprotect focused recording") { toggleFocusedRecordingProtection() })
+        root.addView(button("Delete focused recording") { deleteFocusedRecording() })
         timeRail = label("", 14).apply {
             setBackgroundColor(Color.rgb(18, 31, 50))
             setPadding(dp(194), dp(8), dp(8), dp(8))
@@ -153,7 +157,13 @@ class MainActivity : Activity() {
                 showStatus(channel.name + (program?.let { " · " + it.title } ?: ""))
             },
         )
-        recordingAdapter = RecordingLibraryAdapter(this, ::playRecording)
+        recordingAdapter = RecordingLibraryAdapter(
+            this,
+            ::playRecording,
+        ) { entry ->
+            focusedRecording = entry
+            showStatus(entry.title + if (entry.isProtected) " · Protected" else " · Recording")
+        }
         channelList = ListView(this).apply {
             adapter = channelAdapter
             isFocusable = true
@@ -300,6 +310,7 @@ class MainActivity : Activity() {
             setAudioAttributes(AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build(), true)
         }
         player = newPlayer
+        playingRecordingId = entry.id
         playerView.player = newPlayer
         newPlayer.addListener(object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
@@ -490,22 +501,108 @@ class MainActivity : Activity() {
     private fun toggleRecordings() {
         if (showingRecordings) {
             showingRecordings = false
+            focusedRecording = null
             channelList.adapter = channelAdapter
             timeRail.visibility = android.view.View.VISIBLE
             renderChannels()
             showStatus("Guide")
             return
         }
+        showingRecordings = true
+        focusedRecording = null
+        channelList.adapter = recordingAdapter
+        timeRail.visibility = android.view.View.GONE
         showStatus("Loading recordings…")
+        refreshRecordingLibrary()
+    }
+
+    private fun refreshRecordingLibrary(statusOverride: String? = null) {
         worker.execute {
             val items = RecordingCatalog(this).use { it.recent(100) }
             runOnUiThread {
-                if (isFinishing || isDestroyed) return@runOnUiThread
+                if (isFinishing || isDestroyed || !showingRecordings) return@runOnUiThread
                 recordingAdapter.update(items)
-                channelList.adapter = recordingAdapter
-                timeRail.visibility = android.view.View.GONE
-                showingRecordings = true
-                showStatus(if (items.isEmpty()) "No recordings yet" else "Recordings: " + items.size)
+                if (focusedRecording != null && items.none { it.id == focusedRecording?.id }) {
+                    focusedRecording = null
+                }
+                showStatus(
+                    statusOverride
+                        ?: if (items.isEmpty()) "No recordings yet" else "Recordings: " + items.size,
+                )
+            }
+        }
+    }
+
+    private fun toggleFocusedRecordingProtection() {
+        if (!showingRecordings) {
+            showStatus("Open Recordings and focus an item first")
+            return
+        }
+        val entry = focusedRecording ?: run {
+            showStatus("Focus a recording first")
+            return
+        }
+        if (entry.state == "RECORDING") {
+            showStatus("Stop the active recording before changing protection")
+            return
+        }
+        val protect = !entry.isProtected
+        worker.execute {
+            val updated = RecordingCatalog(this).use { it.setProtected(entry.id, protect) }
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                if (updated == 1) {
+                    focusedRecording = entry.copy(isProtected = protect)
+                    refreshRecordingLibrary(
+                        entry.title + if (protect) " · Protected" else " · Protection removed",
+                    )
+                } else {
+                    showStatus("Recording protection update failed")
+                }
+            }
+        }
+    }
+
+    private fun deleteFocusedRecording() {
+        if (!showingRecordings) {
+            showStatus("Open Recordings and focus an item first")
+            return
+        }
+        val entry = focusedRecording ?: run {
+            showStatus("Focus a recording first")
+            return
+        }
+        if (entry.state == "RECORDING") {
+            showStatus("Stop the active recording before deleting it")
+            return
+        }
+        if (entry.isProtected) {
+            showStatus("Remove protection before deleting: " + entry.title)
+            return
+        }
+
+        if (playingRecordingId == entry.id) releasePlayer()
+        val file = allowedRecordingFile(entry.filePath)
+        if (entry.filePath != null && file == null && File(entry.filePath).exists()) {
+            showStatus("Refusing to delete a recording path outside TunerOS storage")
+            return
+        }
+
+        worker.execute {
+            val fileDeleted = file == null || !file.exists() || file.delete()
+            val rowDeleted = if (fileDeleted) {
+                RecordingCatalog(this).use { it.delete(entry.id) == 1 }
+            } else {
+                false
+            }
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                if (fileDeleted && rowDeleted) {
+                    focusedRecording = null
+                    refreshRecordingLibrary("Deleted recording: " + entry.title)
+                } else {
+                    showStatus("Could not delete recording: " + entry.title)
+                }
             }
         }
     }
@@ -577,6 +674,7 @@ class MainActivity : Activity() {
         playerView.player = null
         player?.release()
         player = null
+        playingRecordingId = null
     }
 
     private fun showStatus(value: String) { status.text = value }
