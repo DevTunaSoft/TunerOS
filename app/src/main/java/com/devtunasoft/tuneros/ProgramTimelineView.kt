@@ -128,8 +128,7 @@ internal class ProgramTimelineView(
             KeyEvent.KEYCODE_DPAD_LEFT -> return moveSelection(-1)
             KeyEvent.KEYCODE_DPAD_RIGHT -> return moveSelection(1)
             KeyEvent.KEYCODE_DPAD_CENTER,
-            KeyEvent.KEYCODE_ENTER,
-            -> return performClick()
+            KeyEvent.KEYCODE_ENTER -> return performClick()
         }
         return super.onKeyDown(keyCode, event)
     }
@@ -157,9 +156,8 @@ internal class ProgramTimelineView(
                     requestFocus()
                     setSelectedIndex(index)
                     performClick()
-                } else {
-                    false
                 }
+                true
             }
             MotionEvent.ACTION_CANCEL -> true
             else -> true
@@ -169,10 +167,8 @@ internal class ProgramTimelineView(
     override fun performClick(): Boolean {
         super.performClick()
         val selectedChannel = channel ?: return false
-        val program = entries.getOrNull(selectedIndex)?.program ?: return false
-        onProgramFocused(selectedChannel, program)
+        entries.getOrNull(selectedIndex)?.program ?: return false
         onChannelSelected(selectedChannel)
-        sendAccessibilityEvent(AccessibilityEvent.TYPE_VIEW_CLICKED)
         return true
     }
 
