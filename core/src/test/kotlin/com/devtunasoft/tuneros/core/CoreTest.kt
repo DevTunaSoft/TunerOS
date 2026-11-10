@@ -376,4 +376,22 @@ https://example.com/live.m3u8
         }
     }
 
+    @Test fun timelineFocusPolicySkipsGapsWithoutAllocatingSelectableLists() {
+        val entries = listOf(
+            TimelineEntry(0, 10),
+            TimelineEntry(10, 20, GuideProgram("c", "One", 10, 20)),
+            TimelineEntry(20, 30),
+            TimelineEntry(30, 40, GuideProgram("c", "Two", 30, 40)),
+        )
+        assertEquals(1, TimelineFocusPolicy.preferredIndex(entries, null))
+        assertEquals(3, TimelineFocusPolicy.preferredIndex(entries, 30))
+        assertEquals(3, TimelineFocusPolicy.nextIndex(entries, 1, 1))
+        assertEquals(1, TimelineFocusPolicy.nextIndex(entries, 3, -1))
+        assertEquals(-1, TimelineFocusPolicy.nextIndex(entries, 3, 1))
+        assertEquals(-1, TimelineFocusPolicy.preferredIndex(listOf(TimelineEntry(0, 10)), null))
+        assertFailsWith<IllegalArgumentException> {
+            TimelineFocusPolicy.nextIndex(entries, 1, 0)
+        }
+    }
+
 }
