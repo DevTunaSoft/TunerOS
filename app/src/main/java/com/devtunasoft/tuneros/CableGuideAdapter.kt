@@ -43,6 +43,7 @@ internal class CableGuideAdapter(
     private var guide: GuideSnapshot? = null
     private var fromEpochSeconds: Long = 0
     private var toEpochSeconds: Long = 1
+    private var nowEpochSeconds: Long = 0
     private var focusedChannelId: String? = null
     private var focusedProgramStart: Long? = null
 
@@ -54,12 +55,14 @@ internal class CableGuideAdapter(
         snapshot: GuideSnapshot?,
         fromEpochSeconds: Long,
         toEpochSeconds: Long,
+        nowEpochSeconds: Long,
     ) {
         require(toEpochSeconds > fromEpochSeconds)
         channels = visibleChannels
         guide = snapshot
         this.fromEpochSeconds = fromEpochSeconds
         this.toEpochSeconds = toEpochSeconds
+        this.nowEpochSeconds = nowEpochSeconds
         notifyDataSetChanged()
     }
 
@@ -142,6 +145,7 @@ internal class CableGuideAdapter(
             entries = entries,
             fromEpochSeconds = fromEpochSeconds,
             toEpochSeconds = toEpochSeconds,
+            nowEpochSeconds = nowEpochSeconds,
             preferredProgramStart = if (channel.id == focusedChannelId) {
                 focusedProgramStart
             } else {
