@@ -42,6 +42,7 @@ class DvrRecordingService : Service() {
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
+        catalog.markInterruptedRecordings(System.currentTimeMillis() / 1000)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -100,6 +101,7 @@ class DvrRecordingService : Service() {
         val safeId = id.replace(Regex("[^A-Za-z0-9._-]"), "_").take(96)
         val partial = File(directory, "$safeId.partial")
         val completed = File(directory, "$safeId${recordingExtension(streamUrl)}")
+        catalog.setFilePath(id, partial.absolutePath)
         var connection: HttpURLConnection? = null
         var bytesWritten = 0L
         var lastCatalogBytes = 0L
