@@ -22,6 +22,8 @@ object GuideParser {
     const val MAX_CHANNELS = 25_000
     private val withOffset = DateTimeFormatter.ofPattern("yyyyMMddHHmmss Z")
     private val withoutOffset = DateTimeFormatter.ofPattern("yyyyMMddHHmmss")
+    private val noOffsetPattern = Regex("""\d{14}""")
+    private const val MAX_CAPTURE_CHARS = 4096
 
     fun parse(input: InputStream, maxPrograms: Int = MAX_PROGRAMS,
               maxChannels: Int = MAX_CHANNELS, fallbackZone: ZoneId = ZoneOffset.UTC,
@@ -62,8 +64,8 @@ object GuideParser {
                 }
             }
             override fun characters(ch: CharArray, start: Int, length: Int) {
-                if (capture != null && buffer.length < 4096) {
-                    buffer.append(ch, start, minOf(length, 4096 - buffer.length))
+                if (capture != null && buffer.length < MAX_CAPTURE_CHARS) {
+                    buffer.append(ch, start, minOf(length, MAX_CAPTURE_CHARS - buffer.length))
                 }
             }
             override fun endElement(uri: String?, localName: String?, qName: String) {
@@ -123,7 +125,7 @@ object GuideParser {
     private fun parseTime(raw: String?, fallbackZone: ZoneId): Pair<Long?, Boolean> {
         if (raw == null) return null to false
         val value = raw.trim()
-        return if (value.matches(Regex("""\d{14}"""))) {
+        return if (noOffsetPattern.matches(value)) {
             runCatching { LocalDateTime.parse(value, withoutOffset).atZone(fallbackZone).toEpochSecond() }.getOrNull() to true
         } else {
             runCatching { OffsetDateTime.parse(value, withOffset).toEpochSecond() }.getOrNull() to false
