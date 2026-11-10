@@ -134,7 +134,7 @@ class DvrRecordingService : Service() {
                 safeId = safeId,
                 extension = recordingExtension(streamUrl),
             )
-            catalog.setFilePath(id, sink.location)
+            catalog.setStorageLocation(id, sink.location)
 
             val outcome = if (looksLikeHls(streamUrl)) {
                 captureHls(
@@ -177,7 +177,7 @@ class DvrRecordingService : Service() {
                 state = if (wasCancelled) "CANCELLED" else if (bytes > 0) "PARTIAL" else "FAILED",
                 stoppedEpochSeconds = nowSeconds(),
                 bytesWritten = bytes,
-                filePath = sink?.location?.takeIf { bytes > 0 },
+                storageLocation = sink?.location?.takeIf { bytes > 0 },
                 failureReason = if (wasCancelled) null else error.javaClass.simpleName,
             )
             if (bytes == 0L) sink?.delete()
@@ -312,7 +312,7 @@ class DvrRecordingService : Service() {
                 state = if (finalizedLocation != null) "COMPLETED" else "PARTIAL",
                 stoppedEpochSeconds = nowSeconds(),
                 bytesWritten = outcome.bytesWritten,
-                filePath = finalizedLocation ?: sink.location.takeIf { outcome.bytesWritten > 0 },
+                storageLocation = finalizedLocation ?: sink.location.takeIf { outcome.bytesWritten > 0 },
                 failureReason = if (finalizedLocation != null) null else
                     "Unable to finalize recording output",
             )
@@ -325,7 +325,7 @@ class DvrRecordingService : Service() {
             state = outcome.state,
             stoppedEpochSeconds = nowSeconds(),
             bytesWritten = outcome.bytesWritten,
-            filePath = sink.location.takeIf { outcome.bytesWritten > 0 },
+            storageLocation = sink.location.takeIf { outcome.bytesWritten > 0 },
             failureReason = outcome.failureReason,
         )
     }
