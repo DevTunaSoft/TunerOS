@@ -702,8 +702,10 @@ class MainActivity : Activity() {
             Intent.FLAG_GRANT_READ_URI_PERMISSION or
                 Intent.FLAG_GRANT_WRITE_URI_PERMISSION
             )
-        if (grantFlags and Intent.FLAG_GRANT_WRITE_URI_PERMISSION == 0) {
-            showStatus("The selected recording folder is not writable")
+        val requiredGrantFlags =
+            Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+        if (grantFlags and requiredGrantFlags != requiredGrantFlags) {
+            showStatus("The selected recording folder must allow both reading and writing")
             return
         }
 
