@@ -36,7 +36,8 @@ class DvrRecordingService : Service() {
     private val worker = Executors.newSingleThreadExecutor()
     private val cancelled = AtomicBoolean(false)
     private val active = AtomicBoolean(false)
-    private val catalog by lazy { RecordingCatalog(this) }
+    private val catalogLazy = lazy { RecordingCatalog(this) }
+    private val catalog: RecordingCatalog get() = catalogLazy.value
 
     override fun onCreate() {
         super.onCreate()
@@ -198,7 +199,7 @@ class DvrRecordingService : Service() {
     override fun onDestroy() {
         cancelled.set(true)
         worker.shutdownNow()
-        if (::catalog.isInitialized) catalog.close()
+        if (catalogLazy.isInitialized()) catalog.close()
         super.onDestroy()
     }
 
