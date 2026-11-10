@@ -103,7 +103,8 @@ object GuideParser {
         val warnings = buildList {
             if (skippedPrograms > 0) add("$skippedPrograms programmes omitted: limit $maxPrograms")
             if (skippedChannels > 0) add("$skippedChannels channel names omitted: limit $maxChannels")
-            if (assumedZone > 0) add("$assumedZone programmes lacked timezone: assumed $fallbackZone")
+            if (assumedZone > 0) add("$assumedZone programmes lacked timezone: assumed " +
+                if (fallbackZone == ZoneOffset.UTC) "UTC" else fallbackZone.id)
             if (invalidTimestamps > 0) add("$invalidTimestamps programmes had invalid timestamps")
         }
         return GuideSnapshot(programs, channels, warnings)
