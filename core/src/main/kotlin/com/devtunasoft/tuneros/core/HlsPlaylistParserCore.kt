@@ -47,6 +47,7 @@ data class HlsMediaPlaylist(
 object HlsPlaylistParserCore {
     const val MAX_LINE_LENGTH = 16_384
     const val MAX_LINES = 50_000
+    const val MAX_TOTAL_CHARACTERS = 2_000_000
     const val MAX_RESULT_SEGMENTS = 10_000
     const val MAX_VARIANTS = 256
 
@@ -60,6 +61,7 @@ object HlsPlaylistParserCore {
         val variants = ArrayList<HlsVariant>()
         val segments = ArrayList<HlsSegment>()
         var totalLines = 0
+        var totalCharacters = 0
         var mediaSequence = 0L
         var nextSequence = 0L
         var mediaSequenceSeen = false
@@ -81,8 +83,14 @@ object HlsPlaylistParserCore {
         while (true) {
             val raw = BoundedLines.read(input, MAX_LINE_LENGTH, "HLS") ?: break
             totalLines++
+            totalCharacters = Math.addExact(totalCharacters, raw.length + 1)
             if (totalLines > MAX_LINES) {
                 throw IllegalArgumentException("HLS playlist exceeds $MAX_LINES lines")
+            }
+            if (totalCharacters > MAX_TOTAL_CHARACTERS) {
+                throw IllegalArgumentException(
+                    "HLS playlist exceeds $MAX_TOTAL_CHARACTERS characters",
+                )
             }
             val line = raw.trim().removePrefix("\uFEFF")
             if (line.isEmpty()) continue
