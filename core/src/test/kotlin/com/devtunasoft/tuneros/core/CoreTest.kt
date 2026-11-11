@@ -199,7 +199,9 @@ https://example.com/live.m3u8
         loader.open("https://example.org/stall", 100).use { input ->
             assertFailsWith<IOException> { input.skip(128) }
         }
-        assertEquals(16, emptyReads)
+        // PushbackInputStream may perform one zero read while draining its
+        // two-byte sniff buffer before the 16 counted no-progress iterations.
+        assertTrue(emptyReads in 16..17)
     }
 
     @Test fun intermittentZeroReadsDoNotFailIfStreamRecovers() {
