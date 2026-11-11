@@ -72,12 +72,13 @@ jobs:
               adb shell run-as com.devtunasoft.tuneros cat files/tuneros-selftest-report.txt > on-device-report.txt 2>/dev/null || true
               if grep -Fq "$(printf 'PASS\tdebug-large-guide-stress\t')" on-device-report.txt && \
                  grep -Fq "$(printf 'PASS\tdebug-ui-focus\t')" on-device-report.txt && \
+                 grep -Fq "$(printf 'PASS\tdebug-empty-guide-dpad\t')" on-device-report.txt && \
                  ! adb shell run-as com.devtunasoft.tuneros ls files/tuneros-selftest-in-progress >/dev/null 2>&1; then
                 break
               fi
               sleep 2
             done
-            for check in offline-m3u-parser offline-xmltv-parser offline-channel-filter offline-timeline offline-xmltv-dtd-block scratch-dvr-copy scratch-dvr-catalog android-keystore-roundtrip debug-large-guide-stress debug-ui-focus; do
+            for check in offline-m3u-parser offline-xmltv-parser offline-channel-filter offline-timeline offline-xmltv-dtd-block scratch-dvr-copy scratch-dvr-catalog android-keystore-roundtrip debug-large-guide-stress debug-ui-focus debug-empty-guide-dpad; do
               if ! grep -Fq "$(printf 'PASS\t%s\t' "$check")" on-device-report.txt; then
                 echo "On-device QA assertion failed or never completed: $check"
                 cat on-device-report.txt
