@@ -53,7 +53,12 @@ internal object OnDeviceSelfTest {
             val failed = checks.count { it.state == State.FAIL }
             val blocked = checks.count { it.state == State.BLOCKED }
             val notRun = checks.count { it.state == State.NOT_RUN }
-            return "Autonomous QA: $passed PASS / $failed FAIL / $blocked BLOCKED / $notRun NOT RUN"
+            val disposition = when {
+                failed > 0 -> "FAIL"
+                blocked > 0 || notRun > 0 -> "INCOMPLETE"
+                else -> "PASS"
+            }
+            return "Autonomous QA: $disposition | $passed PASS / $failed FAIL / $blocked BLOCKED / $notRun NOT RUN"
         }
 
         fun text(): String = buildString(2048) {
