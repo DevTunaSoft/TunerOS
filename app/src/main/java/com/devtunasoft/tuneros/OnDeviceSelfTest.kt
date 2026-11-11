@@ -5,11 +5,15 @@ import android.content.Context
 import android.os.Build
 import android.os.Debug
 import android.os.SystemClock
+import com.devtunasoft.tuneros.core.Channel
+import com.devtunasoft.tuneros.core.ChannelVisibility
+import com.devtunasoft.tuneros.core.GuideProgram
 import com.devtunasoft.tuneros.core.GuideParser
 import com.devtunasoft.tuneros.core.GuideSnapshot
 import com.devtunasoft.tuneros.core.PlaylistParser
 import com.devtunasoft.tuneros.core.RecordingPolicy
 import com.devtunasoft.tuneros.core.StreamRecorder
+import com.devtunasoft.tuneros.core.TimelineLayout
 import java.io.ByteArrayInputStream
 import java.io.File
 import java.io.FileOutputStream
@@ -61,6 +65,7 @@ internal object OnDeviceSelfTest {
     private const val MAX_EVENTS_BYTES = 32 * 1024
     private const val MAX_SHARE_EVENTS = 8 * 1024
     private const val CANARY_KEY = "tuneros_selftest_canary_v1"
+    private const val RUN_MARKER = "tuneros-selftest-in-progress"
 
     private fun check(id: String, detail: String, test: () -> Boolean): Check =
         try {
@@ -72,7 +77,17 @@ internal object OnDeviceSelfTest {
 
     /** Safe to call at startup or after an import. No existing recordings are touched. */
     fun run(context: Context, hasPlaylist: Boolean, hasGuide: Boolean): Report {
-        val checks = ArrayList<Check>(11)
+        val previousRunIncomplete = File(context.filesDir, RUN_MARKER).exists()
+        val marker = File(context.filesDir, RUN_MARKER)
+        marker.writeText(System.currentTimeMillis().toString())
+        val checks = ArrayList<Check>(14)
+        checks += Check(
+            "previous-test-run",
+            if (previousRunIncomplete) State.BLOCKED else State.PASS,
+            if (previousRunIncomplete)
+                "Previous test run did not finish; review app termination or storage"
+            else "No interrupted self-test detected",
+        )
         checks += check("offline-m3u-parser", "One synthetic channel parsed") {
             val m3u = "#EXTM3U\n#EXTINF:-1 tvg-id=\"selftest\",Test Channel\nhttps://example.invalid/live.m3u8\n"
             val parsed = PlaylistParser.parse(m3u.reader())
@@ -90,6 +105,37 @@ internal object OnDeviceSelfTest {
             val program = guide.programs.single()
             guide.hasSchedule("selftest") &&
                 guide.now("selftest", program.startEpochSeconds + 1)?.title == "Test Programme"
+        }
+
+        checks += check("offline-channel-filter", "Search and hide-no-EPG respect channel mapping") {
+            val testChannels = listOf(
+                Channel("1", "News", "https://example.invalid/1", guideId = "news"),
+                Channel("2", "Sports", "https://example.invalid/2", guideId = "sports"),
+            )
+            val testGuide = GuideSnapshot(
+                listOf(GuideProgram("news", "News at noon", 100, 200)),
+                emptyMap(),
+            )
+            testGuide.prepareIndex()
+            ChannelVisibility.filter(testChannels, testGuide, "news", true).map { it.id } ==
+                listOf("1") &&
+                ChannelVisibility.filter(testChannels, testGuide, "", true).size == 1 &&
+                ChannelVisibility.filter(testChannels, null, "", false).size == 2
+        }
+
+        checks += check("offline-timeline", "Indexed guide produces contiguous clipped cable cells") {
+            val programs = listOf(
+                GuideProgram("news", "First", 90, 120),
+                GuideProgram("news", "Second", 140, 190),
+            )
+            val snapshot = GuideSnapshot(programs, emptyMap()).apply { prepareIndex() }
+            val row = TimelineLayout.rowFromSorted(snapshot.programsBetween("news", 100, 180), 100, 180)
+            row.first().startEpochSeconds == 100L &&
+                row.last().endEpochSeconds == 180L &&
+                row.zipWithNext().all { (left, right) ->
+                    left.endEpochSeconds == right.startEpochSeconds
+                } &&
+                row.mapNotNull { it.program?.title } == listOf("First", "Second")
         }
 
         checks += check("offline-xmltv-dtd-block", "DTD and entity injection rejected") {
@@ -110,7 +156,7 @@ internal object OnDeviceSelfTest {
                     result.bytesWritten == bytes.size.toLong() &&
                     scratch.readBytes().contentEquals(bytes)
             } finally {
-                scratch.delete()
+                check(scratch.delete()) { "Could not clean up self-test scratch file" }
             }
         }
 
@@ -153,9 +199,10 @@ internal object OnDeviceSelfTest {
         checks += Check("guide-source-loaded",
             if (hasGuide) State.PASS else State.NOT_RUN,
             if (hasGuide) "Imported programme guide exists" else "No user-supplied guide imported")
+        val observedPlayback = hasEvent(context, Event.PLAYBACK_STARTED)
         checks += Check("live-provider-playback",
-            if (hasEvent(context, Event.PLAYBACK_STARTED)) State.PASS else State.NOT_RUN,
-            if (hasEvent(context, Event.PLAYBACK_STARTED))
+            if (observedPlayback) State.PASS else State.NOT_RUN,
+            if (observedPlayback)
                 "A player previously reached isPlaying; decoder/format coverage unverified"
             else "No real provider stream has reached isPlaying in retained observations")
         checks += Check("reboot-usb-and-long-run",
@@ -168,6 +215,8 @@ internal object OnDeviceSelfTest {
         context.openFileOutput(REPORT_FILE, Context.MODE_PRIVATE).bufferedWriter().use {
             it.write(report.text())
         }
+        // Marker is removed only after the report has been written successfully.
+        check(marker.delete()) { "Could not clear self-test run marker" }
         return report
     }
 
@@ -178,14 +227,13 @@ internal object OnDeviceSelfTest {
      */
     fun observe(context: Context, event: Event, metric: Long = 0) {
         val file = File(context.filesDir, EVENTS_FILE)
-        if (file.length() >= MAX_EVENTS_BYTES) {
-            // Oldest historical observations are discarded instead of growing indefinitely.
+        val line = "${System.currentTimeMillis()}\t${SystemClock.elapsedRealtime()}" +
+            "\t${event.name}\t$metric\t${Debug.getPss()}\n"
+        if (file.length() + line.length > MAX_EVENTS_BYTES) {
+            // Rotation is size-based, never a periodic timer or an in-memory queue.
             file.writeText("")
         }
-        file.appendText(
-            "${System.currentTimeMillis()}\t${SystemClock.elapsedRealtime()}" +
-                "\t${event.name}\t$metric\t${Debug.getPss()}\n",
-        )
+        file.appendText(line)
     }
 
     private fun hasEvent(context: Context, event: Event): Boolean {
