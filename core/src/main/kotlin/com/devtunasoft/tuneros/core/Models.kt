@@ -31,6 +31,23 @@ data class GuideSnapshot(
     /** Call on the import worker; never construct the index on the UI thread. */
     fun prepareIndex() { byChannel.size }
     fun hasSchedule(channelId: String): Boolean = byChannel[channelId]?.entries?.isNotEmpty() == true
+    /** Returns only entries intersecting the requested window; no per-call guide-wide scan. */
+    fun programsBetween(channelId: String, fromEpochSeconds: Long, toEpochSeconds: Long): List<GuideProgram> {
+        require(toEpochSeconds > fromEpochSeconds)
+        val schedule = byChannel[channelId] ?: return emptyList()
+        val entries = schedule.entries
+        var low = 0
+        var high = entries.size
+        while (low < high) {
+            val middle = (low + high) ushr 1
+            if (entries[middle].startEpochSeconds < toEpochSeconds) low = middle + 1 else high = middle
+        }
+        val exclusiveEnd = low
+        var start = exclusiveEnd
+        while (start > 0 && schedule.prefixMaxEnd[start - 1] > fromEpochSeconds) start--
+        if (start == exclusiveEnd) return emptyList()
+        return entries.subList(start, exclusiveEnd).filter { it.endEpochSeconds > fromEpochSeconds }
+    }
     /** Binary search with prefix maxima handles overlapping programmes correctly. */
     fun now(channelId: String, epochSeconds: Long): GuideProgram? {
         val schedule = byChannel[channelId] ?: return null

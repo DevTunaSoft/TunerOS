@@ -55,6 +55,18 @@ class SourceDownloader(
                         if (n > 0) checkLimit(n)
                         return n
                     }
+                    /** Consume skipped bytes through the checked read path; never bypass the size cap. */
+                    override fun skip(n: Long): Long {
+                        if (n <= 0) return 0
+                        val scratch = ByteArray(SKIP_BUFFER_BYTES)
+                        var remaining = n
+                        while (remaining > 0) {
+                            val amount = read(scratch, 0, minOf(remaining, scratch.size.toLong()).toInt())
+                            if (amount == -1) break
+                            remaining -= amount
+                        }
+                        return n - remaining
+                    }
                     private fun checkLimit(n: Int) {
                         count += n
                         if (count > maxBytes) throw IllegalArgumentException("Source exceeds decompressed size limit")
@@ -71,6 +83,7 @@ class SourceDownloader(
 
     companion object {
         const val MAX_REDIRECTS = 5
+        private const val SKIP_BUFFER_BYTES = 8 * 1024
         fun checkedUrl(value: String): URL {
             val uri = runCatching { URI(value) }.getOrNull() ?: throw IllegalArgumentException("Invalid source URL")
             if (uri.scheme?.lowercase() !in setOf("http", "https") || uri.host.isNullOrBlank() ||

@@ -12,6 +12,7 @@ import com.devtunasoft.tuneros.core.GuideProgram
 /** Virtualized rows: only on-screen views are created, even for large playlists. */
 internal class ChannelListAdapter(private val context: Context) : BaseAdapter() {
     private var channels: List<Channel> = emptyList()
+    private fun dp(value: Int): Int = (value * context.resources.displayMetrics.density + 0.5f).toInt()
     private var current: Map<String, GuideProgram> = emptyMap()
 
     fun update(visible: List<Channel>, now: Map<String, GuideProgram>) {
@@ -28,7 +29,7 @@ internal class ChannelListAdapter(private val context: Context) : BaseAdapter() 
         val view = recycled as? TextView ?: TextView(context).apply {
             setTextColor(Color.WHITE)
             textSize = 16f
-            setPadding(20, 18, 16, 18)
+            setPadding(dp(20), dp(18), dp(16), dp(18))
             isFocusable = false
             setBackgroundResource(android.R.drawable.list_selector_background)
         }

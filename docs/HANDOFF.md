@@ -77,3 +77,65 @@ User-supplied review identified 11 findings. Rechecked the repository and implem
 **PASS:** [Actions run 42738309789](https://github.com/DevTunaSoft/TunerOS/actions/runs/42738309789), commit `eb0acc68e192e1589a6ace71153d711248d39bc0`: `:core:test`, `:app:assembleDebug`, and APK artifact upload completed. Includes new core regressions and Android source changes. **NOT RUN:** real-device acceptance, Windows bootstrap, performance benchmarks.
 
 The optional `scripts/build.ps1` helper downloads Gradle 8.9 and validates its SHA-256 checksum from the official Gradle distribution endpoint before running tests/build. It is not a standard Gradle wrapper, and is **UNVERIFIED on Windows**. Gradle's official wrapper JAR remains an open repository task.
+
+
+## Optional XMLTV window-retention implementation (branch: perf/windowed-epg-retention)
+
+- Parser API now accepts `GuideWindow(fromEpochSeconds, toEpochSeconds)`, an exclusive-end retention range. A programme is retained if it overlaps the range.
+- Optional `includeDescriptions = false` avoids keeping XMLTV descriptions. Both new options preserve legacy behavior by default, so existing app call sites remain unchanged.
+- Window-excluded programmes do not consume the retained-programme cap. Timezone and invalid-timestamp warnings are still accumulated from the full XML input.
+- Four new core regression tests cover window boundaries/overlaps, cap ordering, description opt-out, and invalid windows.
+- **UNVERIFIED:** Android app does not yet supply a window or opt out of descriptions, so no device memory saving is claimed. JVM tests and APK packaging must pass on this branch before merge. Performance validation against 1 GB and 2 GB Android TV profiles remains NOT RUN.
+- **Next:** Confirm CI for the PR, capture an Android device baseline, and wire a configured moving window into `loadGuide` with a clearly documented refresh/resume policy. Test that hide-no-EPG still means “has schedule” and not merely “playing now.” A too-short window could hide channels with future-only schedules, so product semantics must be preserved.
+
+
+## Follow-up hardening checkpoint — 2026-11-10
+
+The code audit identified critical correctness defects; fixes are committed to the same draft PR to avoid duplicate work.
+
+- **Fixed in source:** Legacy plaintext URL survives failed Keystore encryption/migration. If an encrypted value cannot be decrypted, an existing legacy URL is returned instead of discarded. Missing UI warning for failed startup migration remains an outstanding usability task.
+- **Fixed in source:** Keystore decrypt/key generation during startup and encrypted URL saves during import now execute on the existing single-thread import worker. UI fields are populated on the main thread only if still empty, avoiding overwriting text typed during startup.
+- **Fixed in source:** SourceDownloader now implements `skip()` through its size-counted `read()` path, with regression cases for cap bypass and EOF.
+- **Cleaned up:** XMLTV fallback timestamp regex and SAX capture limit are shared constants.
+- **UNVERIFIED:** No Android device test, Gradle build, CI verification, or measured memory benchmark was executed in this session. Changes require CI and device acceptance before merging.
+- **Still open:** Single player reuse/release-on-stop, measured player buffering defaults, real EPG memory baseline, optional retention-window integration, channel model memory reduction, potential future persisted guide database, live D-pad focus and vector banner acceptance.
+- **Integration safety:** Optional guide window and description omission remain opt-in; live Android calls retain their prior full-guide behavior. Be careful not to remove future-only EPG channels when enabling a short window.
+
+- **Playlist allocation:** The M3U parser now reuses one SHA-256 digest per parse and pools identical request-header strings for the duration of the parse. This is source-only optimization; heap savings have not been measured and tests have not run on the updated branch.
+
+
+## DVR/PVR development checkpoint — 2026-11-10
+
+Current branch `perf/windowed-epg-retention` now contains a bounded DVR foundation:
+
+- Pure-core `StreamRecorder` copies network media directly to storage with a fixed 64 KiB default buffer, free-space reserve checks, cancellation and byte progress. HLS reuses one caller-owned segment buffer instead of allocating a buffer per segment.
+- Android `DvrRecordingService` is a `mediaPlayback` foreground service. It records without decoding/re-encoding, preserves partial files, throttles catalog progress writes, blocks HTTPS downgrades, honors provider User-Agent/Referer headers, and permits only one active recorder.
+- `RecordingCatalog` is built-in SQLite with bounded recent queries. Source stream URLs are not persisted there. Stale in-progress rows recover as partial after process interruption.
+- `RecordingScheduleStore` persists future job metadata separately. Source URLs and optional provider headers use `SecureSourceStore`/Android Keystore. Alarm scheduling uses exact alarms when allowed; missing exact-alarm access leaves the job persisted but unarmed rather than pretending an inexact background start is reliable. Boot and permission-change receivers only re-arm schedules.
+- The UI supports current Record Now, future guide scheduling, cancellation of a focused future schedule, an Exact DVR timing settings path, Stop recording, and a bounded/recycled recent recordings list with local Media3 playback for completed files.
+- HLS core parsing and capture are bounded. Supported initial subset: unencrypted MPEG-TS media playlists, master variant selection when A/V are contained in the selected variant, media-sequence/live-edge tracking, byte ranges, redirects and stalled-playlist detection. Sequence gaps stop as partial. Encrypted HLS, fMP4 `EXT-X-MAP`, separate external audio/video rendition capture, and DASH recording fail closed.
+- Latest verified pre-integration checkpoints include Actions runs 42842154373 (exact-alarm scheduler fix), 42842606376 (bounded HLS parser tests), and 42843062838 (recording header propagation). The final Android HLS integration and subsequent hardening require the latest branch CI result before being called PASS.
+- **UNVERIFIED / NOT RUN:** real Android TV/mobile recording, long-duration memory measurement, reboot-to-scheduled-recording acceptance, provider-specific HLS behavior, USB/SAF destinations, storage removal, and live fault injection.
+
+
+### SAF / SD / USB recording storage checkpoint — 2026-11-10
+
+- `RecordingDestinationStore` persists the selected tree URI only; credentials are not involved.
+- `SafStorageInspector` currently accepts Android's local ExternalStorageProvider only, verifies that the selected tree is writable, and requires a reported `COLUMN_AVAILABLE_BYTES` value. TunerOS does not disable the 512 MiB reserve when free space is unknown.
+- `RecordingSink` is now the sole storage abstraction for the foreground recorder. Raw and HLS capture share the same sink path: internal app storage or a SAF document tree. The HLS/media buffers remain unchanged and bounded.
+- SAF output rechecks free-space approximately every 16 MiB while conservatively subtracting bytes written between provider queries. A removed drive causes writes/finalization to fail; the recorder does not silently fall back to internal storage.
+- The catalog's legacy SQL column name `file_path` is retained for compatibility, but Kotlin now treats it as a generic `storageLocation` which can be either an internal absolute path or a SAF content URI.
+- `RecordingLocationAccess` validates internal canonical paths and SAF content URIs against persisted tree grants before playback/deletion. An unavailable external drive is distinct from a missing document so the catalog row is not erased just because the drive is unplugged.
+- The UI can choose a recording tree, return future recordings to internal storage, play/delete existing internal or external recordings, and keeps prior persisted grants so recordings on previously selected media remain accessible.
+- Automated evidence: GitHub Actions run **42848491493** completed successfully on code head `48a96c6709a05d5de738c9b983541426f6b51635`, including core tests, debug APK assembly and artifact upload.
+- **UNVERIFIED / NOT RUN:** selecting an actual removable SD/USB device on target Android hardware, long recording to removable media, removal during capture, reinsertion and playback, provider-specific rename behavior, and storage-pressure behavior on a real device.
+
+
+## 2026-11-11 PR integration audit and bounded-resource fixes
+
+- Audited live `main` (`b78d42b`) and PR #1: despite its original narrow title, it contains 37 changed files covering the guide timeline and experimental DVR/PVR. Avoid duplicating these implementations on a second branch.
+- HLS capture polling: clamp target duration to 2–20 seconds **before** multiplication to avoid overflow and rapid network polling from malformed manifests. Added `extremeTargetDurationUsesBoundedPollingInterval` JVM regression (commit `5b36ff2`).
+- Scheduled DVR recovery: replace the first-200-jobs-only query with stable keyset pagination (`start_epoch,id`) and process all pending jobs in bounded batches of 200. This resolves a silent omission of later schedules while keeping memory bounded; Android SQLite/reboot acceptance is **NOT RUN**.
+- UI: collect the nine DVR actions in one horizontally scrollable toolbar so they do not crowd out the video/guide on shorter displays. TV focus/remote behavior remains **UNVERIFIED**.
+- Android guide import now uses `includeDescriptions = false`. Programme descriptions are not used by the current alpha UI, so omitting them avoids retaining strings; actual heap savings are **UNMEASURED**. Windowed retention remains disabled at the app call site to avoid hiding channels with only future schedules.
+- Integration gate: require successful CI unit tests and debug APK assembly for the final branch head before merging. Physical-device playback, SAF/USB recording, and reboot scheduling require subsequent acceptance; these are not implied by a green CI result.
