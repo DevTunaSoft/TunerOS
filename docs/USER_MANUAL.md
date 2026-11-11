@@ -35,3 +35,9 @@ In the Classic Cable programme guide, use **Left** and **Right** to move between
 ## Empty channels and missing schedules
 
 A channel without an EPG listing remains navigable in the cable guide. If a selected time window contains only empty gaps, use **Left** and **Right** to continue moving through time. Empty gaps do not launch playback when pressing OK. To hide channels with no schedule at all, use the optional **Hide channels with no EPG** setting. The new empty-guide navigation handling is implemented in source; Android device acceptance is still pending.
+
+## Restart and recovery of sources
+
+After a successful playlist or guide import, TunerOS keeps the validated source address in its encrypted source store. When Android terminates TunerOS and the app is reopened, the app attempts to fetch those sources again in the background without requiring you to re-enter the addresses. Your search text and guide time position are kept as small UI state; the large channel and programme lists are not copied into Android's activity state bundle.
+
+If a new source is empty or fails to download or parse, TunerOS retains the previously saved address rather than replacing it. An explicitly requested new import takes precedence over automatic recovery. Internet access is still required for reloading provider feeds after a process restart. Real-device recovery is **not yet verified**; this is early-alpha behavior.
