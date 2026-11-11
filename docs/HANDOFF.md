@@ -150,3 +150,9 @@ Current branch `perf/windowed-epg-retention` now contains a bounded DVR foundati
 - **Next code change (pending CI at time of writing):** Detect short/oversized HTTP HLS byte-range segment responses in the pure core capture engine; mark capture as a partial/gap and add a focused JVM regression. This prevents silent acceptance of wrong byte counts, but does not yet validate HTTP `Content-Range` headers on Android.
 - **NOT RUN:** Android TV and phone acceptance, remote focus, actual HLS and SAF USB/SD capture, reboot after >200 scheduled jobs, memory profiling under 1/2 GiB, Windows helper, and release signing.
 - Next steps: 1) confirm CI on the newest `main` commit, 2) hardware acceptance/logs, 3) Android HTTP range header validation and recorder fault tests, 4) Stream Doctor actionable diagnostics without credential leakage, 5) memory benchmarks before enabling XMLTV window pruning.
+
+## 2026-11-11 HTTP HLS range integrity hardening
+
+- **PASS**: [GitHub Actions run 42972485921](https://github.com/DevTunaSoft/TunerOS/actions/runs/42972485921) on `main` commit `8445430`: `:core:test`, `:app:assembleDebug`, and debug APK artifact upload. Includes the short HLS byte-range regression.
+- **New change, CI PENDING**: Pure Kotlin `HlsContentRange.matches` validates 206 `Content-Range` offsets/end and reported length boundaries, guarding against a provider returning the correct byte count from the wrong offset. `DvrRecordingService` rejects mismatched or absent headers and disconnects the connection; focused JVM tests cover positive, missing, corrupt, overflow and wrong-range responses.
+- **UNVERIFIED**: Hardware provider compatibility with strict `Content-Range`, Android TV/network fault injection, USB/SD recording, and actual segment playback. Correctness takes priority over silently accepting malformed providers.

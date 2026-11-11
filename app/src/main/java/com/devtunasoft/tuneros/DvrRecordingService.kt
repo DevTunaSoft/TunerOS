@@ -8,6 +8,7 @@ import android.os.Build
 import android.os.IBinder
 import com.devtunasoft.tuneros.core.HlsByteRange
 import com.devtunasoft.tuneros.core.HlsCaptureEngine
+import com.devtunasoft.tuneros.core.HlsContentRange
 import com.devtunasoft.tuneros.core.StreamRecorder
 import java.io.InputStream
 import java.io.PushbackInputStream
@@ -382,6 +383,14 @@ class DvrRecordingService : Service() {
                 connection.disconnect()
                 if (activeConnection === connection) activeConnection = null
                 error("Server ignored HLS byte range")
+            }
+            if (byteRange != null && !HlsContentRange.matches(
+                    connection.getHeaderField("Content-Range"), byteRange
+                )
+            ) {
+                connection.disconnect()
+                if (activeConnection === connection) activeConnection = null
+                error("HLS Content-Range did not match requested bytes")
             }
             return connection
         }
