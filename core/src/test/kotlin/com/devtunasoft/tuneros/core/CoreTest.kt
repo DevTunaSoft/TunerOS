@@ -3,6 +3,7 @@ package com.devtunasoft.tuneros.core
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
+import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
 import java.time.LocalDateTime
@@ -147,12 +148,13 @@ https://example.com/live.m3u8
     private class StubConnection(url: URL, private val status: Int = 200,
                                  private val body: ByteArray = byteArrayOf(),
                                  private val location: String? = null,
-                                 private val encoding: String? = null) : HttpURLConnection(url) {
+                                 private val encoding: String? = null,
+                                 private val inputOverride: InputStream? = null) : HttpURLConnection(url) {
         override fun connect() {}
         override fun disconnect() {}
         override fun usingProxy() = false
         override fun getResponseCode() = status
-        override fun getInputStream(): InputStream = ByteArrayInputStream(body)
+        override fun getInputStream(): InputStream = inputOverride ?: ByteArrayInputStream(body)
         override fun getHeaderField(name: String?): String? = if (name == "Location") location else null
         override fun getContentEncoding(): String? = encoding
     }
@@ -177,6 +179,56 @@ https://example.com/live.m3u8
         loader.open("https://example.org/feed", 10).use { source ->
             assertFailsWith<IllegalArgumentException> { source.skip(20) }
         }
+    }
+
+    @Test fun stalledSkipAbortsWithoutBusyLoop() {
+        var emptyReads = 0
+        val stalled = object : InputStream() {
+            private var headerReads = 0
+            override fun read(): Int = when (headerReads++) {
+                0 -> 'a'.code
+                1 -> 'b'.code
+                else -> -1
+            }
+            override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
+                emptyReads++
+                return 0
+            }
+        }
+        val loader = SourceDownloader { StubConnection(it, inputOverride = stalled) }
+        loader.open("https://example.org/stall", 100).use { input ->
+            assertFailsWith<IOException> { input.skip(128) }
+        }
+        assertEquals(16, emptyReads)
+    }
+
+    @Test fun intermittentZeroReadsDoNotFailIfStreamRecovers() {
+        var emptyReads = 0
+        val recovering = object : InputStream() {
+            private var headerReads = 0
+            private var delivered = false
+            override fun read(): Int = when (headerReads++) {
+                0 -> 'a'.code
+                1 -> 'b'.code
+                else -> -1
+            }
+            override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
+                if (emptyReads < 3) {
+                    emptyReads++
+                    return 0
+                }
+                if (delivered) return -1
+                delivered = true
+                buffer[offset] = 'c'.code.toByte()
+                buffer[offset + 1] = 'd'.code.toByte()
+                return 2
+            }
+        }
+        val loader = SourceDownloader { StubConnection(it, inputOverride = recovering) }
+        loader.open("https://example.org/recovers", 4).use { input ->
+            assertEquals(4L, input.skip(10))
+        }
+        assertEquals(3, emptyReads)
     }
 
     @Test fun skipReturnsActualBytesAndSubsequentReadsCountTowardsLimit() {
