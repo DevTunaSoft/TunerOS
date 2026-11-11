@@ -1,0 +1,215 @@
+package com.devtunasoft.tuneros
+
+import android.app.AlarmManager
+import android.content.Context
+import android.os.Build
+import android.os.Debug
+import android.os.SystemClock
+import com.devtunasoft.tuneros.core.GuideParser
+import com.devtunasoft.tuneros.core.GuideSnapshot
+import com.devtunasoft.tuneros.core.PlaylistParser
+import com.devtunasoft.tuneros.core.RecordingPolicy
+import com.devtunasoft.tuneros.core.StreamRecorder
+import java.io.ByteArrayInputStream
+import java.io.File
+import java.io.FileOutputStream
+
+/**
+ * In-app, unattended, read-only (except owned scratch data) Android acceptance probes.
+ * Runs on MainActivity's existing serial worker; no threads, timers or network requests.
+ * All test fixtures are synthetic. Real provider, USB removal and power-cut scenarios
+ * must never be reported as passed by these smoke tests.
+ */
+internal object OnDeviceSelfTest {
+    enum class State { PASS, FAIL, BLOCKED, NOT_RUN }
+    enum class Event {
+        PLAYLIST_IMPORTED, PLAYLIST_IMPORT_FAILED, GUIDE_IMPORTED, GUIDE_IMPORT_FAILED,
+        PLAYBACK_REQUESTED, PLAYBACK_READY, PLAYBACK_STARTED, PLAYBACK_ERROR
+    }
+
+    data class Check(val id: String, val state: State, val detail: String)
+    data class Report(
+        val wallMillis: Long,
+        val monotonicMillis: Long,
+        val sdk: Int,
+        val pssKiB: Long,
+        val checks: List<Check>,
+    ) {
+        fun summary(): String {
+            val passed = checks.count { it.state == State.PASS }
+            val failed = checks.count { it.state == State.FAIL }
+            val blocked = checks.count { it.state == State.BLOCKED }
+            val notRun = checks.count { it.state == State.NOT_RUN }
+            return "Autonomous QA: $passed PASS / $failed FAIL / $blocked BLOCKED / $notRun NOT RUN"
+        }
+
+        fun text(): String = buildString(2048) {
+            appendLine("TunerOS device self-test (no private URLs or provider headers)")
+            appendLine("Wall clock (epoch ms): $wallMillis")
+            appendLine("Elapsed since boot (ms): $monotonicMillis")
+            appendLine("Android API: $sdk")
+            appendLine("Process PSS snapshot (KiB): $pssKiB (not a memory benchmark)")
+            appendLine(summary())
+            for (check in checks) {
+                appendLine("${check.state}\t${check.id}\t${check.detail}")
+            }
+        }
+    }
+
+    private const val REPORT_FILE = "tuneros-selftest-report.txt"
+    private const val EVENTS_FILE = "tuneros-selftest-events.tsv"
+    private const val MAX_EVENTS_BYTES = 32 * 1024
+    private const val MAX_SHARE_EVENTS = 8 * 1024
+    private const val CANARY_KEY = "tuneros_selftest_canary_v1"
+
+    private fun check(id: String, detail: String, test: () -> Boolean): Check =
+        try {
+            Check(id, if (test()) State.PASS else State.FAIL, detail)
+        } catch (error: Exception) {
+            // Never persist exception messages, source URLs, file paths or credentials.
+            Check(id, State.FAIL, "Exception: " + error.javaClass.simpleName)
+        }
+
+    /** Safe to call at startup or after an import. No existing recordings are touched. */
+    fun run(context: Context, hasPlaylist: Boolean, hasGuide: Boolean): Report {
+        val checks = ArrayList<Check>(11)
+        checks += check("offline-m3u-parser", "One synthetic channel parsed") {
+            val m3u = "#EXTM3U\n#EXTINF:-1 tvg-id=\"selftest\",Test Channel\nhttps://example.invalid/live.m3u8\n"
+            val parsed = PlaylistParser.parse(m3u.reader())
+            parsed.size == 1 && parsed.single().guideId == "selftest"
+        }
+
+        checks += check("offline-xmltv-parser", "Synthetic XMLTV programme indexed") {
+            val xml = """
+                <tv><channel id="selftest"><display-name>Test Channel</display-name></channel>
+                <programme channel="selftest" start="20261111120000 +0000"
+                stop="20261111130000 +0000"><title>Test Programme</title></programme></tv>
+            """.trimIndent()
+            val guide: GuideSnapshot = GuideParser.parse(ByteArrayInputStream(xml.toByteArray()))
+            guide.prepareIndex()
+            val program = guide.programs.single()
+            guide.hasSchedule("selftest") &&
+                guide.now("selftest", program.startEpochSeconds + 1)?.title == "Test Programme"
+        }
+
+        checks += check("offline-xmltv-dtd-block", "DTD and entity injection rejected") {
+            val attack = """<!DOCTYPE tv [<!ENTITY probe SYSTEM "file:///private">]><tv>&probe;</tv>"""
+            runCatching { GuideParser.parse(ByteArrayInputStream(attack.toByteArray())) }.isFailure
+        }
+
+        checks += check("scratch-dvr-copy", "1 KiB direct-to-disk test, temp file removed") {
+            val bytes = ByteArray(1024) { (it % 251).toByte() }
+            val scratch = File.createTempFile("tuneros-qa-", ".tmp", context.cacheDir)
+            try {
+                val result = FileOutputStream(scratch).use { output ->
+                    StreamRecorder(bufferBytes = 4096, minFreeBytes = 0).copy(
+                        ByteArrayInputStream(bytes), output, freeBytes = { Long.MAX_VALUE },
+                    )
+                }
+                result.stopReason == StreamRecorder.StopReason.END_OF_STREAM &&
+                    result.bytesWritten == bytes.size.toLong() &&
+                    scratch.readBytes().contentEquals(bytes)
+            } finally {
+                scratch.delete()
+            }
+        }
+
+        checks += check("android-keystore-roundtrip", "Dedicated encrypted canary saved/read/removed") {
+            val store = SecureSourceStore(context)
+            try {
+                val saved = store.save(CANARY_KEY, "tuneros-local-check")
+                saved && store.load(CANARY_KEY) == "tuneros-local-check"
+            } finally {
+                store.delete(CANARY_KEY)
+            }
+        }
+
+        val canSchedule = runCatching {
+            Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
+                context.getSystemService(AlarmManager::class.java).canScheduleExactAlarms()
+        }.getOrDefault(false)
+        checks += if (canSchedule) {
+            Check("exact-dvr-alarm-access", State.PASS, "Exact alarm capability available; wake-from-sleep not yet tested")
+        } else {
+            Check("exact-dvr-alarm-access", State.BLOCKED, "Android has not granted exact alarms; no permission prompts issued")
+        }
+
+        val tree = RecordingDestinationStore(context).selectedTreeUri()
+        checks += if (tree == null) {
+            Check("external-recording-storage", State.NOT_RUN, "No optional removable/shared recording destination selected")
+        } else {
+            val info = SafStorageInspector.inspect(context, tree)
+            when {
+                info == null -> Check("external-recording-storage", State.FAIL, "Selected document tree is not currently accessible/writable")
+                info.availableBytes < RecordingPolicy.DEFAULT_MIN_FREE_BYTES ->
+                    Check("external-recording-storage", State.BLOCKED, "Storage reports insufficient free space")
+                else -> Check("external-recording-storage", State.PASS, "Selected tree accessible; removable-drive stress NOT RUN")
+            }
+        }
+
+        checks += Check("playlist-source-loaded",
+            if (hasPlaylist) State.PASS else State.NOT_RUN,
+            if (hasPlaylist) "Imported channel list exists" else "No user-supplied playlist imported")
+        checks += Check("guide-source-loaded",
+            if (hasGuide) State.PASS else State.NOT_RUN,
+            if (hasGuide) "Imported programme guide exists" else "No user-supplied guide imported")
+        checks += Check("live-provider-playback",
+            if (hasEvent(context, Event.PLAYBACK_STARTED)) State.PASS else State.NOT_RUN,
+            if (hasEvent(context, Event.PLAYBACK_STARTED))
+                "A player previously reached isPlaying; decoder/format coverage unverified"
+            else "No real provider stream has reached isPlaying in retained observations")
+        checks += Check("reboot-usb-and-long-run",
+            State.NOT_RUN, "Physical power cuts, USB removal and extended RAM stress cannot be simulated safely")
+
+        val report = Report(
+            System.currentTimeMillis(), SystemClock.elapsedRealtime(),
+            Build.VERSION.SDK_INT, Debug.getPss(), checks,
+        )
+        context.openFileOutput(REPORT_FILE, Context.MODE_PRIVATE).bufferedWriter().use {
+            it.write(report.text())
+        }
+        return report
+    }
+
+    /**
+     * Called only on the existing worker. Numeric event data prevents private stream
+     * URLs, error messages, titles or tokens from entering persistent diagnostics.
+     * Event file is strictly bounded, with no unbounded in-memory history.
+     */
+    fun observe(context: Context, event: Event, metric: Long = 0) {
+        val file = File(context.filesDir, EVENTS_FILE)
+        if (file.length() >= MAX_EVENTS_BYTES) {
+            // Oldest historical observations are discarded instead of growing indefinitely.
+            file.writeText("")
+        }
+        file.appendText(
+            "${System.currentTimeMillis()}\t${SystemClock.elapsedRealtime()}" +
+                "\t${event.name}\t$metric\t${Debug.getPss()}\n",
+        )
+    }
+
+    private fun hasEvent(context: Context, event: Event): Boolean {
+        val file = File(context.filesDir, EVENTS_FILE)
+        if (!file.exists() || file.length() > MAX_EVENTS_BYTES) return false
+        return file.useLines { lines ->
+            lines.any { line -> line.contains("\t${event.name}\t") }
+        }
+    }
+
+    fun latestText(context: Context): String {
+        val report = File(context.filesDir, REPORT_FILE)
+        val reportText = if (report.exists() && report.length() <= 8 * 1024) {
+            report.readText()
+        } else {
+            "On-device self-test has not completed yet."
+        }
+        val observations = File(context.filesDir, EVENTS_FILE)
+        val eventsText = if (observations.exists() && observations.length() <= MAX_EVENTS_BYTES) {
+            observations.readText().takeLast(MAX_SHARE_EVENTS)
+        } else {
+            "None."
+        }
+        return reportText + "\nDevice observations (wall ms, uptime ms, event, numeric value, PSS KiB):\n" +
+            eventsText
+    }
+}
