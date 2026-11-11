@@ -13,6 +13,8 @@ import android.os.Looper
 import android.provider.Settings
 import android.graphics.Color
 import android.view.WindowManager
+import android.view.View
+import android.content.pm.ApplicationInfo
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -262,6 +264,29 @@ class MainActivity : Activity() {
             }
             override fun afterTextChanged(s: android.text.Editable?) = Unit
         })
+        // Only debug APKs explicitly launched for automated CI perform focus
+        // probes. Normal users never have their focus moved by testing.
+        if (isDebugQaEnabled()) root.post { runDebugUiFocusProbe() }
+    }
+
+    private fun isDebugQaEnabled(): Boolean =
+        (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0 &&
+            intent?.getBooleanExtra("tuneros.debug.qa", false) == true
+
+    private fun runDebugUiFocusProbe() {
+        if (isFinishing || isDestroyed) return
+        val original = currentFocus
+        val controls = arrayOf(sourcesButton, search, hideNoGuide)
+        val canFocus = controls.all { view -> view.requestFocus() && view.hasFocus() }
+        val next = search.focusSearch(View.FOCUS_DOWN)
+        val canNavigate = next != null && next !== search &&
+            next.isFocusable && next.requestFocus() && next.hasFocus()
+        original?.requestFocus()
+        observe(
+            if (canFocus && canNavigate) OnDeviceSelfTest.Event.UI_FOCUS_PROBE_PASS
+            else OnDeviceSelfTest.Event.UI_FOCUS_PROBE_FAIL,
+        )
+        scheduleSelfTests()
     }
 
     private fun scheduleSelfTests() {
@@ -277,7 +302,10 @@ class MainActivity : Activity() {
         val hasGuide = guide != null
         worker.execute {
             val report = runCatching {
-                OnDeviceSelfTest.run(applicationContext, hasPlaylist, hasGuide)
+                OnDeviceSelfTest.run(
+                    applicationContext, hasPlaylist, hasGuide,
+                    includeStress = isDebugQaEnabled(),
+                )
             }
             runOnUiThread {
                 selfTestsQueued = false
