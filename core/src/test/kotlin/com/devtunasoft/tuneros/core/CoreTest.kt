@@ -239,6 +239,21 @@ https://example.com/live.m3u8
         assertTrue(closed, "The HTTP response stream must close on sniffing failure")
     }
 
+    @Test fun invalidGzipHeaderClosesAcquiredStream() {
+        var closed = false
+        val broken = object : ByteArrayInputStream(
+            byteArrayOf(0x1f, 0x8b.toByte(), 0, 0, 0, 0, 0, 0, 0, 0),
+        ) {
+            override fun close() {
+                closed = true
+                super.close()
+            }
+        }
+        val loader = SourceDownloader { StubConnection(it, inputOverride = broken) }
+        assertFailsWith<IOException> { loader.open("https://example.org/bad-gzip", 128) }
+        assertTrue(closed, "Invalid gzip header must not leak a response stream")
+    }
+
     @Test fun directBulkReadAlsoAbortsStalledSource() {
         var emptyReads = 0
         val stalled = object : InputStream() {
