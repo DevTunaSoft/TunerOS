@@ -96,6 +96,26 @@ https://example.com/live.m3u8
         assertEquals(null, guide.now("news.us", 999_999L))
         assertEquals(future, guide.now("news.us", 1_000_001L))
     }
+    @Test fun deepXmltvNestingFailsBeforeGrowingParserStack() {
+        val nested = "<nest>".repeat(GuideParser.MAX_XML_DEPTH)
+        val closes = "</nest>".repeat(GuideParser.MAX_XML_DEPTH)
+        val xml = "<tv>" + nested + "</tv>" + closes
+        assertFailsWith<Exception> {
+            GuideParser.parse(ByteArrayInputStream(xml.toByteArray()))
+        }
+    }
+
+    @Test fun moderateXmltvNestingRemainsCompatible() {
+        val nested = "<wrapper>".repeat(12)
+        val closes = "</wrapper>".repeat(12)
+        val xml = "<tv>$nested" +
+            "<programme channel=\"c\" start=\"20261108100000 +0000\" " +
+            "stop=\"20261108110000 +0000\"><title>News</title></programme>" +
+            "$closes</tv>"
+        val guide = GuideParser.parse(ByteArrayInputStream(xml.toByteArray()))
+        assertEquals("News", guide.programs.single().title)
+    }
+
     @Test fun xxeIsBlocked() {
         val xml = "<!DOCTYPE tv [<!ENTITY xxe SYSTEM \"file:///etc/passwd\">]><tv><channel id=\"a\"><display-name>&xxe;</display-name></channel></tv>"
         assertFailsWith<Exception> { GuideParser.parse(ByteArrayInputStream(xml.toByteArray())) }
