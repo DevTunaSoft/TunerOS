@@ -68,16 +68,34 @@ internal class RecordingScheduleStore(context: Context) :
             if (!cursor.moveToFirst()) null else cursor.toEntry()
         }
 
-    fun pendingAfter(epochSeconds: Long, limit: Int = 200): List<RecordingScheduleEntry> {
+    /**
+     * Keyset-paged pending jobs, ordered by (start_epoch, id).
+     * Re-arm all jobs after a reboot without loading the entire schedule into RAM.
+     */
+    fun pendingAfter(
+        epochSeconds: Long,
+        limit: Int = 200,
+        after: RecordingScheduleEntry? = null,
+    ): List<RecordingScheduleEntry> {
         require(limit in 1..500)
+        val selection: String
+        val args: Array<String>
+        if (after == null) {
+            selection = "state=? AND end_epoch>?"
+            args = arrayOf("SCHEDULED", epochSeconds.toString())
+        } else {
+            selection = "state=? AND end_epoch>? AND (start_epoch>? OR (start_epoch=? AND id>?))"
+            val start = after.startEpochSeconds.toString()
+            args = arrayOf("SCHEDULED", epochSeconds.toString(), start, start, after.id)
+        }
         val result = ArrayList<RecordingScheduleEntry>(minOf(limit, 32))
         readableDatabase.query(
             "schedules",
             COLUMNS,
-            "state=? AND end_epoch>?",
-            arrayOf("SCHEDULED", epochSeconds.toString()),
+            selection,
+            args,
             null, null,
-            "start_epoch ASC",
+            "start_epoch ASC, id ASC",
             limit.toString(),
         ).use { cursor ->
             while (cursor.moveToNext()) result += cursor.toEntry()
