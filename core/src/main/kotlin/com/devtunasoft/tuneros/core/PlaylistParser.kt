@@ -22,6 +22,9 @@ object PlaylistParser {
         val result = ArrayList<Channel>()
         val seen = HashSet<String>()
         val digest = MessageDigest.getInstance("SHA-256")
+        // Construct the source prefix once; avoid a 30-KiB stable-key String
+        // and its UTF-8 copy for every imported channel.
+        val sourcePrefix = (sourceId + "\u0000").toByteArray(Charsets.UTF_8)
         val sharedHeaders = HashMap<String, String>()
         fun shareHeader(value: String?): String? {
             if (value == null) return null
@@ -57,8 +60,7 @@ object PlaylistParser {
                     val metadata = pending ?: continue
                     pending = null
                     if (!isAllowedUrl(line) || metadata.name.isBlank()) continue
-                    val stableKey = sourceId + "\u0000" + metadata.guideId.orEmpty() + "\u0000" + line
-                    val id = stableId(digest, stableKey)
+                    val id = stableId(digest, sourcePrefix, metadata.guideId, line)
                     if (result.size == maxChannels) {
                         // The accepted-ID set must stop growing once the channel cap is hit.
                         if (id !in seen) skipped++
@@ -99,9 +101,19 @@ object PlaylistParser {
 
     private val hexDigits = "0123456789abcdef".toCharArray()
 
-    /** Encode the existing 96-bit SHA-256 ID without 12 format strings per channel. */
-    private fun stableId(digest: MessageDigest, value: String): String {
-        val hash = digest.digest(value.toByteArray(Charsets.UTF_8))
+    /** Stream UTF-8 fields with the original zero separators; IDs stay byte-identical. */
+    private fun stableId(
+        digest: MessageDigest,
+        sourcePrefix: ByteArray,
+        guideId: String?,
+        streamUrl: String,
+    ): String {
+        digest.reset()
+        digest.update(sourcePrefix)
+        if (!guideId.isNullOrEmpty()) digest.update(guideId.toByteArray(Charsets.UTF_8))
+        digest.update(0.toByte())
+        digest.update(streamUrl.toByteArray(Charsets.UTF_8))
+        val hash = digest.digest()
         val chars = CharArray(24)
         for (index in 0 until 12) {
             val byte = hash[index].toInt() and 0xff
