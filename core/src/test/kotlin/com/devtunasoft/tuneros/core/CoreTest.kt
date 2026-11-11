@@ -204,6 +204,29 @@ https://example.com/live.m3u8
         assertTrue(emptyReads in 16..17)
     }
 
+    @Test fun directBulkReadAlsoAbortsStalledSource() {
+        var emptyReads = 0
+        val stalled = object : InputStream() {
+            private var headerReads = 0
+            override fun read(): Int = when (headerReads++) {
+                0 -> 'a'.code
+                1 -> 'b'.code
+                else -> -1
+            }
+            override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
+                emptyReads++
+                return 0
+            }
+        }
+        val loader = SourceDownloader { StubConnection(it, inputOverride = stalled) }
+        loader.open("https://example.org/direct-stall", 100).use { input ->
+            val buffer = ByteArray(32)
+            assertEquals(2, input.read(buffer))
+            assertFailsWith<IOException> { input.read(buffer) }
+        }
+        assertTrue(emptyReads in 16..17)
+    }
+
     @Test fun intermittentZeroReadsDoNotFailIfStreamRecovers() {
         var emptyReads = 0
         val recovering = object : InputStream() {
