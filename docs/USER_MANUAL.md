@@ -38,6 +38,6 @@ A channel without an EPG listing remains navigable in the cable guide. If a sele
 
 ## Restart and recovery of sources
 
-After a successful playlist or guide import, TunerOS keeps the validated source address in its encrypted source store. When Android terminates TunerOS and the app is reopened, the app attempts to fetch those sources again in the background without requiring you to re-enter the addresses. Your search text and guide time position are kept as small UI state; the large channel and programme lists are not copied into Android's activity state bundle.
+After a successful playlist or guide import, TunerOS keeps the validated source address in its encrypted source store. When Android terminates TunerOS and the app is reopened, the app attempts to fetch those sources again in the background without requiring you to re-enter the addresses. When Android supplies a saved activity state, the app also restores the search text (up to 256 characters) and guide time position. Cold launches without saved activity state start with a fresh search/time position. Large channel and programme lists and private source URLs are never copied into Android's activity state bundle.
 
 If a new source is empty or fails to download or parse, TunerOS retains the previously saved address rather than replacing it. An explicitly requested new import takes precedence over automatic recovery. Internet access is still required for reloading provider feeds after a process restart. Real-device recovery is **not yet verified**; this is early-alpha behavior.
