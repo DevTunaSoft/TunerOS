@@ -21,6 +21,9 @@ data class GuideWindow(val fromEpochSeconds: Long, val toEpochSeconds: Long) {
 object GuideParser {
     const val MAX_PROGRAMS = 250_000
     const val MAX_CHANNELS = 25_000
+    // Legitimate XMLTV is shallow; protect SAX/Android parser stack from
+    // deeply nested, malformed or adversarial feeds.
+    const val MAX_XML_DEPTH = 64
     private val withOffset = DateTimeFormatter.ofPattern("yyyyMMddHHmmss Z")
     private val withoutOffset = DateTimeFormatter.ofPattern("yyyyMMddHHmmss")
     private val noOffsetPattern = Regex("""\d{14}""")
@@ -69,8 +72,12 @@ object GuideParser {
             private var captureTruncated = false
             private var assumedForProgramme = false
             private val buffer = StringBuilder()
+            private var depth = 0
 
             override fun startElement(uri: String?, localName: String?, qName: String, attrs: Attributes) {
+                if (++depth > MAX_XML_DEPTH) {
+                    throw SAXException("XMLTV element nesting exceeds $MAX_XML_DEPTH")
+                }
                 val name = localName?.takeIf { it.isNotEmpty() } ?: qName
                 when (name) {
                     "channel" -> { channelId = attrs.getValue("id")?.take(256); programme = false }
@@ -141,6 +148,7 @@ object GuideParser {
                     }
                     "channel" -> channelId = null
                 }
+                depth--
             }
         }
         val reader = SAXParserFactory.newInstance().apply {
