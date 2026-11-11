@@ -2,6 +2,7 @@ package com.devtunasoft.tuneros.core
 
 import java.io.FilterInputStream
 import java.io.InputStream
+import java.io.IOException
 import java.io.PushbackInputStream
 import java.net.HttpURLConnection
 import java.net.URI
@@ -60,9 +61,19 @@ class SourceDownloader(
                         if (n <= 0) return 0
                         val scratch = ByteArray(SKIP_BUFFER_BYTES)
                         var remaining = n
+                        var emptyReads = 0
                         while (remaining > 0) {
                             val amount = read(scratch, 0, minOf(remaining, scratch.size.toLong()).toInt())
                             if (amount == -1) break
+                            if (amount == 0) {
+                                // Non-conforming or stalled streams must not spin a
+                                // core indefinitely during a large XMLTV/M3U import.
+                                if (++emptyReads >= MAX_EMPTY_READS) {
+                                    throw IOException("Source stalled during skip")
+                                }
+                                continue
+                            }
+                            emptyReads = 0
                             remaining -= amount
                         }
                         return n - remaining
@@ -84,6 +95,7 @@ class SourceDownloader(
     companion object {
         const val MAX_REDIRECTS = 5
         private const val SKIP_BUFFER_BYTES = 8 * 1024
+        private const val MAX_EMPTY_READS = 16
         fun checkedUrl(value: String): URL {
             val uri = runCatching { URI(value) }.getOrNull() ?: throw IllegalArgumentException("Invalid source URL")
             if (uri.scheme?.lowercase() !in setOf("http", "https") || uri.host.isNullOrBlank() ||
