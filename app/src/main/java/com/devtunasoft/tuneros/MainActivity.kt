@@ -71,6 +71,9 @@ class MainActivity : Activity() {
     private var channels: List<Channel> = emptyList()
     private var guide: GuideSnapshot? = null
     private var player: ExoPlayer? = null
+    // Reuse a single decoder for channels with identical provider request headers.
+    private var playerHeaders: Map<String, String>? = null
+    private var activeChannelName: String? = null
     private var focusedChannel: Channel? = null
     private var focusedProgram: GuideProgram? = null
     private var guideWindowStart: Long = 0
@@ -348,41 +351,66 @@ class MainActivity : Activity() {
     }
 
     private fun play(channel: Channel) {
-        releasePlayer()
         val headers = mutableMapOf<String, String>()
         channel.userAgent?.let { headers["User-Agent"] = it }
         channel.referer?.let { if (isHttpUrl(it)) headers["Referer"] = it }
-        val http = DefaultHttpDataSource.Factory()
-            .setConnectTimeoutMs(12_000)
-            .setReadTimeoutMs(15_000)
-            .setAllowCrossProtocolRedirects(false)
-            .setDefaultRequestProperties(headers)
-        val sourceFactory = DefaultMediaSourceFactory(DefaultDataSource.Factory(applicationContext, http))
-        val newPlayer = ExoPlayer.Builder(applicationContext).setMediaSourceFactory(sourceFactory).build().apply {
-            setAudioAttributes(AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build(), true)
+
+        // Replacing the MediaItem on the same player avoids repeated decoder allocation.
+        // A different provider header set requires a new data-source factory/player.
+        val reusable = player?.takeIf {
+            playingRecordingId == null && playerHeaders == headers
         }
-        player = newPlayer
-        playerView.player = newPlayer
-        newPlayer.addListener(object : Player.Listener {
-            override fun onIsPlayingChanged(isPlaying: Boolean) {
-                updateKeepScreenOn(isPlaying)
-            }
-            override fun onPlayerError(error: PlaybackException) {
-                if (player === newPlayer) showStatus(playbackFailureMessage(error))
-            }
-            override fun onPlaybackStateChanged(playbackState: Int) {
-                if (player === newPlayer && playbackState == Player.STATE_READY) {
-                    showStatus("Playing: ${channel.name}")
+        val target = if (reusable != null) {
+            reusable
+        } else {
+            releasePlayer()
+            val http = DefaultHttpDataSource.Factory()
+                .setConnectTimeoutMs(12_000)
+                .setReadTimeoutMs(15_000)
+                .setAllowCrossProtocolRedirects(false)
+                .setDefaultRequestProperties(headers)
+            val sourceFactory = DefaultMediaSourceFactory(
+                DefaultDataSource.Factory(applicationContext, http),
+            )
+            val created = ExoPlayer.Builder(applicationContext)
+                .setMediaSourceFactory(sourceFactory)
+                .build()
+                .apply {
+                    setAudioAttributes(
+                        AudioAttributes.Builder()
+                            .setUsage(C.USAGE_MEDIA)
+                            .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
+                            .build(),
+                        true,
+                    )
                 }
-            }
-        })
+            player = created
+            playerHeaders = headers.toMap()
+            playerView.player = created
+            created.addListener(object : Player.Listener {
+                override fun onIsPlayingChanged(isPlaying: Boolean) {
+                    if (player === created) updateKeepScreenOn(isPlaying)
+                }
+                override fun onPlayerError(error: PlaybackException) {
+                    if (player === created) showStatus(playbackFailureMessage(error))
+                }
+                override fun onPlaybackStateChanged(playbackState: Int) {
+                    if (player === created && playbackState == Player.STATE_READY) {
+                        showStatus("Playing: " + (activeChannelName ?: "channel"))
+                    }
+                }
+            })
+            created
+        }
+
+        activeChannelName = channel.name
         val builder = MediaItem.Builder().setUri(channel.streamUrl)
-        val url = channel.streamUrl.substringBefore('?').lowercase()
-        if (url.endsWith(".m3u8")) builder.setMimeType(MimeTypes.APPLICATION_M3U8)
-        if (url.endsWith(".mpd")) builder.setMimeType(MimeTypes.APPLICATION_MPD)
-        newPlayer.setMediaItem(builder.build())
-        newPlayer.prepare()
-        newPlayer.playWhenReady = true
+        val path = channel.streamUrl.substringBefore('?').lowercase()
+        if (path.endsWith(".m3u8")) builder.setMimeType(MimeTypes.APPLICATION_M3U8)
+        if (path.endsWith(".mpd")) builder.setMimeType(MimeTypes.APPLICATION_MPD)
+        target.setMediaItem(builder.build())
+        target.prepare()
+        target.playWhenReady = true
         showStatus("Connecting: ${channel.name}")
     }
 
@@ -796,6 +824,8 @@ class MainActivity : Activity() {
         playerView.player = null
         player?.release()
         player = null
+        playerHeaders = null
+        activeChannelName = null
         playingRecordingId = null
     }
 
