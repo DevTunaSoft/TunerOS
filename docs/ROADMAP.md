@@ -2,6 +2,8 @@
 
 The master research backlog contains 134 prioritized items. Short-term release sequence:
 
+**Autonomous QA requirement (2026-11-11):** End users will not be asked to perform manual acceptance scripts. The app must execute and log its own safe local checks and observe real-device behavior. Existing manual QA references below describe uncovered scenarios to automate, not user instructions. Add on-device instrumented D-pad/focus, source-download, playback, recording, reboot/rearm, SAF fault recovery, and bounded memory/battery scenarios. No unexercised test is marked PASS. Initial autonomous runner has been added to main, CI/device acceptance pending. See `docs/ON_DEVICE_QA.md`.
+
 1. **Foundation** — native application, source parsing, EPG, channel selection, basic playback, CI, verified APK.
 2. **Guide** — full classic cable grid, channel search, user-controlled hide without EPG, favorites, stable channel mappings, Guide Doctor.
 3. **Playback** — hardened switching, HLS/DASH/non-HLS validation, Stream Doctor, recovery, diagnostics.
