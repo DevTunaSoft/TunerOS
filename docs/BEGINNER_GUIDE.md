@@ -57,3 +57,5 @@ If a channel or recording fails to play, TunerOS shows a **Stream Doctor** messa
 
 
 **Full channel guide:** The virtualized channel list no longer hides everything after channel 500. All successfully imported channels (up to the parser's 25,000-channel safety cap) can be browsed, searched and optionally filtered by EPG. Filters are cached between clock updates and timeline shifts to avoid repeatedly scanning a large playlist. This code has automated JVM coverage; scrolling a full guide on a physical Android TV remains **NOT RUN**.
+
+**Import memory safeguards:** Extremely long XMLTV titles and channel names are limited to 256 characters, and optional descriptions to 2,048 characters. TunerOS reports a warning when a field is shortened. The current Android guide omits descriptions entirely to reduce memory use. These limits are validated with JVM tests; device heap consumption remains unmeasured.

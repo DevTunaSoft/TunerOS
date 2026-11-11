@@ -23,7 +23,9 @@ object GuideParser {
     private val withOffset = DateTimeFormatter.ofPattern("yyyyMMddHHmmss Z")
     private val withoutOffset = DateTimeFormatter.ofPattern("yyyyMMddHHmmss")
     private val noOffsetPattern = Regex("""\d{14}""")
-    private const val MAX_CAPTURE_CHARS = 4096
+    const val MAX_TITLE_CHARS = 256
+    const val MAX_CHANNEL_NAME_CHARS = 256
+    const val MAX_DESCRIPTION_CHARS = 2048
 
     fun parse(input: InputStream, maxPrograms: Int = MAX_PROGRAMS,
               maxChannels: Int = MAX_CHANNELS, fallbackZone: ZoneId = ZoneOffset.UTC,
@@ -35,6 +37,9 @@ object GuideParser {
         var skippedChannels = 0
         var assumedZone = 0
         var invalidTimestamps = 0
+        var truncatedTitles = 0
+        var truncatedChannelNames = 0
+        var truncatedDescriptions = 0
         val handler = object : DefaultHandler() {
             private var channelId: String? = null
             private var programme = false
@@ -43,6 +48,8 @@ object GuideParser {
             private var title: String? = null
             private var description: String? = null
             private var capture: String? = null
+            private var captureLimit = 0
+            private var captureTruncated = false
             private var assumedForProgramme = false
             private val buffer = StringBuilder()
 
@@ -59,18 +66,35 @@ object GuideParser {
                         assumedForProgramme = from.second || to.second
                         title = null; description = null
                     }
-                    "display-name", "title" -> { capture = name; buffer.setLength(0) }
-                    "desc" -> if (includeDescriptions) { capture = name; buffer.setLength(0) }
+                    "display-name", "title", "desc" -> {
+                        if (name != "desc" || includeDescriptions) {
+                            capture = name
+                            captureLimit = when (name) {
+                                "title" -> MAX_TITLE_CHARS
+                                "display-name" -> MAX_CHANNEL_NAME_CHARS
+                                else -> MAX_DESCRIPTION_CHARS
+                            }
+                            captureTruncated = false
+                            buffer.setLength(0)
+                        }
+                    }
                 }
             }
             override fun characters(ch: CharArray, start: Int, length: Int) {
-                if (capture != null && buffer.length < MAX_CAPTURE_CHARS) {
-                    buffer.append(ch, start, minOf(length, MAX_CAPTURE_CHARS - buffer.length))
+                if (capture != null) {
+                    val available = captureLimit - buffer.length
+                    if (length > available) captureTruncated = true
+                    if (available > 0) buffer.append(ch, start, minOf(length, available))
                 }
             }
             override fun endElement(uri: String?, localName: String?, qName: String) {
                 val name = localName?.takeIf { it.isNotEmpty() } ?: qName
                 if (capture == name) {
+                    if (captureTruncated) when (name) {
+                        "title" -> truncatedTitles++
+                        "display-name" -> truncatedChannelNames++
+                        "desc" -> truncatedDescriptions++
+                    }
                     val value = buffer.toString().trim()
                     when (name) {
                         "display-name" -> if (!programme && channelId != null && value.isNotEmpty() &&
@@ -118,6 +142,9 @@ object GuideParser {
             if (assumedZone > 0) add("$assumedZone programmes lacked timezone: assumed " +
                 if (fallbackZone == ZoneOffset.UTC) "UTC" else fallbackZone.id)
             if (invalidTimestamps > 0) add("$invalidTimestamps programmes had invalid timestamps")
+            if (truncatedTitles > 0) add("$truncatedTitles programme titles shortened to $MAX_TITLE_CHARS characters")
+            if (truncatedChannelNames > 0) add("$truncatedChannelNames channel names shortened to $MAX_CHANNEL_NAME_CHARS characters")
+            if (truncatedDescriptions > 0) add("$truncatedDescriptions descriptions shortened to $MAX_DESCRIPTION_CHARS characters")
         }
         return GuideSnapshot(programs, channels, warnings)
     }
