@@ -57,6 +57,7 @@ internal class ProgramTimelineView(
     private var toEpochSeconds: Long = 1
     private var nowEpochSeconds: Long = 0
     private var selectedIndex: Int = -1
+    private var pendingWindowShiftDirection = 0
 
     init {
         isFocusable = true
@@ -79,7 +80,15 @@ internal class ProgramTimelineView(
         this.fromEpochSeconds = fromEpochSeconds
         this.toEpochSeconds = toEpochSeconds
         this.nowEpochSeconds = nowEpochSeconds
-        selectedIndex = TimelineFocusPolicy.preferredIndex(entries, preferredProgramStart)
+        // A D-pad boundary shift preserves movement direction across the rebind.
+        // This is an O(visible cells) scan with no extra list or view allocation.
+        val shiftDirection = pendingWindowShiftDirection
+        pendingWindowShiftDirection = 0
+        selectedIndex = if (shiftDirection != 0) {
+            TimelineFocusPolicy.shiftedIndex(entries, preferredProgramStart, shiftDirection)
+        } else {
+            TimelineFocusPolicy.preferredIndex(entries, preferredProgramStart)
+        }
 
         val selectable = selectedIndex >= 0
         isFocusable = selectable
@@ -151,11 +160,11 @@ internal class ProgramTimelineView(
             setSelectedIndex(next)
             return true
         }
-        if (direction > 0) {
-            onWindowShift(direction)
-            return true
-        }
-        return false
+        // Both edges must shift the guide. Returning false on the left edge
+        // previously let Android move focus out of the timeline unexpectedly.
+        pendingWindowShiftDirection = direction
+        onWindowShift(direction)
+        return true
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
