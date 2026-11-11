@@ -8,6 +8,10 @@ TunerOS aims to provide a classic-cable electronic program guide, reliable Media
 
 **Early alpha / under construction.** Code and documentation are being brought into this repository. A debug APK passed GitHub Actions after the consolidated alpha guide/DVR merge on 2026-11-11 ([verified main build](https://github.com/DevTunaSoft/TunerOS/actions/runs/42976022983)). Security/performance stabilization changes passed unit tests and APK compilation. No physical-device acceptance or production readiness is claimed. See `docs/FEATURE_STATUS.md`, `docs/ROADMAP.md`, `docs/AUDIT_FINDINGS_2026-11-10.md`, and `docs/HANDOFF.md` for precise status and engineering constraints.
 
+## Autonomous on-device diagnostics
+
+TunerOS now runs an unattended, bounded set of local self-tests on startup and after source imports. The TV/phone interface shows a PASS/FAIL/BLOCKED/NOT RUN summary, and the horizontally scrolling actions row provides a `Self-test report` with an explicitly shared export option. The first checks cover synthetic M3U/XMLTV and DTD rejection, encrypted source storage, scratch DVR copy, exact-alarm access and optional recording destination access. Real provider events are logged locally with numeric codes, uptime timestamps and process PSS snapshots—never source URLs or provider tokens. **This code has not yet been accepted on Android hardware.** See [on-device QA evidence and remaining gates](docs/ON_DEVICE_QA.md) and the [user manual](docs/USER_MANUAL.md).
+
 ## Build prerequisites
 
 Android SDK (API 35), JDK 17, and Gradle 8.9. From project root, run `gradle :core:test :app:assembleDebug`. On Windows, optional `scripts/build.ps1` downloads Gradle 8.9 with a SHA-256 check (helper not yet device/Windows tested). APK output: `app/build/outputs/apk/debug/app-debug.apk`. GitHub Actions is intended to run this on commits.
