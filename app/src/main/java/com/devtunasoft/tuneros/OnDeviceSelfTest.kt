@@ -132,7 +132,9 @@ internal object OnDeviceSelfTest {
         checks += check("offline-m3u-parser", "One synthetic channel parsed") {
             val m3u = "#EXTM3U\n#EXTINF:-1 tvg-id=\"selftest\",Test Channel\nhttps://example.invalid/live.m3u8\n"
             val parsed = PlaylistParser.parse(m3u.reader())
-            parsed.size == 1 && parsed.single().guideId == "selftest"
+            parsed.size == 1 &&
+                parsed.single().guideId == "selftest" &&
+                parsed.single().id == "3c9e156eef326c82f9371e59"
         }
 
         checks += check("offline-xmltv-parser", "Synthetic XMLTV programme indexed") {
