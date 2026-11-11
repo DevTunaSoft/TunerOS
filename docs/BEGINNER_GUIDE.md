@@ -54,3 +54,6 @@ The DVR buttons are in one horizontally scrollable action row, rather than occup
 ## Stream Doctor (early alpha)
 
 If a channel or recording fails to play, TunerOS shows a **Stream Doctor** message with a numeric playback code, a short explanation and a recommended next check. Common cases include a network timeout, rejected provider access, unsupported formats, or a missing recording. You can report the **numeric code** when asking for help; do not share your provider URL, credentials, request headers or token. This screen does not send diagnostic information to a server. The initial decision table is unit-tested; live device accuracy and recovery are **NOT RUN**.
+
+
+**Full channel guide:** The virtualized channel list no longer hides everything after channel 500. All successfully imported channels (up to the parser's 25,000-channel safety cap) can be browsed, searched and optionally filtered by EPG. Filters are cached between clock updates and timeline shifts to avoid repeatedly scanning a large playlist. This code has automated JVM coverage; scrolling a full guide on a physical Android TV remains **NOT RUN**.

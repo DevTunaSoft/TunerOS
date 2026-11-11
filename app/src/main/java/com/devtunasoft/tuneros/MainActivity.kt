@@ -33,6 +33,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.PlayerView
 import com.devtunasoft.tuneros.core.Channel
+import com.devtunasoft.tuneros.core.ChannelVisibility
 import com.devtunasoft.tuneros.core.GuideParser
 import com.devtunasoft.tuneros.core.GuideSnapshot
 import com.devtunasoft.tuneros.core.GuideProgram
@@ -70,6 +71,13 @@ class MainActivity : Activity() {
     }
     private var channels: List<Channel> = emptyList()
     private var guide: GuideSnapshot? = null
+    // Cache filter results between clock ticks and guide-window shifts.
+    // ListView virtualizes views, so all imported channels can remain accessible.
+    private var filteredSource: List<Channel>? = null
+    private var filteredGuide: GuideSnapshot? = null
+    private var filteredQuery: String? = null
+    private var filteredHideNoGuide = false
+    private var filteredChannels: List<Channel> = emptyList()
     private var player: ExoPlayer? = null
     // Reuse a single decoder for channels with identical provider request headers.
     private var playerHeaders: Map<String, String>? = null
@@ -317,18 +325,23 @@ class MainActivity : Activity() {
     private fun renderChannels() {
         if (!::channelAdapter.isInitialized || !::search.isInitialized) return
         val query = search.text.toString().trim()
-        val visible = channels.asSequence()
-            .filter { query.isEmpty() || it.name.contains(query, ignoreCase = true) }
-            .filter { channel -> !hideNoGuide.isChecked || channel.guideId?.let { id -> guide?.hasSchedule(id) } == true }
-            .take(500)
-            .toList()
+        val hide = hideNoGuide.isChecked
+        if (filteredSource !== channels || filteredGuide !== guide ||
+            filteredQuery != query || filteredHideNoGuide != hide
+        ) {
+            filteredChannels = ChannelVisibility.filter(channels, guide, query, hide)
+            filteredSource = channels
+            filteredGuide = guide
+            filteredQuery = query
+            filteredHideNoGuide = hide
+        }
         val now = System.currentTimeMillis() / 1000
         if (guideWindowStart == 0L) {
             guideWindowStart = now - (now % guideStepSeconds)
         }
         updateTimeRail()
         channelAdapter.update(
-            visible,
+            filteredChannels,
             guide,
             guideWindowStart,
             guideWindowStart + guideWindowSeconds,
