@@ -417,8 +417,9 @@ class MainActivity : Activity() {
         setOnClickListener { onClick() }
     }
 
-    private fun loadPlaylist() {
-        val url = playlistUrl.text.toString().trim()
+    private fun loadPlaylist() = importPlaylist(playlistUrl.text.toString().trim(), true)
+
+    private fun importPlaylist(url: String, saveOnSuccess: Boolean) {
         if (!isHttpUrl(url)) { showStatus("Enter a valid HTTP or HTTPS playlist URL"); return }
         val epoch = playlistEpoch.incrementAndGet()
         val startedAtMs = SystemClock.elapsedRealtime()
@@ -430,9 +431,9 @@ class MainActivity : Activity() {
                 }
             }
             // A broken download must not replace the last usable encrypted URL.
-            val saved = result.isSuccess && runCatching {
+            val saved = result.isSuccess && (!saveOnSuccess || runCatching {
                 secureSources.save("playlist", url)
-            }.getOrDefault(false)
+            }.getOrDefault(false))
             runOnUiThread {
                 if (epoch != playlistEpoch.get() || isFinishing || isDestroyed) return@runOnUiThread
                 result.onSuccess {
@@ -454,8 +455,9 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun loadGuide() {
-        val url = guideUrl.text.toString().trim()
+    private fun loadGuide() = importGuide(guideUrl.text.toString().trim(), true)
+
+    private fun importGuide(url: String, saveOnSuccess: Boolean) {
         if (!isHttpUrl(url)) { showStatus("Enter a valid HTTP or HTTPS XMLTV URL"); return }
         val epoch = guideEpoch.incrementAndGet()
         val startedAtMs = SystemClock.elapsedRealtime()
@@ -466,9 +468,9 @@ class MainActivity : Activity() {
                     GuideParser.parse(it, includeDescriptions = false)
                 }.also { it.prepareIndex() }
             }
-            val saved = result.isSuccess && runCatching {
+            val saved = result.isSuccess && (!saveOnSuccess || runCatching {
                 secureSources.save("guide", url)
-            }.getOrDefault(false)
+            }.getOrDefault(false))
             runOnUiThread {
                 if (epoch != guideEpoch.get() || isFinishing || isDestroyed) return@runOnUiThread
                 result.onSuccess {
