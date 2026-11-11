@@ -14,6 +14,7 @@ import android.provider.Settings
 import android.graphics.Color
 import android.view.WindowManager
 import android.view.View
+import android.view.KeyEvent
 import android.content.pm.ApplicationInfo
 import java.time.Instant
 import java.time.ZoneId
@@ -45,6 +46,7 @@ import com.devtunasoft.tuneros.core.SourceDownloader
 import com.devtunasoft.tuneros.core.StreamDoctor
 import com.devtunasoft.tuneros.core.PlaylistParser
 import com.devtunasoft.tuneros.core.RecordingPolicy
+import com.devtunasoft.tuneros.core.TimelineEntry
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -286,7 +288,47 @@ class MainActivity : Activity() {
             if (canFocus && canNavigate) OnDeviceSelfTest.Event.UI_FOCUS_PROBE_PASS
             else OnDeviceSelfTest.Event.UI_FOCUS_PROBE_FAIL,
         )
+        val emptyTimelineWorks = runCatching { debugEmptyTimelineNavigation() }.getOrDefault(false)
+        observe(
+            if (emptyTimelineWorks) OnDeviceSelfTest.Event.UI_EMPTY_TIMELINE_PASS
+            else OnDeviceSelfTest.Event.UI_EMPTY_TIMELINE_FAIL,
+        )
         scheduleSelfTests()
+    }
+
+    /**
+     * Debug-only UI smoke test. It invokes the actual timeline View's key handlers
+     * with a synthetic, empty EPG row. It neither starts playback nor changes the
+     * real guide, focus, or recorder state.
+     */
+    private fun debugEmptyTimelineNavigation(): Boolean {
+        var shiftedRight = 0
+        var shiftedLeft = 0
+        var played = false
+        val channel = Channel("qa-empty", "QA empty guide", "https://example.invalid/qa")
+        val timeline = ProgramTimelineView(
+            context = this,
+            onChannelSelected = { played = true },
+            onProgramFocused = { _, _ -> },
+            onWindowShift = { direction ->
+                if (direction > 0) shiftedRight++ else shiftedLeft++
+            },
+        )
+        timeline.bind(
+            channel = channel,
+            entries = listOf(TimelineEntry(0, 1800)),
+            fromEpochSeconds = 0,
+            toEpochSeconds = 1800,
+            nowEpochSeconds = 0,
+            preferredProgramStart = null,
+        )
+        if (!timeline.isFocusable || timeline.isClickable) return false
+        val rightKey = KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DPAD_RIGHT)
+        val leftKey = KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DPAD_LEFT)
+        return timeline.onKeyDown(KeyEvent.KEYCODE_DPAD_RIGHT, rightKey) &&
+            timeline.onKeyDown(KeyEvent.KEYCODE_DPAD_LEFT, leftKey) &&
+            shiftedRight == 1 && shiftedLeft == 1 &&
+            !timeline.performClick() && !played
     }
 
     private fun scheduleSelfTests() {
