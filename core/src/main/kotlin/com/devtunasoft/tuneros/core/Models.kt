@@ -60,7 +60,17 @@ data class GuideSnapshot(
             else until = middle
         }
         if (from == exclusiveEnd) return emptyList()
-        return entries.subList(from, exclusiveEnd).filter { it.endEpochSeconds > fromEpochSeconds }
+        // Ordinary XMLTV schedules do not overlap: return a cheap read-only
+        // window view rather than allocate a second List on each visible row
+        // and each clock refresh. Overlaps still need filtering for correctness.
+        for (index in from until exclusiveEnd) {
+            if (entries[index].endEpochSeconds <= fromEpochSeconds) {
+                return entries.subList(from, exclusiveEnd).filter {
+                    it.endEpochSeconds > fromEpochSeconds
+                }
+            }
+        }
+        return entries.subList(from, exclusiveEnd)
     }
     /** Binary search with prefix maxima handles overlapping programmes correctly. */
     fun now(channelId: String, epochSeconds: Long): GuideProgram? {
