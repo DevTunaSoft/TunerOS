@@ -50,25 +50,47 @@ internal object RecordingScheduler {
 
     fun rearmPending(context: Context) {
         val now = System.currentTimeMillis() / 1000
-        RecordingScheduleStore(context).use { store ->
-            var after: RecordingScheduleEntry? = null
-            while (true) {
-                val batch = store.pendingAfter(now, after = after)
-                if (batch.isEmpty()) break
-                for (entry in batch) {
-                    // One invalid or revoked alarm must not suppress later recordings.
-                    try {
-                        schedule(context, entry, store)
-                    } catch (error: Exception) {
-                        store.updateAlarmMode(
-                            entry.id,
-                            exact = false,
-                            lastError = "Alarm re-arm failed: " + error.javaClass.simpleName,
-                        )
+        var exact = 0L
+        var blocked = 0L
+        var failed = 0L
+        try {
+            RecordingScheduleStore(context).use { store ->
+                var after: RecordingScheduleEntry? = null
+                while (true) {
+                    val batch = store.pendingAfter(now, after = after)
+                    if (batch.isEmpty()) break
+                    for (entry in batch) {
+                        // One invalid alarm must not prevent other entries being re-armed.
+                        try {
+                            when (schedule(context, entry, store)) {
+                                Mode.EXACT -> exact++
+                                Mode.PERMISSION_REQUIRED -> blocked++
+                            }
+                        } catch (error: Exception) {
+                            failed++
+                            runCatching {
+                                store.updateAlarmMode(
+                                    entry.id,
+                                    exact = false,
+                                    lastError = "Alarm re-arm failed: " + error.javaClass.simpleName,
+                                )
+                            }
+                        }
                     }
+                    after = batch.last()
                 }
-                after = batch.last()
             }
+        } finally {
+            // Report only nonzero findings. No polling, extra threads, identifiers,
+            // stream URLs or new long-lived state. Telemetry never blocks alarms.
+            fun emit(event: OnDeviceSelfTest.Event, count: Long) {
+                if (count > 0) runCatching {
+                    OnDeviceSelfTest.observe(context.applicationContext, event, count)
+                }
+            }
+            emit(OnDeviceSelfTest.Event.DVR_REARM_EXACT_COUNT, exact)
+            emit(OnDeviceSelfTest.Event.DVR_REARM_BLOCKED_COUNT, blocked)
+            emit(OnDeviceSelfTest.Event.DVR_REARM_FAILURE_COUNT, failed)
         }
     }
 
@@ -103,6 +125,11 @@ class RecordingAlarmReceiver : BroadcastReceiver() {
         val pending = goAsync()
         Thread({
             try {
+                runCatching {
+                    OnDeviceSelfTest.observe(
+                        context.applicationContext, OnDeviceSelfTest.Event.DVR_ALARM_DELIVERED,
+                    )
+                }
                 startScheduled(context.applicationContext, id)
             } finally {
                 pending.finish()
@@ -144,6 +171,12 @@ class RecordingAlarmReceiver : BroadcastReceiver() {
         runCatching {
             context.startForegroundService(serviceIntent)
         }.onSuccess {
+            runCatching {
+                OnDeviceSelfTest.observe(
+                    context.applicationContext,
+                    OnDeviceSelfTest.Event.DVR_SCHEDULED_SERVICE_REQUESTED,
+                )
+            }
             RecordingScheduleStore(context).use { it.markStarted(id) }
             ScheduledRecordingSecrets.delete(secrets, entry.secureSourceKey)
         }.onFailure { error ->
