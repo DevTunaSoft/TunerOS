@@ -39,3 +39,10 @@ A normal third-party Android app **cannot silently power-cycle itself, physicall
 3. A test may emit PASS only for assertions it actually executed, with wall/monotonic timestamps and device context.
 4. Avoid credential-bearing exception messages and external URLs in test logs. Sharing remains explicitly user initiated.
 5. Preserve incomplete evidence across restarts using bounded private storage and add regression tests for each observed defect.
+
+## Android emulator release gate (added to workflow 2026-11-11)
+
+The `android.yml` workflow builds the debug APK, then an independent Android 35 emulator job (2 GiB RAM, 256 MiB heap) installs/launches TunerOS, waits for its own unattended report, and asserts **PASS** for the synthetic playlist parser, XMLTV parser/DTD rejection, guide filtering and timeline, 1 KiB recording copy, isolated Android SQLite recording catalog (collision/protect/progress/interruption), and dedicated Android Keystore canary. The report is uploaded as a 14-day artifact. An emulator failure or absent check fails CI rather than silently being reported as success. Results for this new emulator job remain **UNVERIFIED** until GitHub Actions executes the exact commit.
+
+Real playback and DVR events also record first video frame, playback errors and one-shot startup/rebuffer timeout events. DVR alarm re-arm batches report exact/blocked/failed counts and the actual alarm receiver records delivery. These observations cannot prove arbitrary provider compatibility or physical storage/power fault resilience. A scheduled alarm request is not equivalent to a delivered alarm. No test changes the actual recordings database; the SQLite fixture uses a separate disposable database.
+
