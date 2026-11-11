@@ -13,6 +13,8 @@ import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
 import android.graphics.Color
+import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.view.WindowManager
 import android.view.View
 import android.view.KeyEvent
@@ -343,7 +345,54 @@ class MainActivity : Activity() {
             if (emptyTimelineWorks) OnDeviceSelfTest.Event.UI_EMPTY_TIMELINE_PASS
             else OnDeviceSelfTest.Event.UI_EMPTY_TIMELINE_FAIL,
         )
+        val markerPassed = runCatching { debugClockMarkerRefresh() }.getOrDefault(false)
+        observe(
+            if (markerPassed) OnDeviceSelfTest.Event.UI_CLOCK_MARKER_PASS
+            else OnDeviceSelfTest.Event.UI_CLOCK_MARKER_FAIL,
+        )
         scheduleSelfTests()
+    }
+
+    /**
+     * Debug-only drawing probe. Uses one tiny software bitmap to verify that
+     * changing the now timestamp moves, then removes, the marker without
+     * re-binding programmes or touching the real guide or player.
+     */
+    private fun debugClockMarkerRefresh(): Boolean {
+        val timeline = ProgramTimelineView(
+            context = this,
+            onChannelSelected = {},
+            onProgramFocused = { _, _ -> },
+            onWindowShift = {},
+        )
+        timeline.bind(
+            channel = Channel("qa-clock", "QA clock", "https://example.invalid/qa-clock"),
+            entries = listOf(TimelineEntry(0L, 100L)),
+            fromEpochSeconds = 0L,
+            toEpochSeconds = 100L,
+            nowEpochSeconds = 25L,
+            preferredProgramStart = null,
+        )
+        timeline.layout(0, 0, 100, 24)
+        val bitmap = Bitmap.createBitmap(100, 24, Bitmap.Config.ARGB_8888)
+        try {
+            val canvas = Canvas(bitmap)
+            val marker = Color.rgb(255, 116, 64)
+            timeline.draw(canvas)
+            if (bitmap.getPixel(25, 12) != marker) return false
+            bitmap.eraseColor(Color.TRANSPARENT)
+            timeline.refreshNow(75L)
+            timeline.draw(canvas)
+            if (bitmap.getPixel(75, 12) != marker ||
+                bitmap.getPixel(25, 12) == marker
+            ) return false
+            bitmap.eraseColor(Color.TRANSPARENT)
+            timeline.refreshNow(125L)
+            timeline.draw(canvas)
+            return bitmap.getPixel(75, 12) != marker
+        } finally {
+            bitmap.recycle()
+        }
     }
 
     /**
