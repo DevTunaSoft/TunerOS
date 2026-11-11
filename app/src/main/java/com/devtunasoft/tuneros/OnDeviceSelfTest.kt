@@ -13,6 +13,7 @@ import com.devtunasoft.tuneros.core.GuideSnapshot
 import com.devtunasoft.tuneros.core.PlaylistParser
 import com.devtunasoft.tuneros.core.RecordingPolicy
 import com.devtunasoft.tuneros.core.StreamRecorder
+import com.devtunasoft.tuneros.core.TimelineFocusPolicy
 import com.devtunasoft.tuneros.core.TimelineLayout
 import java.io.ByteArrayInputStream
 import java.io.File
@@ -157,7 +158,9 @@ internal object OnDeviceSelfTest {
                 row.zipWithNext().all { (left, right) ->
                     left.endEpochSeconds == right.startEpochSeconds
                 } &&
-                row.mapNotNull { it.program?.title } == listOf("First", "Second")
+                row.mapNotNull { it.program?.title } == listOf("First", "Second") &&
+                TimelineFocusPolicy.shiftedIndex(row, 140L, -1) == 0 &&
+                TimelineFocusPolicy.shiftedIndex(row, 90L, 1) == 2
         }
 
         checks += check("offline-xmltv-dtd-block", "DTD and entity injection rejected") {
