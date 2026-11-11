@@ -99,7 +99,7 @@ https://example.com/live.m3u8
     @Test fun deepXmltvNestingFailsBeforeGrowingParserStack() {
         val nested = "<nest>".repeat(GuideParser.MAX_XML_DEPTH)
         val closes = "</nest>".repeat(GuideParser.MAX_XML_DEPTH)
-        val xml = "<tv>" + nested + "</tv>" + closes
+        val xml = "<tv>" + nested + closes + "</tv>"
         assertFailsWith<Exception> {
             GuideParser.parse(ByteArrayInputStream(xml.toByteArray()))
         }
