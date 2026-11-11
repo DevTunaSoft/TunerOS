@@ -23,3 +23,7 @@ The on-device report is private until explicitly shared. Do not paste an M3U/XML
 ## Current limitations
 
 The player and DVR remain alpha quality. Remote focus behavior, all provider stream formats, true recording recovery, disconnected removable storage, and low-memory stress behavior have **not** passed autonomous hardware acceptance. See [the QA coverage ledger](ON_DEVICE_QA.md).
+
+## Testing behavior (debug vs. normal installs)
+
+Normal TunerOS installations automatically run short, safe offline checks without interrupting playback or changing focus. The larger guide stress and interface focusability tests run only in an explicitly launched **debug/CI** build and are not part of normal viewing. The local report records whether each check actually ran; `INCOMPLETE` means the app still lacks evidence for one or more release scenarios. The report's share option is optional, not a required testing step.
