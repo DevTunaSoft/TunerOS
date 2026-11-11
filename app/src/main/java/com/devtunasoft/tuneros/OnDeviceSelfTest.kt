@@ -32,7 +32,12 @@ internal object OnDeviceSelfTest {
         PLAYBACK_REQUESTED, PLAYBACK_READY, PLAYBACK_STARTED, PLAYBACK_ERROR,
         PLAYBACK_FIRST_FRAME, PLAYBACK_TIMEOUT,
         RECORDING_STARTED, RECORDING_COMPLETED, RECORDING_PARTIAL,
-        RECORDING_FAILED, RECORDING_CANCELLED, RECORDING_RECOVERED
+        RECORDING_FAILED, RECORDING_CANCELLED, RECORDING_RECOVERED,
+        RECORDING_PLAYBACK_REQUESTED, RECORDING_PLAYBACK_READY,
+        RECORDING_PLAYBACK_STARTED, RECORDING_PLAYBACK_FIRST_FRAME,
+        RECORDING_PLAYBACK_ERROR, RECORDING_PLAYBACK_TIMEOUT,
+        DVR_REARM_EXACT_COUNT, DVR_REARM_BLOCKED_COUNT, DVR_REARM_FAILURE_COUNT,
+        DVR_ALARM_DELIVERED, DVR_SCHEDULED_SERVICE_REQUESTED
     }
 
     data class Check(val id: String, val state: State, val detail: String)
@@ -85,7 +90,7 @@ internal object OnDeviceSelfTest {
         val previousRunIncomplete = File(context.filesDir, RUN_MARKER).exists()
         val marker = File(context.filesDir, RUN_MARKER)
         marker.writeText(System.currentTimeMillis().toString())
-        val checks = ArrayList<Check>(18)
+        val checks = ArrayList<Check>(24)
         checks += Check(
             "previous-test-run",
             if (previousRunIncomplete) State.BLOCKED else State.PASS,
@@ -225,6 +230,21 @@ internal object OnDeviceSelfTest {
             if (recoveredRecording) State.PASS else State.NOT_RUN,
             if (recoveredRecording) "At least one interrupted catalog row recovered as partial"
             else "No interruption recovery has been observed")
+        val playedRecording = hasEvent(context, Event.RECORDING_PLAYBACK_STARTED)
+        checks += Check("recording-playback-started",
+            if (playedRecording) State.PASS else State.NOT_RUN,
+            if (playedRecording) "Saved media previously started playback on this installation"
+            else "No saved recording playback started in retained observations")
+        val recordedFirstFrame = hasEvent(context, Event.RECORDING_PLAYBACK_FIRST_FRAME)
+        checks += Check("recording-video-frame",
+            if (recordedFirstFrame) State.PASS else State.NOT_RUN,
+            if (recordedFirstFrame) "At least one saved recording video frame was rendered"
+            else "No recording video frame observed")
+        val deliveredAlarm = hasEvent(context, Event.DVR_ALARM_DELIVERED)
+        checks += Check("scheduled-dvr-alarm-delivery",
+            if (deliveredAlarm) State.PASS else State.NOT_RUN,
+            if (deliveredAlarm) "Android delivered at least one scheduled recording alarm"
+            else "No scheduled alarm callback observed; permission alone is not proof")
         checks += Check("reboot-usb-and-long-run",
             State.NOT_RUN, "Physical power cuts, USB removal and extended RAM stress cannot be simulated safely")
 
