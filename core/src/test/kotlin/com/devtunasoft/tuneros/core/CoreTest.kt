@@ -427,4 +427,46 @@ https://example.com/live.m3u8
     }
 
 
+    @Test fun shiftedTimelineFocusProperty() {
+        val random = kotlin.random.Random(16422)
+        repeat(500) {
+            val entries = (0 until random.nextInt(0, 40)).map { index ->
+                val start = index * 10L
+                TimelineEntry(
+                    start, start + 10L,
+                    if (random.nextBoolean()) GuideProgram("c", "Show$index", start, start + 10L)
+                    else null,
+                )
+            }
+            val anchor = if (random.nextInt(7) == 0) null
+                else random.nextInt(-3, entries.size + 4) * 10L
+            val available = entries.mapIndexedNotNull { index, item ->
+                item.program?.let { index to it.startEpochSeconds }
+            }
+            for (direction in listOf(-1, 1)) {
+                val eligible = if (anchor == null) emptyList() else available.filter {
+                    if (direction < 0) it.second < anchor else it.second > anchor
+                }
+                val expected = when {
+                    available.isEmpty() -> -1
+                    eligible.isNotEmpty() ->
+                        if (direction < 0) eligible.last().first else eligible.first().first
+                    anchor != null && available.any { it.second == anchor } ->
+                        available.first { it.second == anchor }.first
+                    anchor != null && direction > 0 && available.last().second <= anchor ->
+                        available.last().first
+                    anchor != null && direction < 0 && available.first().second >= anchor ->
+                        available.first().first
+                    direction < 0 -> available.last().first
+                    else -> available.first().first
+                }
+                assertEquals(
+                    expected,
+                    TimelineFocusPolicy.shiftedIndex(entries, anchor, direction),
+                )
+            }
+        }
+    }
+
+
 }
