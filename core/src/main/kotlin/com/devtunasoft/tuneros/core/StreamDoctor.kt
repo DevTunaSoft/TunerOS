@@ -11,8 +11,17 @@ data class StreamDiagnosis(val issue: String, val nextStep: String)
  */
 object StreamDoctor {
     fun diagnose(code: Int): StreamDiagnosis = when (code) {
-        -102, -103 -> StreamDiagnosis(
-            "Provider account access", "Check your authorized subscription and sign-in",
+        -102 -> StreamDiagnosis(
+            "Provider sign-in expired", "Sign in to your authorized provider account again",
+        )
+        -103 -> StreamDiagnosis(
+            "Provider premium access needed", "Check that your subscription includes this channel",
+        )
+        -105 -> StreamDiagnosis(
+            "Parental restriction", "Check the provider's parental control settings",
+        )
+        -108 -> StreamDiagnosis(
+            "Playback setup required", "Complete any setup requested by the provider",
         )
         -104 -> StreamDiagnosis(
             "Provider stream limit", "Stop another stream or check your provider's limits",
@@ -26,11 +35,14 @@ object StreamDoctor {
         1003, 2002 -> StreamDiagnosis(
             "Connection timed out", "Check connectivity and retry the channel",
         )
+        2000 -> StreamDiagnosis(
+            "Media input/output error", "Retry playback or check the recording's storage",
+        )
         2001 -> StreamDiagnosis(
             "Network connection failed", "Check internet access and stream availability",
         )
         2003 -> StreamDiagnosis(
-            "Unexpected stream response", "Check whether the provider sent actual video",
+            "Unexpected content type", "Check whether the provider sent a video stream",
         )
         2004 -> StreamDiagnosis(
             "Stream server rejected playback", "Check provider access and the stream address",
@@ -44,6 +56,9 @@ object StreamDoctor {
         2007 -> StreamDiagnosis(
             "Insecure HTTP blocked", "Use an HTTPS source if your provider supports one",
         )
+        2008 -> StreamDiagnosis(
+            "Stream read position unavailable", "Restart playback from the beginning",
+        )
         3001, 3002 -> StreamDiagnosis(
             "Malformed media or guide", "Try another channel and report the format issue",
         )
@@ -53,7 +68,10 @@ object StreamDoctor {
         4001, 4002, 4003, 4006 -> StreamDiagnosis(
             "Playback decoder problem", "Try a lower-resolution channel or restart playback",
         )
-        in 6000..6099 -> StreamDiagnosis(
+        in 5001..5004 -> StreamDiagnosis(
+            "Device audio output failed", "Check audio output settings and restart playback",
+        )
+        in 6000..6008 -> StreamDiagnosis(
             "Protected media issue", "Check your provider's playback and license requirements",
         )
         else -> StreamDiagnosis(

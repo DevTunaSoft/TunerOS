@@ -21,12 +21,25 @@ class StreamDoctorTest {
         assertEquals("Live window moved", StreamDoctor.diagnose(1002).issue)
     }
 
+    @Test fun differentiatesOfficialMedia3FailureCodes() {
+        assertEquals("Provider sign-in expired", StreamDoctor.diagnose(-102).issue)
+        assertEquals("Provider premium access needed", StreamDoctor.diagnose(-103).issue)
+        assertEquals("Parental restriction", StreamDoctor.diagnose(-105).issue)
+        assertEquals("Playback setup required", StreamDoctor.diagnose(-108).issue)
+        assertEquals("Media input/output error", StreamDoctor.diagnose(2000).issue)
+        assertEquals("Unexpected content type", StreamDoctor.diagnose(2003).issue)
+        assertEquals("Stream read position unavailable", StreamDoctor.diagnose(2008).issue)
+        assertEquals("Device audio output failed", StreamDoctor.diagnose(5001).issue)
+        assertEquals("Device audio output failed", StreamDoctor.diagnose(5004).issue)
+        assertEquals("Playback failed", StreamDoctor.diagnose(6099).issue)
+    }
+
     @Test fun everyDiagnosticContainsOnlyBoundedStaticText() {
         val inputCodes = intArrayOf(
-            Int.MIN_VALUE, -106, -104, -102, 1002, 1003,
-            2001, 2002, 2003, 2004, 2005, 2006, 2007,
+            Int.MIN_VALUE, -108, -106, -105, -104, -103, -102, 1002, 1003,
+            2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008,
             3001, 3002, 3003, 3004, 4001, 4002, 4003, 4004, 4005, 4006,
-            6000, 6008, 6099, Int.MAX_VALUE,
+            5001, 5002, 5003, 5004, 6000, 6008, 6099, Int.MAX_VALUE,
         )
         for (code in inputCodes) {
             val result = StreamDoctor.diagnose(code)
