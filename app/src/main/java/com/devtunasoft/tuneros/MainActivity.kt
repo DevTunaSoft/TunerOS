@@ -348,11 +348,11 @@ class MainActivity : Activity() {
     private fun debugEmptyTimelineNavigation(): Boolean {
         var shiftedRight = 0
         var shiftedLeft = 0
-        var played = false
+        var playedChannelId: String? = null
         val channel = Channel("qa-empty", "QA empty guide", "https://example.invalid/qa")
         val timeline = ProgramTimelineView(
             context = this,
-            onChannelSelected = { played = true },
+            onChannelSelected = { playedChannelId = it.id },
             onProgramFocused = { _, _ -> },
             onWindowShift = { direction ->
                 if (direction > 0) shiftedRight++ else shiftedLeft++
@@ -369,10 +369,30 @@ class MainActivity : Activity() {
         if (!timeline.isFocusable || timeline.isClickable) return false
         val rightKey = KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DPAD_RIGHT)
         val leftKey = KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DPAD_LEFT)
-        return timeline.onKeyDown(KeyEvent.KEYCODE_DPAD_RIGHT, rightKey) &&
+        val keysWorked = timeline.onKeyDown(KeyEvent.KEYCODE_DPAD_RIGHT, rightKey) &&
             timeline.onKeyDown(KeyEvent.KEYCODE_DPAD_LEFT, leftKey) &&
             shiftedRight == 1 && shiftedLeft == 1 &&
-            !timeline.performClick() && !played
+            !timeline.performClick() && playedChannelId == null
+        if (!keysWorked) return false
+
+        // This same ListView row is now rebound to a different channel. The
+        // pending LEFT key must not alter the new channel's selected programme.
+        val second = Channel("qa-second", "QA second channel", "https://example.invalid/other")
+        val older = GuideProgram("qa-second", "Older", 0L, 900L)
+        val newer = GuideProgram("qa-second", "Newer", 900L, 1800L)
+        timeline.bind(
+            channel = second,
+            entries = listOf(
+                TimelineEntry(0L, 900L, older),
+                TimelineEntry(900L, 1800L, newer),
+            ),
+            fromEpochSeconds = 0L,
+            toEpochSeconds = 1800L,
+            nowEpochSeconds = 0L,
+            preferredProgramStart = 900L,
+        )
+        return timeline.contentDescription == "QA second channel, Newer" &&
+            timeline.performClick() && playedChannelId == "qa-second"
     }
 
     private fun scheduleSelfTests() {
