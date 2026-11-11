@@ -12,11 +12,16 @@ import com.devtunasoft.tuneros.core.GuideParser
 import com.devtunasoft.tuneros.core.GuideSnapshot
 import com.devtunasoft.tuneros.core.PlaylistParser
 import com.devtunasoft.tuneros.core.RecordingPolicy
+import com.devtunasoft.tuneros.core.SourceDownloader
 import com.devtunasoft.tuneros.core.SourceRecoveryPolicy
 import com.devtunasoft.tuneros.core.StreamRecorder
 import com.devtunasoft.tuneros.core.TimelineFocusPolicy
 import com.devtunasoft.tuneros.core.TimelineLayout
 import java.io.ByteArrayInputStream
+import java.io.InputStream
+import java.io.IOException
+import java.net.HttpURLConnection
+import java.net.URL
 import java.io.File
 import java.io.FileOutputStream
 
@@ -135,6 +140,35 @@ internal object OnDeviceSelfTest {
             parsed.size == 1 &&
                 parsed.single().guideId == "selftest" &&
                 parsed.single().id == "3c9e156eef326c82f9371e59"
+        }
+
+        checks += check("offline-source-stall", "Non-progressing source fails without a CPU spin") {
+            var emptyReads = 0
+            val stalled = object : InputStream() {
+                private var header = 0
+                override fun read(): Int = when (header++) {
+                    0 -> 'a'.code
+                    1 -> 'b'.code
+                    else -> -1
+                }
+                override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
+                    emptyReads++
+                    return 0
+                }
+            }
+            val downloader = SourceDownloader { url ->
+                object : HttpURLConnection(url) {
+                    override fun connect() {}
+                    override fun disconnect() {}
+                    override fun usingProxy() = false
+                    override fun getResponseCode() = HTTP_OK
+                    override fun getInputStream(): InputStream = stalled
+                }
+            }
+            val error = runCatching {
+                downloader.open("https://example.invalid/qa", 128).use { it.skip(256) }
+            }.exceptionOrNull()
+            error is IOException && emptyReads in 16..17
         }
 
         checks += check("offline-xmltv-parser", "Synthetic XMLTV programme indexed") {
