@@ -114,6 +114,30 @@ https://example.com/live.m3u8
         val otherSource = PlaylistParser.parseReport(feed.reader(), sourceId = "another")
         assertNotEquals(channels[0].id, otherSource.channels[0].id)
     }
+    @Test fun streamedChannelHashesPreserveLegacyIds() {
+        val sources = listOf("default", "second-provider", "équipe", "")
+        val guides = listOf<String?>(null, "", "news", "中文台", "sports-HD")
+        val random = kotlin.random.Random(20261111)
+        val digest = java.security.MessageDigest.getInstance("SHA-256")
+        repeat(300) { index ->
+            val sourceId = sources[index % sources.size]
+            val guideId = guides[index % guides.size]
+            val url = "https://example.org/video/${index}/" +
+                "x".repeat(random.nextInt(0, 2000)) + "?token=${index}"
+            val attr = if (guideId == null) "" else " tvg-id=\"${guideId}\""
+            val feed = "#EXTM3U\n#EXTINF:-1${attr},Sample\n${url}\n"
+            val parsed = PlaylistParser.parseReport(feed.reader(), sourceId = sourceId)
+            assertEquals(1, parsed.channels.size)
+            val legacyBytes = (
+                sourceId + "\u0000" + guideId.orEmpty() + "\u0000" + url
+            ).toByteArray(Charsets.UTF_8)
+            val expected = digest.digest(legacyBytes).take(12).joinToString("") {
+                (it.toInt() and 255).toString(16).padStart(2, '0')
+            }
+            assertEquals(expected, parsed.channels.single().id)
+        }
+    }
+
     @Test fun hugeLineIsRejectedByBoundedReader() {
         val input = "#EXTM3U\n" + "X".repeat(PlaylistParser.MAX_LINE_LENGTH + 1)
         assertFailsWith<IllegalArgumentException> { PlaylistParser.parse(input.reader()) }
