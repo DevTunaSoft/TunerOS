@@ -6,6 +6,7 @@ import android.app.AlarmManager
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.text.InputFilter
 import android.os.SystemClock
 import android.os.Build
 import android.os.Handler
@@ -179,7 +180,11 @@ class MainActivity : Activity() {
         search = urlField(
             "Search channels",
             retained?.searchQuery ?: savedInstanceState?.getString(STATE_SEARCH).orEmpty(),
-        )
+        ).apply {
+            // Search is local UI state, not a feed URL. Bound the retained
+            // query to avoid oversized lifecycle Bundles or pointless scans.
+            filters = arrayOf(InputFilter.LengthFilter(256))
+        }
         root.addView(search)
         hideNoGuide = CheckBox(this).apply {
             text = "Hide channels with no EPG"
@@ -1139,7 +1144,10 @@ class MainActivity : Activity() {
         releasePlayer()
     }
     override fun onSaveInstanceState(outState: Bundle) {
-        outState.putString(STATE_SEARCH, if (::search.isInitialized) search.text.toString() else "")
+        outState.putString(
+            STATE_SEARCH,
+            if (::search.isInitialized) search.text.toString().take(256) else "",
+        )
         outState.putLong(STATE_WINDOW, guideWindowStart)
         super.onSaveInstanceState(outState)
     }
