@@ -78,7 +78,13 @@ class MainActivity : Activity() {
     private val searchRefresh = Runnable { renderChannels() }
     private val clockRefresh = object : Runnable {
         override fun run() {
-            if (guide != null && !isFinishing && !isDestroyed) renderChannels()
+            // EPG data and filters do not change just because one minute passed.
+            // Redraw visible now-markers only; no rebind, sorting or List allocation.
+            if (guide != null && !isFinishing && !isDestroyed &&
+                ::channelAdapter.isInitialized && ::channelList.isInitialized
+            ) {
+                channelAdapter.refreshClock(channelList, System.currentTimeMillis() / 1000)
+            }
             uiHandler.postDelayed(this, 60_000)
         }
     }
