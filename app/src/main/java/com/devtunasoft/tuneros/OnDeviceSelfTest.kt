@@ -240,6 +240,7 @@ internal object OnDeviceSelfTest {
             if (recordedFirstFrame) State.PASS else State.NOT_RUN,
             if (recordedFirstFrame) "At least one saved recording video frame was rendered"
             else "No recording video frame observed")
+        checks += mostRecentRearmResult(context)
         val deliveredAlarm = hasEvent(context, Event.DVR_ALARM_DELIVERED)
         checks += Check("scheduled-dvr-alarm-delivery",
             if (deliveredAlarm) State.PASS else State.NOT_RUN,
@@ -283,6 +284,38 @@ internal object OnDeviceSelfTest {
         return file.useLines { lines ->
             lines.any { line -> line.contains("\t${event.name}\t") }
         }
+    }
+
+    /**
+     * The last nonempty re-arm batch wins. The recorder writes EXACT, then
+     * BLOCKED, then FAILED counters; if a batch has mixed outcomes, the
+     * highest-severity outcome is its final observation. No schedules are
+     * created by the reporter.
+     */
+    private fun mostRecentRearmResult(context: Context): Check {
+        val file = File(context.filesDir, EVENTS_FILE)
+        if (!file.exists() || file.length() > MAX_EVENTS_BYTES) {
+            return Check("dvr-rearm", State.NOT_RUN, "No pending DVR schedules re-armed")
+        }
+        var result: Check? = null
+        file.forEachLine { line ->
+            val columns = line.split('\t', limit = 5)
+            val count = columns.getOrNull(3)?.toLongOrNull() ?: return@forEachLine
+            val event = columns.getOrNull(2)
+            result = when (event) {
+                Event.DVR_REARM_EXACT_COUNT.name ->
+                    Check("dvr-rearm", State.PASS,
+                        "$count pending exact alarm(s) submitted; firing not yet verified")
+                Event.DVR_REARM_BLOCKED_COUNT.name ->
+                    Check("dvr-rearm", State.BLOCKED,
+                        "$count pending alarm(s) could not be armed without OS permission")
+                Event.DVR_REARM_FAILURE_COUNT.name ->
+                    Check("dvr-rearm", State.FAIL,
+                        "$count alarm re-arm request(s) raised errors")
+                else -> result
+            }
+        }
+        return result ?: Check("dvr-rearm", State.NOT_RUN, "No pending DVR schedules re-armed")
     }
 
     @Synchronized
