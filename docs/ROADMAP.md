@@ -73,3 +73,7 @@ The GitHub Actions suite passed at [run 42972740969](https://github.com/DevTunaS
 **2026-11-11 timeline allocation reduction:** Indexed programme lists are already sorted. Reuse them in the guide renderer without another filtered/sorted intermediate list. Keep generic unsorted caller semantics and add randomized equivalence tests. Device RAM measurement remains a release acceptance gate.
 
 **2026-11-11 playlist allocation reduction:** Preserve exact provider-scoped SHA-256 channel IDs but replace per-byte `String.format` hexadecimal conversions with a fixed 24-character encoding buffer; avoid per-URL `setOf` and lowercased scheme strings. Add regression cases proving IDs are byte-identical and source-scoped. No format/ID migration; device RAM metrics pending.
+
+## 2026-11-11 in-app automated QA continuation
+
+Implemented in source: optional debug-only 160-channel/11,520-programme guide stress with bounded allocations and wall/CPU/PSS/heap sampling; actual Android control focusability smoke; integration of both into the emulator CI release gate. Production startup has no stress or focus interruption. Test reports are now atomically published and event file I/O cannot wait behind long self-tests. **Build and emulator runs for newest commits are UNVERIFIED.** Remaining high-priority acceptance: verify the complete CI job, then autonomous real D-pad/key traversal and activity recreation, first-frame/recording/device recovery on hardware, and measured 1 GiB/2 GiB sustained memory/battery budgets without manual test scripts.
