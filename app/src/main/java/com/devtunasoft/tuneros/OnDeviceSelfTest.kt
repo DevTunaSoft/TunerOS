@@ -355,6 +355,17 @@ internal object OnDeviceSelfTest {
             else "No recording video frame observed")
         checks += mostRecentRearmResult(context)
         if (includeStress) {
+            checks += check(
+                "debug-xmltv-depth-limit",
+                "Android XML reader rejects a well-formed 65-level nested document",
+            ) {
+                val inner = "<nest>".repeat(GuideParser.MAX_XML_DEPTH)
+                val closer = "</nest>".repeat(GuideParser.MAX_XML_DEPTH)
+                val deep = "<tv>" + inner + closer + "</tv>"
+                runCatching {
+                    GuideParser.parse(ByteArrayInputStream(deep.toByteArray(Charsets.UTF_8)))
+                }.exceptionOrNull() is org.xml.sax.SAXException
+            }
             checks += OnDeviceGuideStress.run()
             // Scan the bounded event log once for all debug UI probes.
             checks.addAll(recentUiChecks(context))
