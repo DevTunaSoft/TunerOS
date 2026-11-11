@@ -12,6 +12,7 @@ import com.devtunasoft.tuneros.core.GuideParser
 import com.devtunasoft.tuneros.core.GuideSnapshot
 import com.devtunasoft.tuneros.core.PlaylistParser
 import com.devtunasoft.tuneros.core.RecordingPolicy
+import com.devtunasoft.tuneros.core.SourceRecoveryPolicy
 import com.devtunasoft.tuneros.core.StreamRecorder
 import com.devtunasoft.tuneros.core.TimelineFocusPolicy
 import com.devtunasoft.tuneros.core.TimelineLayout
@@ -112,6 +113,21 @@ internal object OnDeviceSelfTest {
                 "Previous test run did not finish; review app termination or storage"
             else "No interrupted self-test detected",
         )
+        checks += check(
+            "source-recovery-policy",
+            "No prior source overwritten by failed, empty, stale or edited imports",
+        ) {
+            val saved = "https://example.invalid/qa-playlist"
+            SourceRecoveryPolicy.shouldRestore(saved, saved, false, false) &&
+                !SourceRecoveryPolicy.shouldRestore(null, saved, false, false) &&
+                !SourceRecoveryPolicy.shouldRestore(saved, "", false, false) &&
+                !SourceRecoveryPolicy.shouldRestore(saved, saved, true, false) &&
+                !SourceRecoveryPolicy.shouldRestore(saved, saved, false, true) &&
+                SourceRecoveryPolicy.mayCommit(true, 3, 3) &&
+                !SourceRecoveryPolicy.mayCommit(false, 3, 3) &&
+                !SourceRecoveryPolicy.mayCommit(true, 3, 4)
+        }
+
         checks += check("offline-m3u-parser", "One synthetic channel parsed") {
             val m3u = "#EXTM3U\n#EXTINF:-1 tvg-id=\"selftest\",Test Channel\nhttps://example.invalid/live.m3u8\n"
             val parsed = PlaylistParser.parse(m3u.reader())
