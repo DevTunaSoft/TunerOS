@@ -42,8 +42,15 @@ internal object RecordingScheduler {
 
     fun rearmPending(context: Context) {
         val now = System.currentTimeMillis() / 1000
-        val entries = RecordingScheduleStore(context).use { it.pendingAfter(now) }
-        for (entry in entries) schedule(context, entry)
+        RecordingScheduleStore(context).use { store ->
+            var after: RecordingScheduleEntry? = null
+            while (true) {
+                val batch = store.pendingAfter(now, after = after)
+                if (batch.isEmpty()) break
+                for (entry in batch) schedule(context, entry)
+                after = batch.last()
+            }
+        }
     }
 
     private fun alarmIntent(context: Context, id: String): PendingIntent {
