@@ -161,7 +161,7 @@ internal object OnDeviceSelfTest {
                     result.bytesWritten == bytes.size.toLong() &&
                     scratch.readBytes().contentEquals(bytes)
             } finally {
-                check(scratch.delete()) { "Could not clean up self-test scratch file" }
+                kotlin.check(scratch.delete()) { "Could not clean up self-test scratch file" }
             }
         }
 
@@ -236,7 +236,7 @@ internal object OnDeviceSelfTest {
             it.write(report.text())
         }
         // Marker is removed only after the report has been written successfully.
-        check(marker.delete()) { "Could not clear self-test run marker" }
+        kotlin.check(marker.delete()) { "Could not clear self-test run marker" }
         return report
     }
 
