@@ -107,15 +107,24 @@ object PlaylistParser {
         var group: String? = null
         for (match in attribute.findAll(line)) {
             val key = match.groups[1]?.value ?: continue
+            // Ignore unrelated provider attributes before materializing their
+            // captured values. These are the majority of fields in many feeds.
+            val field = when {
+                key.equals("tvg-name", ignoreCase = true) -> 1
+                key.equals("tvg-id", ignoreCase = true) -> 2
+                key.equals("tvg-logo", ignoreCase = true) -> 3
+                key.equals("group-title", ignoreCase = true) -> 4
+                else -> continue
+            }
             val value = match.groups[2]?.value
                 ?: match.groups[3]?.value
                 ?: match.groups[4]?.value
                 ?: ""
-            when {
-                key.equals("tvg-name", ignoreCase = true) -> tvgName = value
-                key.equals("tvg-id", ignoreCase = true) -> guideId = value
-                key.equals("tvg-logo", ignoreCase = true) -> logo = value
-                key.equals("group-title", ignoreCase = true) -> group = value
+            when (field) {
+                1 -> tvgName = value
+                2 -> guideId = value
+                3 -> logo = value
+                4 -> group = value
             }
         }
         val display = line.substringAfterLast(',', "").trim()
