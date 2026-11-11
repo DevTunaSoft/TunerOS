@@ -106,6 +106,7 @@ class MainActivity : Activity() {
     private lateinit var status: TextView
     private lateinit var diagnosticsSummary: TextView
     private var selfTestsQueued = false
+    private var selfTestsDirty = false
     private lateinit var timeRail: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -260,7 +261,12 @@ class MainActivity : Activity() {
 
     private fun scheduleSelfTests() {
         // Only one probe pass at once; use the app's existing serial worker.
-        if (selfTestsQueued || worker.isShutdown) return
+        if (worker.isShutdown) return
+        if (selfTestsQueued) {
+            // An import completed while a previous pass was running: do not lose its results.
+            selfTestsDirty = true
+            return
+        }
         selfTestsQueued = true
         val hasPlaylist = channels.isNotEmpty()
         val hasGuide = guide != null
@@ -273,6 +279,10 @@ class MainActivity : Activity() {
                 if (isFinishing || isDestroyed) return@runOnUiThread
                 report.onSuccess { diagnosticsSummary.text = it.summary() }
                     .onFailure { diagnosticsSummary.text = "Autonomous QA: FAIL (runner)" }
+                if (selfTestsDirty) {
+                    selfTestsDirty = false
+                    scheduleSelfTests()
+                }
             }
         }
     }
