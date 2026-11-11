@@ -404,4 +404,27 @@ https://example.com/live.m3u8
         assertEquals((0 until 24).map { "P$it" }, row.mapNotNull { it.program?.title })
     }
 
+    @Test fun dpadWindowBoundaryFocusTracksDirectionAndSkipsGaps() {
+        val entries = listOf(
+            TimelineEntry(0, 10),
+            TimelineEntry(10, 20, GuideProgram("c", "Older", 10, 20)),
+            TimelineEntry(20, 30),
+            TimelineEntry(30, 40, GuideProgram("c", "Middle", 30, 40)),
+            TimelineEntry(40, 50, GuideProgram("c", "Newer", 40, 50)),
+        )
+        assertEquals(4, TimelineFocusPolicy.shiftedIndex(entries, 45, -1))
+        assertEquals(3, TimelineFocusPolicy.shiftedIndex(entries, 40, -1))
+        assertEquals(4, TimelineFocusPolicy.shiftedIndex(entries, 30, 1))
+        assertEquals(1, TimelineFocusPolicy.shiftedIndex(entries, 10, -1))
+        assertEquals(4, TimelineFocusPolicy.shiftedIndex(entries, 50, 1))
+        assertEquals(4, TimelineFocusPolicy.shiftedIndex(entries, 50, -1))
+        assertEquals(4, TimelineFocusPolicy.shiftedIndex(entries, null, -1))
+        assertEquals(1, TimelineFocusPolicy.shiftedIndex(entries, null, 1))
+        assertEquals(-1, TimelineFocusPolicy.shiftedIndex(listOf(TimelineEntry(0, 10)), 10, -1))
+        assertFailsWith<IllegalArgumentException> {
+            TimelineFocusPolicy.shiftedIndex(entries, null, 0)
+        }
+    }
+
+
 }
