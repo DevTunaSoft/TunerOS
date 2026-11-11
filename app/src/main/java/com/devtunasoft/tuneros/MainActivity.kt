@@ -81,7 +81,9 @@ class MainActivity : Activity() {
     private val clockRefresh = object : Runnable {
         override fun run() {
             // No background wakeups while the activity is stopped or has no EPG.
-            if (!activityStarted || guide == null || isFinishing || isDestroyed) return
+            if (!activityStarted || showingRecordings || guide == null ||
+                isFinishing || isDestroyed
+            ) return
             // A clock change never requires a dataset refresh or programme rebind.
             if (::channelAdapter.isInitialized && ::channelList.isInitialized) {
                 channelAdapter.refreshClock(channelList, System.currentTimeMillis() / 1000)
@@ -89,6 +91,15 @@ class MainActivity : Activity() {
             uiHandler.postDelayed(this, 60_000)
         }
     }
+
+    /** Keep at most one minute callback, and none outside the visible EPG. */
+    private fun syncGuideClock() {
+        uiHandler.removeCallbacks(clockRefresh)
+        if (activityStarted && !showingRecordings && guide != null) {
+            uiHandler.post(clockRefresh)
+        }
+    }
+
     private var channels: List<Channel> = emptyList()
     private var guide: GuideSnapshot? = null
     // Cache filter results between clock ticks and guide-window shifts.
@@ -604,10 +615,7 @@ class MainActivity : Activity() {
                 result.onSuccess {
                     guide = it
                     setSourcesVisible(false)
-                    if (activityStarted) {
-                        uiHandler.removeCallbacks(clockRefresh)
-                        uiHandler.post(clockRefresh)
-                    }
+                    syncGuideClock()
                     val warnings = it.warnings + if (saved) emptyList() else listOf("URL not saved securely")
                     showStatus("Loaded ${it.programs.size} programs across ${it.channelNames.size} guide channels" +
                         if (warnings.isEmpty()) "" else "; WARNING: " + warnings.joinToString("; "))
@@ -919,6 +927,7 @@ class MainActivity : Activity() {
             showingRecordings = false
             focusedRecording = null
             channelList.adapter = channelAdapter
+            syncGuideClock()
             timeRail.visibility = android.view.View.VISIBLE
             renderChannels()
             showStatus("Guide")
@@ -927,6 +936,7 @@ class MainActivity : Activity() {
         showingRecordings = true
         focusedRecording = null
         channelList.adapter = recordingAdapter
+        syncGuideClock()
         timeRail.visibility = android.view.View.GONE
         showStatus("Loading recordings…")
         refreshRecordingLibrary()
@@ -1219,7 +1229,7 @@ class MainActivity : Activity() {
     override fun onStart() {
         super.onStart()
         activityStarted = true
-        if (guide != null) uiHandler.post(clockRefresh)
+        syncGuideClock()
     }
     override fun onStop() {
         activityStarted = false
