@@ -11,28 +11,36 @@ import android.os.Build
 internal object RecordingScheduler {
     enum class Mode { EXACT, PERMISSION_REQUIRED }
 
-    fun schedule(context: Context, entry: RecordingScheduleEntry): Mode {
+    fun schedule(context: Context, entry: RecordingScheduleEntry): Mode =
+        RecordingScheduleStore(context).use { store -> schedule(context, entry, store) }
+
+    private fun schedule(
+        context: Context,
+        entry: RecordingScheduleEntry,
+        store: RecordingScheduleStore,
+    ): Mode {
         val alarmManager = context.getSystemService(AlarmManager::class.java)
-        val triggerAtMillis = maxOf(entry.startEpochSeconds * 1000, System.currentTimeMillis() + 1_000)
-        val pendingIntent = alarmIntent(context, entry.id)
         val exactAllowed = Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
             alarmManager.canScheduleExactAlarms()
 
+        // Do not allocate a PendingIntent if permission is missing.
         if (exactAllowed) {
+            val triggerAtMillis = maxOf(
+                entry.startEpochSeconds * 1_000,
+                System.currentTimeMillis() + 1_000,
+            )
             alarmManager.setExactAndAllowWhileIdle(
                 AlarmManager.RTC_WAKEUP,
                 triggerAtMillis,
-                pendingIntent,
+                alarmIntent(context, entry.id),
             )
         }
-        RecordingScheduleStore(context).use {
-            it.updateAlarmMode(
-                entry.id,
-                exact = exactAllowed,
-                lastError = if (exactAllowed) null else
-                    "Exact alarm access required before this recording can be armed",
-            )
-        }
+        store.updateAlarmMode(
+            entry.id,
+            exact = exactAllowed,
+            lastError = if (exactAllowed) null else
+                "Exact alarm access required before this recording can be armed",
+        )
         return if (exactAllowed) Mode.EXACT else Mode.PERMISSION_REQUIRED
     }
 
@@ -47,7 +55,18 @@ internal object RecordingScheduler {
             while (true) {
                 val batch = store.pendingAfter(now, after = after)
                 if (batch.isEmpty()) break
-                for (entry in batch) schedule(context, entry)
+                for (entry in batch) {
+                    // One invalid or revoked alarm must not suppress later recordings.
+                    try {
+                        schedule(context, entry, store)
+                    } catch (error: Exception) {
+                        store.updateAlarmMode(
+                            entry.id,
+                            exact = false,
+                            lastError = "Alarm re-arm failed: " + error.javaClass.simpleName,
+                        )
+                    }
+                }
                 after = batch.last()
             }
         }
