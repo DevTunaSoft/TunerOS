@@ -1,5 +1,6 @@
 package com.devtunasoft.tuneros.core
 
+import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
 
@@ -35,12 +36,18 @@ class StreamRecorder(
         }
         require(freeBytes() >= minFreeBytes) { "Insufficient free storage" }
         var total = 0L
+        var emptyReads = 0
         while (true) {
             if (cancelled()) return Result(total, StopReason.CANCELLED)
             if (freeBytes() < minFreeBytes) return Result(total, StopReason.LOW_STORAGE)
             val count = input.read(buffer, 0, bufferBytes)
             if (count < 0) return Result(total, StopReason.END_OF_STREAM)
-            if (count == 0) continue
+            if (count == 0) {
+                // Broken streams can return zero forever; do not spin at 100% CPU.
+                if (++emptyReads >= 16) throw IOException("Input stream made no progress")
+                continue
+            }
+            emptyReads = 0
             output.write(buffer, 0, count)
             total += count
             onProgress(total)

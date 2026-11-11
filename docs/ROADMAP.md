@@ -61,3 +61,5 @@ The GitHub Actions suite passed at [run 42972740969](https://github.com/DevTunaS
 **2026-11-11 playback hardening:** The Media3 player is now reused for live-channel switches with identical provider headers; different headers trigger a clean release/recreate. No device measurements yet. Stream Doctor code mappings are being aligned with documented Media3 constants, with specific tests for sign-in expiration, premium access, parental controls, invalid content types, out-of-range reads, and audio output failures. Device acceptance remains open.
 
 **2026-11-11 DVR scheduler hardening:** Reuse a single schedule database helper across re-arm batches and isolate per-job alarm failures. Device reboot/exact-alarm stress tests remain a P0 acceptance gate. No increased background polling or periodic workers were added.
+
+**2026-11-11 bounded raw stream progress:** Prevent CPU spin from input streams that repeatedly return zero bytes; abort after 16 consecutive no-progress reads, with regression tests. CI pending. Device acceptance still required for recording and battery impact.

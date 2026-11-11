@@ -184,3 +184,8 @@ Current branch `perf/windowed-epg-retention` now contains a bounded DVR foundati
 
 - **PASS (CI):** [run 42975413467](https://github.com/DevTunaSoft/TunerOS/actions/runs/42975413467), commit `2b28494`: XMLTV SAX capture limits of 256-character programme titles and channel names and 2,048-character descriptions (descriptions disabled in current Android UI). Parser warns when truncation occurs; oversized-field JVM regressions passed and debug APK artifact uploaded. **UNVERIFIED:** real-device heap reduction.
 - **Source-only, latest CI pending:** DVR alarm re-arm now reuses one `RecordingScheduleStore` for all bounded 200-item pages and catches per-alarm exceptions, preserving progress on unaffected jobs. A missing exact-alarm permission no longer builds a PendingIntent. **NOT RUN:** reboot/system permission revocation and >200-schedule hardware tests; a CI build does not verify AlarmManager operation on Android.
+
+## 2026-11-11 raw DVR no-progress hardening
+
+- A custom or malfunctioning input stream can return zero bytes indefinitely. The previous `StreamRecorder.copy` loop would spin without a pause, potentially consuming a full CPU core and battery. The bounded recorder now throws `IOException("Input stream made no progress")` after 16 consecutive empty reads, resets the counter on a successful read, and still honors cancellation and free-space checks each iteration. This adds no worker threads, polling timers, or extra buffer allocations.
+- New `StreamRecorderTest` exercises permanent zero-read, intermittent progress and cancellation. **CI PENDING** for this exact change. Android TV hardware and real recording acceptance remain **NOT RUN**.
