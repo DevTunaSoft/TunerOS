@@ -37,6 +37,7 @@ import com.devtunasoft.tuneros.core.GuideParser
 import com.devtunasoft.tuneros.core.GuideSnapshot
 import com.devtunasoft.tuneros.core.GuideProgram
 import com.devtunasoft.tuneros.core.SourceDownloader
+import com.devtunasoft.tuneros.core.StreamDoctor
 import com.devtunasoft.tuneros.core.PlaylistParser
 import com.devtunasoft.tuneros.core.RecordingPolicy
 import java.util.concurrent.Executors
@@ -367,7 +368,7 @@ class MainActivity : Activity() {
                 updateKeepScreenOn(isPlaying)
             }
             override fun onPlayerError(error: PlaybackException) {
-                if (player === newPlayer) showStatus("Playback problem on ${channel.name}: ${error.errorCodeName}")
+                if (player === newPlayer) showStatus(playbackFailureMessage(error))
             }
             override fun onPlaybackStateChanged(playbackState: Int) {
                 if (player === newPlayer && playbackState == Player.STATE_READY) {
@@ -696,7 +697,7 @@ class MainActivity : Activity() {
             }
             override fun onPlayerError(error: PlaybackException) {
                 if (player === newPlayer) {
-                    showStatus("Recording playback problem: " + error.errorCodeName)
+                    showStatus(playbackFailureMessage(error))
                 }
             }
             override fun onPlaybackStateChanged(playbackState: Int) {
@@ -796,6 +797,12 @@ class MainActivity : Activity() {
         player?.release()
         player = null
         playingRecordingId = null
+    }
+
+    /** No provider URL, response body or exception message is exposed by diagnostics. */
+    private fun playbackFailureMessage(error: PlaybackException): String {
+        val diagnosis = StreamDoctor.diagnose(error.errorCode)
+        return "Stream Doctor (${error.errorCode}): ${diagnosis.issue}. ${diagnosis.nextStep}"
     }
 
     private fun showStatus(value: String) { status.text = value }

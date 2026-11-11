@@ -49,3 +49,8 @@ The script downloads Gradle 8.9 to your user profile if it is missing, checks th
 The DVR buttons are in one horizontally scrollable action row, rather than occupying nine vertical rows above the guide. Move focus left/right to reach off-screen actions. The main guide uses recycled rows; selecting a channel attempts playback. Android TV remote/focus and portrait-screen checks are **NOT RUN**. The current guide UI does not display XMLTV programme descriptions, so imports now omit those strings; channel names, programme titles, start/end times and scheduled-program focus remain available. This is a code-level optimization, not a measured device memory claim.
 
 **Recording integrity:** For HLS byte-range streams, a short or oversized segment response is treated as a partial recording instead of silently accepting a damaged segment. This path is covered by JVM tests, but live provider/USB playback remains UNVERIFIED.
+
+
+## Stream Doctor (early alpha)
+
+If a channel or recording fails to play, TunerOS shows a **Stream Doctor** message with a numeric playback code, a short explanation and a recommended next check. Common cases include a network timeout, rejected provider access, unsupported formats, or a missing recording. You can report the **numeric code** when asking for help; do not share your provider URL, credentials, request headers or token. This screen does not send diagnostic information to a server. The initial decision table is unit-tested; live device accuracy and recovery are **NOT RUN**.

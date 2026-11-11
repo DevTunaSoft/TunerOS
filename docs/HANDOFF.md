@@ -164,3 +164,11 @@ Current branch `perf/windowed-epg-retention` now contains a bounded DVR foundati
 - The new core `HlsContentRange` tests cover correct ranges, wrong offsets, oversized responses, invalid reported totals, malformed headers and overflow. The Android recorder requires matching `206 Content-Range` headers before accepting requested byte ranges.
 - **NOT RUN**: Real streaming playback, Samsung/Android TV lifecycle/focus, timed 1 GiB/2 GiB memory profiling, long-running recordings, scheduled reboot jobs, SAF removable storage, Windows script and release signing. Treat the new DVR as experimental.
 - This Handoff remains the authoritative verification ledger. The roadmap defines separate non-overlapping workstreams; the current environment supports GitHub edits and CI but did not dispatch independent coding subagents. Avoid duplicate branches or PRs.
+
+
+## 2026-11-11 Stream Doctor first implementation (CI pending at authoring)
+
+- New `core/StreamDoctor.kt` classifies Media3 numeric playback errors into short static diagnostic text (network, timeouts, provider access/limits, media format, device decoder, DRM and fallback). The official code reference is https://developer.android.com/reference/androidx/media3/common/PlaybackException.
+- `MainActivity` now uses the same helper for live-channel and recording playback failure messages. It does **not** include exception messages, network URLs, user agents, referrers, tokens or provider headers.
+- `StreamDoctorTest.kt` exercises classification and bounds/privacy properties. The classifier creates no background work and retains no error history; it only allocates the returned brief message when a player error occurs.
+- **CI PENDING** for this new code; no device playback observed. Next: inspect the resulting main workflow and record PASS or FAIL without overstating real-device compatibility.

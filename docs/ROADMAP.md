@@ -54,3 +54,6 @@ DVR is now active development rather than a later placeholder. The recorder is d
 | P2 | Playback/multiview: Android player controller, decoder constraints and selectable audio | Real HLS/DASH/non-HLS switching, decoder/release stress, memory caps | BLOCKED pending device playback acceptance |
 
 The GitHub Actions suite passed at [run 42972740969](https://github.com/DevTunaSoft/TunerOS/actions/runs/42972740969) for source commit `26953c0`. Do not report this as production/device acceptance.
+
+
+**2026-11-11 Stream Doctor source update:** Added a shared, no-background-work Media3 failure classifier in `core/` and wired it into both live and saved-video playback. This remains an initial failure-diagnosis slice, not automatic provider repair. CI is pending at time of writing. Preserve numeric codes and avoid showing stream URLs or exception messages to protect credentials. A subsequent task may add bounded user-consented diagnostics without private URL leakage.
