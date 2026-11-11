@@ -6,10 +6,11 @@ import java.time.OffsetDateTime
 import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
-import javax.xml.XMLConstants
 import javax.xml.parsers.SAXParserFactory
 import org.xml.sax.Attributes
-import org.xml.sax.helpers.DefaultHandler
+import org.xml.sax.InputSource
+import org.xml.sax.SAXException
+import org.xml.sax.ext.DefaultHandler2
 
 /** Inclusive-start, exclusive-end programme retention window (epoch seconds). */
 data class GuideWindow(val fromEpochSeconds: Long, val toEpochSeconds: Long) {
@@ -40,7 +41,23 @@ object GuideParser {
         var truncatedTitles = 0
         var truncatedChannelNames = 0
         var truncatedDescriptions = 0
-        val handler = object : DefaultHandler() {
+        val handler = object : DefaultHandler2() {
+            // A lexical DTD callback is required, not merely optional, so rejection
+            // works with Android Expat and JVM Xerces without relying on vendor flags.
+            override fun startDTD(name: String?, publicId: String?, systemId: String?) {
+                throw SAXException("XMLTV DOCTYPE declarations are not allowed")
+            }
+
+            override fun resolveEntity(publicId: String?, systemId: String?): InputSource? {
+                throw SAXException("External XMLTV entities are not allowed")
+            }
+
+            override fun resolveEntity(
+                name: String?, publicId: String?, baseURI: String?, systemId: String?,
+            ): InputSource? {
+                throw SAXException("External XMLTV entities are not allowed")
+            }
+
             private var channelId: String? = null
             private var programme = false
             private var start: Long? = null
@@ -126,16 +143,19 @@ object GuideParser {
                 }
             }
         }
-        val factory = SAXParserFactory.newInstance().apply {
+        val reader = SAXParserFactory.newInstance().apply {
             isNamespaceAware = false
-            setFeature("http://apache.org/xml/features/disallow-doctype-decl", true)
-            setFeature("http://xml.org/sax/features/external-general-entities", false)
-            setFeature("http://xml.org/sax/features/external-parameter-entities", false)
-            setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false)
-            setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true)
-            isXIncludeAware = false
-        }
-        factory.newSAXParser().parse(input, handler)
+            isValidating = false
+            // XInclude processing is false by default. Setting it explicitly throws
+            // UnsupportedOperationException on Android's JAXP implementation.
+        }.newSAXParser().xmlReader
+        // Do not proceed if lexical events cannot be installed: DTD rejection is
+        // mandatory. The resolver independently refuses every external reference.
+        reader.setProperty("http://xml.org/sax/properties/lexical-handler", handler)
+        reader.entityResolver = handler
+        reader.contentHandler = handler
+        reader.errorHandler = handler
+        reader.parse(InputSource(input))
         val warnings = buildList {
             if (skippedPrograms > 0) add("$skippedPrograms programmes omitted: limit $maxPrograms")
             if (skippedChannels > 0) add("$skippedChannels channel names omitted: limit $maxChannels")

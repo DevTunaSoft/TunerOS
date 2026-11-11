@@ -6,7 +6,7 @@
 |---|---|---|
 | Android TV + phone single app | Implemented, UNVERIFIED on devices | Launcher and Leanback entries, placeholder icon/banner |
 | M3U import | Implemented, PASS (CI), device UNVERIFIED | Bounded lines and 25k-channel import; source-scoped IDs, capped accepted-ID set and pooled headers; regression tests for overflow and duplicates |
-| XMLTV import | Implemented, PASS (CI), device UNVERIFIED | XXE protection, bounded data, timezone/truncation warnings; retained titles/channel names max 256 chars and optional descriptions max 2,048 |
+| XMLTV import | Android compatibility/security hardening pending CI; device UNVERIFIED | Streaming SAX XMLReader with mandatory lexical DTD rejection and external-entity denial; avoids unsupported Android JAXP flags. Bounded titles/names (256) and optional descriptions (2,048). New JVM security tests, real Android importer acceptance NOT RUN |
 | XMLTV description retention | PASS (CI), device UNVERIFIED | Android import discards descriptions not displayed by the current alpha UI. Optional time-window retention remains disabled to preserve future-only schedules and the hide-no-EPG filter. No measured RAM improvement claimed. |
 | EPG lookup/search responsiveness | Implemented, PASS (CI), device UNVERIFIED | Channel schedules sorted in place, binary-search indexed windows, no intermediate current-program pair lists; all imported channels accessible via virtualized ListView, filter results cached, 160ms search debounce |
 | Hide channels without EPG | Implemented, PASS (CI), device UNVERIFIED | Checks for any schedule, including future programmes |
