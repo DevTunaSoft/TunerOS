@@ -48,8 +48,10 @@ internal object RecordingScheduler {
         context.getSystemService(AlarmManager::class.java).cancel(alarmIntent(context, id))
     }
 
-    fun rearmPending(context: Context) {
+    /** True only when at least one pending recording was actually visited. */
+    fun rearmPending(context: Context): Boolean {
         val now = System.currentTimeMillis() / 1000
+        var visited = false
         var exact = 0L
         var blocked = 0L
         var failed = 0L
@@ -59,6 +61,7 @@ internal object RecordingScheduler {
                 while (true) {
                     val batch = store.pendingAfter(now, after = after)
                     if (batch.isEmpty()) break
+                    visited = true
                     for (entry in batch) {
                         // One invalid alarm must not prevent other entries being re-armed.
                         try {
@@ -92,6 +95,7 @@ internal object RecordingScheduler {
             emit(OnDeviceSelfTest.Event.DVR_REARM_BLOCKED_COUNT, blocked)
             emit(OnDeviceSelfTest.Event.DVR_REARM_FAILURE_COUNT, failed)
         }
+        return visited
     }
 
     private fun alarmIntent(context: Context, id: String): PendingIntent {
