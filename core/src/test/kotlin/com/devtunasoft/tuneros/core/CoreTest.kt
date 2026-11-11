@@ -185,6 +185,30 @@ https://example.com/live.m3u8
         }
     }
 
+    @Test fun oversizedExtinfMetadataDoesNotAccumulateAcrossChannels() {
+        val fullGuideId = "guide".repeat(1000)
+        val hugeLogo = "https://example.org/" + "x".repeat(9000)
+        val longGroup = "Group".repeat(500)
+        val longTitle = "Name".repeat(500)
+        val url = "https://example.org/channel/live.m3u8"
+        val text = "#EXTM3U\n#EXTINF:-1 tvg-id=\"$fullGuideId\" " +
+            "tvg-logo=\"$hugeLogo\" group-title=\"$longGroup\",$longTitle\n$url\n"
+        val channel = PlaylistParser.parse(text.reader()).single()
+        assertEquals(256, channel.guideId?.length)
+        assertEquals(fullGuideId.take(256), channel.guideId)
+        assertEquals(256, channel.name.length)
+        assertEquals(128, channel.group?.length)
+        assertEquals(null, channel.logoUrl)
+        // The channel ID still hashes the ORIGINAL provider identifier.
+        val originalStableKey = "default\u0000" + fullGuideId + "\u0000" + url
+        val hash = java.security.MessageDigest.getInstance("SHA-256")
+            .digest(originalStableKey.toByteArray(Charsets.UTF_8))
+        val originalId = hash.take(12).joinToString("") {
+            (it.toInt() and 255).toString(16).padStart(2, '0')
+        }
+        assertEquals(originalId, channel.id)
+    }
+
     @Test fun hugeLineIsRejectedByBoundedReader() {
         val input = "#EXTM3U\n" + "X".repeat(PlaylistParser.MAX_LINE_LENGTH + 1)
         assertFailsWith<IllegalArgumentException> { PlaylistParser.parse(input.reader()) }
