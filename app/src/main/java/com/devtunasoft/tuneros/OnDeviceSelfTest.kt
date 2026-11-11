@@ -46,7 +46,8 @@ internal object OnDeviceSelfTest {
         DVR_REARM_EXACT_COUNT, DVR_REARM_BLOCKED_COUNT, DVR_REARM_FAILURE_COUNT,
         DVR_ALARM_DELIVERED, DVR_SCHEDULED_SERVICE_REQUESTED,
         UI_FOCUS_PROBE_PASS, UI_FOCUS_PROBE_FAIL,
-        UI_EMPTY_TIMELINE_PASS, UI_EMPTY_TIMELINE_FAIL
+        UI_EMPTY_TIMELINE_PASS, UI_EMPTY_TIMELINE_FAIL,
+        UI_CLOCK_MARKER_PASS, UI_CLOCK_MARKER_FAIL
     }
 
     data class Check(val id: String, val state: State, val detail: String)
@@ -355,8 +356,8 @@ internal object OnDeviceSelfTest {
         checks += mostRecentRearmResult(context)
         if (includeStress) {
             checks += OnDeviceGuideStress.run()
-            checks += mostRecentUiFocusResult(context)
-            checks += mostRecentEmptyTimelineResult(context)
+            // Scan the bounded event log once for all debug UI probes.
+            checks.addAll(recentUiChecks(context))
         }
         val deliveredAlarm = hasEvent(context, Event.DVR_ALARM_DELIVERED)
         checks += Check("scheduled-dvr-alarm-delivery",
@@ -407,49 +408,51 @@ internal object OnDeviceSelfTest {
     }
 
     /**
-     * Latest debug-only focus probe wins, including a later recovery from a failure.
-     * This does not claim D-pad navigation or Android TV device certification.
+     * Read one bounded event log for the latest result of each debug-only
+     * Android UI probe. Avoid repeating file scans and per-line split lists.
      */
-    private fun mostRecentUiFocusResult(context: Context): Check = synchronized(eventLock) {
+    private fun recentUiChecks(context: Context): List<Check> = synchronized(eventLock) {
+        var focus = State.NOT_RUN
+        var emptyGuide = State.NOT_RUN
+        var marker = State.NOT_RUN
         val file = File(context.filesDir, EVENTS_FILE)
-        if (!file.exists() || file.length() > MAX_EVENTS_BYTES) {
-            return@synchronized Check("debug-ui-focus", State.NOT_RUN, "No UI focus probe observed")
-        }
-        var result: Check? = null
-        file.forEachLine { line ->
-            when (line.split('\t', limit = 4).getOrNull(2)) {
-                Event.UI_FOCUS_PROBE_PASS.name ->
-                    result = Check("debug-ui-focus", State.PASS,
-                        "Actual TunerOS controls accepted keyboard/remote focus")
-                Event.UI_FOCUS_PROBE_FAIL.name ->
-                    result = Check("debug-ui-focus", State.FAIL,
-                        "A visible TunerOS control did not accept focus")
+        if (file.exists() && file.length() <= MAX_EVENTS_BYTES) {
+            file.forEachLine { line ->
+                when {
+                    line.contains("\tUI_FOCUS_PROBE_PASS\t") -> focus = State.PASS
+                    line.contains("\tUI_FOCUS_PROBE_FAIL\t") -> focus = State.FAIL
+                    line.contains("\tUI_EMPTY_TIMELINE_PASS\t") -> emptyGuide = State.PASS
+                    line.contains("\tUI_EMPTY_TIMELINE_FAIL\t") -> emptyGuide = State.FAIL
+                    line.contains("\tUI_CLOCK_MARKER_PASS\t") -> marker = State.PASS
+                    line.contains("\tUI_CLOCK_MARKER_FAIL\t") -> marker = State.FAIL
+                }
             }
         }
-        return@synchronized result ?: Check("debug-ui-focus", State.NOT_RUN, "No UI focus probe observed")
-    }
-    /** The actual synthetic ProgramTimelineView dispatched left/right key handlers. */
-    private fun mostRecentEmptyTimelineResult(context: Context): Check = synchronized(eventLock) {
-        val file = File(context.filesDir, EVENTS_FILE)
-        if (!file.exists() || file.length() > MAX_EVENTS_BYTES) {
-            return@synchronized Check(
-                "debug-empty-guide-dpad", State.NOT_RUN, "No empty-guide UI probe observed",
-            )
-        }
-        var state = State.NOT_RUN
-        file.forEachLine { line ->
-            when (line.split('\t', limit = 4).getOrNull(2)) {
-                Event.UI_EMPTY_TIMELINE_PASS.name -> state = State.PASS
-                Event.UI_EMPTY_TIMELINE_FAIL.name -> state = State.FAIL
-            }
-        }
-        Check(
-            "debug-empty-guide-dpad", state,
-            when (state) {
-                State.PASS -> "Actual View accepted left/right keys without launching a stream"
-                State.FAIL -> "Empty-guide row lost D-pad navigation or triggered playback"
-                else -> "No empty-guide UI probe observed"
-            },
+        listOf(
+            Check(
+                "debug-ui-focus", focus,
+                when (focus) {
+                    State.PASS -> "Actual controls accepted focus traversal"
+                    State.FAIL -> "Visible control did not accept focus traversal"
+                    else -> "No control focus probe observed"
+                },
+            ),
+            Check(
+                "debug-empty-guide-dpad", emptyGuide,
+                when (emptyGuide) {
+                    State.PASS -> "Empty EPG View accepted D-pad keys without playback"
+                    State.FAIL -> "Empty guide lost navigation or attempted playback"
+                    else -> "No empty-guide D-pad probe observed"
+                },
+            ),
+            Check(
+                "debug-now-marker", marker,
+                when (marker) {
+                    State.PASS -> "Canvas now-marker moved/cleared without rebinding EPG"
+                    State.FAIL -> "Synthetic clock-marker redraw failed"
+                    else -> "No clock-marker drawing probe observed"
+                },
+            ),
         )
     }
 
