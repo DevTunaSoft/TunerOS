@@ -504,4 +504,30 @@ https://example.com/live.m3u8
         assertTrue(ordinary.programsBetween("normal", 400, 500).isEmpty())
     }
 
+    @Test fun indexedGuideWindowMatchesNaiveRandomized() {
+        val random = kotlin.random.Random(470932)
+        repeat(500) { fixture ->
+            val programmes = List(random.nextInt(0, 90)) { index ->
+                val start = random.nextLong(-500, 500)
+                GuideProgram(
+                    "c", "event-$fixture-$index", start,
+                    start + random.nextLong(1, 900),
+                )
+            }
+            val guide = GuideSnapshot(programmes, emptyMap())
+            guide.prepareIndex()
+            val sorted = programmes.sortedWith(
+                compareBy<GuideProgram> { it.startEpochSeconds }.thenBy { it.endEpochSeconds },
+            )
+            repeat(8) {
+                val start = random.nextLong(-1000, 1600)
+                val end = start + random.nextLong(1, 1500)
+                assertEquals(
+                    sorted.filter { it.startEpochSeconds < end && it.endEpochSeconds > start },
+                    guide.programsBetween("c", start, end),
+                )
+            }
+        }
+    }
+
 }
