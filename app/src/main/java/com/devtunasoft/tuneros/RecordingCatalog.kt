@@ -18,8 +18,10 @@ internal data class RecordingCatalogEntry(
     val isProtected: Boolean,
 )
 
-internal class RecordingCatalog(context: Context) :
-    SQLiteOpenHelper(context.applicationContext, "recordings.db", null, 3) {
+internal class RecordingCatalog(
+    context: Context,
+    databaseName: String = "recordings.db",
+) : SQLiteOpenHelper(context.applicationContext, databaseName, null, 3) {
 
     override fun onCreate(db: SQLiteDatabase) {
         createSchema(db)
