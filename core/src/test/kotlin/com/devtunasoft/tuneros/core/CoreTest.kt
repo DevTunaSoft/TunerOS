@@ -469,4 +469,39 @@ https://example.com/live.m3u8
     }
 
 
+    @Test fun indexedGuideWindowFastPathPreservesOverlapFiltering() {
+        val overlapping = GuideSnapshot(
+            listOf(
+                GuideProgram("c", "Long", 0, 500),
+                GuideProgram("c", "Expired", 10, 20),
+                GuideProgram("c", "Current", 100, 160),
+                GuideProgram("c", "Later", 210, 250),
+            ),
+            emptyMap(),
+        )
+        overlapping.prepareIndex()
+        assertEquals(
+            listOf("Long", "Current"),
+            overlapping.programsBetween("c", 120, 200).map { it.title },
+        )
+        assertEquals(
+            listOf("Long", "Later"),
+            overlapping.programsBetween("c", 200, 240).map { it.title },
+        )
+        val ordinary = GuideSnapshot(
+            listOf(
+                GuideProgram("normal", "First", 0, 100),
+                GuideProgram("normal", "Second", 100, 200),
+                GuideProgram("normal", "Third", 200, 300),
+            ),
+            emptyMap(),
+        )
+        ordinary.prepareIndex()
+        assertEquals(
+            listOf("Second", "Third"),
+            ordinary.programsBetween("normal", 150, 250).map { it.title },
+        )
+        assertTrue(ordinary.programsBetween("normal", 400, 500).isEmpty())
+    }
+
 }
