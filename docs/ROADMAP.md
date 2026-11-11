@@ -35,7 +35,7 @@ DVR is now active development rather than a later placeholder. The recorder is d
 
 ## 2026-11-11 integration and validation priority
 
-1. Reconcile the existing full-feature PR #1 (classic cable + experimental DVR) instead of duplicating work; verify CI before merging to `main`.
+1. **COMPLETE:** Reconciled and merged PR #1 (classic cable + experimental DVR) to `main` at `d618c91`; later fixes and regression tests now pass on `53d5b7a`.
 2. Run Android TV/mobile manual acceptance: remote navigation and horizontal DVR actions, rotation restoration, stream switching, playback, saved sources.
 3. Run real DVR acceptance: HLS/raw capture, interrupted/partial files, exact-alarm reboot recovery with >200 jobs, SAF USB/SD removable storage, storage pressure and provider failure.
 4. Benchmark 1 GiB/2 GiB guide imports and long recording sessions before asserting measured memory savings. Keep XMLTV windowing off until future-only guide semantics and refresh policy are implemented.
@@ -43,13 +43,13 @@ DVR is now active development rather than a later placeholder. The recorder is d
 **2026-11-11 main integration:** PR #1 merged at `d618c91`. Main CI run 42972145588 passed tests and debug APK assembly. The next pure-core hardening slice validates HLS byte-range byte counts (CI pending). Prioritize real-device acceptance and bounded Stream Doctor diagnostics before expanding DVR formats or multiview.
 
 
-## Independent next workstreams (reconciled against main 26953c0)
+## Independent next workstreams (reconciled against main 53d5b7a)
 
 | Priority | Workstream / file scope | Acceptance | State |
 |---|---|---|---|
 | P0 | Android device QA, no code edits: Android TV navigation, focus, rotation, URL encryption/migration and live Media3 playback | Timestamped device logs, reproducible PASS/FAIL cases | BLOCKED: no target device/emulator accessible to this execution |
 | P0 | DVR hardware QA, no code edits: scheduled reboot, >200-job rearming, HLS/HTTP and SAF SD/USB fault injection | Verified recordings and recovery with no existing media loss | BLOCKED: no target hardware accessible |
-| P1 | Core performance: `core/` XMLTV bounded indexes and data retention | 1 GiB/2 GiB device benchmarks, preserve future-only EPG channels | UNVERIFIED until device data exists |
+| P1 | Core performance: `core/` XMLTV bounded indexes and data retention | Code/regression tests PASS at `53d5b7a`; measure heap on 1 GiB/2 GiB Android TV, preserve future-only EPG channels | CODE PASS; DEVICE MEMORY UNVERIFIED |
 | P1 | Stream Doctor: Android Media3 error classification and safe user diagnostics (separate new helper + tests, no DVR storage edits) | Actionable messages without URL/header credential leaks; regression coverage | PASS (CI) at `2e9f612`; device UNVERIFIED |
 | P2 | Playback/multiview: Android player controller, decoder constraints and selectable audio | Real HLS/DASH/non-HLS switching, decoder/release stress, memory caps | BLOCKED pending device playback acceptance |
 
@@ -63,3 +63,5 @@ The GitHub Actions suite passed at [run 42972740969](https://github.com/DevTunaS
 **2026-11-11 DVR scheduler hardening:** Reuse a single schedule database helper across re-arm batches and isolate per-job alarm failures. Device reboot/exact-alarm stress tests remain a P0 acceptance gate. No increased background polling or periodic workers were added.
 
 **2026-11-11 bounded raw stream progress:** Prevent CPU spin from input streams that repeatedly return zero bytes; abort after 16 consecutive no-progress reads, with regression tests. CI pending. Device acceptance still required for recording and battery impact.
+
+**2026-11-11 source integration gate:** [Main CI run 42976022983](https://github.com/DevTunaSoft/TunerOS/actions/runs/42976022983) PASS at `53d5b7a` for core tests, debug APK compilation and upload. This covers guide index/filter, full channel browsing, XMLTV text caps, playlist bounded maps, playback reuse, DVR schedule and zero-read fixes, and Stream Doctor. Next unblocked priority is targeted Android instrumentation/acceptance harness (if emulator becomes available); manual real-device remote/stream/reboot/SAF cases remain BLOCKED without hardware.

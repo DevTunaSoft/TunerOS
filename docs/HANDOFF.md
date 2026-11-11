@@ -189,3 +189,14 @@ Current branch `perf/windowed-epg-retention` now contains a bounded DVR foundati
 
 - A custom or malfunctioning input stream can return zero bytes indefinitely. The previous `StreamRecorder.copy` loop would spin without a pause, potentially consuming a full CPU core and battery. The bounded recorder now throws `IOException("Input stream made no progress")` after 16 consecutive empty reads, resets the counter on a successful read, and still honors cancellation and free-space checks each iteration. This adds no worker threads, polling timers, or extra buffer allocations.
 - New `StreamRecorderTest` exercises permanent zero-read, intermittent progress and cancellation. **CI PENDING** for this exact change. Android TV hardware and real recording acceptance remain **NOT RUN**.
+
+## Verified consolidated checkpoint — 2026-11-11 (source head 53d5b7a)
+
+- **PASS:** [GitHub Actions 42976022983](https://github.com/DevTunaSoft/TunerOS/actions/runs/42976022983), exact main commit `53d5b7a54f2941c82e12cbaccb2f959a3c7c42f3`: `:core:test`, `:app:assembleDebug`, and artifact upload completed.
+- **EPG:** `bce2c3d` in-place channel group sorting, binary overlap-window lookup, fewer temporary pairs; `5897233` removes 500-row display cap and caches filtering so all imported channels (up to 25,000) are browsable. Reproducible unit tests PASS.
+- **XMLTV:** `2b28494` bounded retained title/name/description strings and truncation warnings; optional descriptions disabled for the Android guide. JVM oversized-text regressions PASS.
+- **M3U:** `53d5b7a` caps retained dedup IDs at accepted channels and header-string pooling at 512 unique values. Duplicates/overflow regression tests PASS.
+- **Playback:** `e7fd69c` reuses live Media3 player across compatible headers, releasing on header change or Activity stop; `f7c14bd` aligns Stream Doctor messages with official error codes. CI PASS, device switching UNVERIFIED.
+- **DVR:** `c431c97` reuses one schedule SQLite helper while rearming and isolates individual alarm failures; `69d30ee` guards against zero-byte read CPU spins. Both changes are present in latest passing main build. Device reboot and recording acceptance NOT RUN.
+- **LIMIT:** These are code/CI claims only. No emulator/device, memory or battery benchmark, 2,361-channel UI scroll acceptance, USB/SD capture, boot scheduling, live provider playback, or production release validation was executed in this environment. Do not infer RAM reduction numerically without measurement.
+- **NEXT:** Verify Android lifecycle, focus, large-guide import and memory; perform real DVR capture/recovery and release validation before widening multiview or DVR format support. Keep one main branch and no duplicate PRs.

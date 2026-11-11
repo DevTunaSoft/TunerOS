@@ -6,7 +6,7 @@ TunerOS aims to provide a classic-cable electronic program guide, reliable Media
 
 ## Status
 
-**Early alpha / under construction.** Code and documentation are being brought into this repository. A debug APK passed GitHub Actions after the consolidated alpha guide/DVR merge on 2026-11-11 ([verified main build](https://github.com/DevTunaSoft/TunerOS/actions/runs/42972145588)). Security/performance stabilization changes passed unit tests and APK compilation. No physical-device acceptance or production readiness is claimed. See `docs/FEATURE_STATUS.md`, `docs/ROADMAP.md`, `docs/AUDIT_FINDINGS_2026-11-10.md`, and `docs/HANDOFF.md` for precise status and engineering constraints.
+**Early alpha / under construction.** Code and documentation are being brought into this repository. A debug APK passed GitHub Actions after the consolidated alpha guide/DVR merge on 2026-11-11 ([verified main build](https://github.com/DevTunaSoft/TunerOS/actions/runs/42976022983)). Security/performance stabilization changes passed unit tests and APK compilation. No physical-device acceptance or production readiness is claimed. See `docs/FEATURE_STATUS.md`, `docs/ROADMAP.md`, `docs/AUDIT_FINDINGS_2026-11-10.md`, and `docs/HANDOFF.md` for precise status and engineering constraints.
 
 ## Build prerequisites
 
