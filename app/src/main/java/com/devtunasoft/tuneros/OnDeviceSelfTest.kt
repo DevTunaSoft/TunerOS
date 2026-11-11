@@ -90,7 +90,7 @@ internal object OnDeviceSelfTest {
         val previousRunIncomplete = File(context.filesDir, RUN_MARKER).exists()
         val marker = File(context.filesDir, RUN_MARKER)
         marker.writeText(System.currentTimeMillis().toString())
-        val checks = ArrayList<Check>(24)
+        val checks = ArrayList<Check>(25)
         checks += Check(
             "previous-test-run",
             if (previousRunIncomplete) State.BLOCKED else State.PASS,
@@ -167,6 +167,38 @@ internal object OnDeviceSelfTest {
                     scratch.readBytes().contentEquals(bytes)
             } finally {
                 kotlin.check(scratch.delete()) { "Could not clean up self-test scratch file" }
+            }
+        }
+
+        checks += check(
+            "scratch-dvr-catalog",
+            "Isolated SQLite: insert, collision, protection, progress and interrupted recovery",
+        ) {
+            // Use a dedicated, disposable database. Never open, modify or delete
+            // recordings.db or any actual recording media during QA.
+            val name = "tuneros-selftest-recordings.db"
+            context.deleteDatabase(name) // Remove only a stale self-test database.
+            try {
+                RecordingCatalog(context, name).use { catalog ->
+                    val inserted = catalog.tryInsertStart(
+                        "qa-only-id", "Synthetic QA recording", "qa-channel", 100L,
+                    )
+                    val duplicateRejected = !catalog.tryInsertStart(
+                        "qa-only-id", "Other title", "qa-channel", 101L,
+                    )
+                    catalog.updateProgress("qa-only-id", 8192L)
+                    val protected = catalog.setProtected("qa-only-id", true) == 1
+                    val recovered = catalog.markInterruptedRecordings(200L) == 1
+                    val found = catalog.recent(1).singleOrNull()
+                    inserted && duplicateRejected && protected && recovered &&
+                        found?.id == "qa-only-id" && found.title == "Synthetic QA recording" &&
+                        found.state == "PARTIAL" && found.bytesWritten == 8192L &&
+                        found.isProtected && found.stoppedEpochSeconds == 200L
+                }
+            } finally {
+                kotlin.check(context.deleteDatabase(name)) {
+                    "Could not remove the isolated QA SQLite database"
+                }
             }
         }
 
