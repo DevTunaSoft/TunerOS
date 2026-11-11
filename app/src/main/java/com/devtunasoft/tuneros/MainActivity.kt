@@ -19,6 +19,7 @@ import androidx.media3.common.C
 import android.widget.Button
 import android.widget.CheckBox
 import android.widget.EditText
+import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
 import android.widget.ListView
 import android.widget.TextView
@@ -140,15 +141,23 @@ class MainActivity : Activity() {
         root.addView(playerView, LinearLayout.LayoutParams(-1, 0, 1.1f))
         status = label("Enter an M3U URL to begin", 13)
         root.addView(status)
-        root.addView(button("Record focused program") { recordFocusedProgram() })
-        root.addView(button("Cancel focused scheduled recording") { cancelFocusedSchedule() })
-        root.addView(button("Exact DVR timing") { openExactAlarmSettings() })
-        root.addView(button("Stop recording") { stopRecording() })
-        root.addView(button("Guide / Recordings") { toggleRecordings() })
-        root.addView(button("Protect / Unprotect focused recording") { toggleFocusedRecordingProtection() })
-        root.addView(button("Delete focused recording") { deleteFocusedRecording() })
-        root.addView(button("Choose recording storage") { chooseRecordingStorage() })
-        root.addView(button("Use internal recording storage") { useInternalRecordingStorage() })
+        // A single focus-scrollable action row keeps the TV guide visible on short screens.
+        val dvrActions = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            addView(button("Record focused program") { recordFocusedProgram() })
+            addView(button("Cancel scheduled recording") { cancelFocusedSchedule() })
+            addView(button("Exact DVR timing") { openExactAlarmSettings() })
+            addView(button("Stop recording") { stopRecording() })
+            addView(button("Guide / Recordings") { toggleRecordings() })
+            addView(button("Protect / Unprotect") { toggleFocusedRecordingProtection() })
+            addView(button("Delete recording") { deleteFocusedRecording() })
+            addView(button("Choose recording storage") { chooseRecordingStorage() })
+            addView(button("Use internal recording storage") { useInternalRecordingStorage() })
+        }
+        root.addView(HorizontalScrollView(this).apply {
+            isHorizontalScrollBarEnabled = true
+            addView(dvrActions)
+        })
         timeRail = label("", 14).apply {
             setBackgroundColor(Color.rgb(18, 31, 50))
             setPadding(dp(194), dp(8), dp(8), dp(8))
@@ -256,7 +265,7 @@ class MainActivity : Activity() {
         worker.execute {
             val saved = secureSources.save("guide", url)
             val result = runCatching {
-                downloader.open(url, 64L * 1024 * 1024).use { GuideParser.parse(it) }.also { it.prepareIndex() }
+                downloader.open(url, 64L * 1024 * 1024).use { GuideParser.parse(it, includeDescriptions = false) }.also { it.prepareIndex() }
             }
             runOnUiThread {
                 if (epoch != guideEpoch.get() || isFinishing || isDestroyed) return@runOnUiThread
