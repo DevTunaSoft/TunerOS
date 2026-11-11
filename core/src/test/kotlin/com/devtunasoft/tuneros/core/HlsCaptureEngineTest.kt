@@ -300,4 +300,30 @@ class HlsCaptureEngineTest {
         assertTrue(result.detail.orEmpty().contains("expected 12"))
     }
 
+
+    @Test fun extremeTargetDurationUsesBoundedPollingInterval() {
+        val url = "https://example.test/live.m3u8"
+        val source = FakeSource(
+            mapOf(
+                url to listOf(
+                    LoadedHlsPlaylist(
+                        url,
+                        HlsMediaPlaylist(
+                            mediaSequence = 1,
+                            targetDurationSeconds = Long.MAX_VALUE,
+                            endList = false,
+                            segments = emptyList(),
+                        ),
+                    ),
+                ),
+            ),
+        )
+        val delays = mutableListOf<Long>()
+        val result = HlsCaptureEngine(maxStalledPolls = 2).record(
+            url, ByteArrayOutputStream(), 1_000, source,
+            { false }, { 100 }, { delays += it },
+        )
+        assertEquals(HlsCaptureEngine.StopReason.STALLED, result.stopReason)
+        assertEquals(listOf(10_000L), delays)
+    }
 }
