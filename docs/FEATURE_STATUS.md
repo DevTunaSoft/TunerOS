@@ -4,6 +4,7 @@
 
 | Capability | Status | Evidence / limitation |
 |---|---|---|
+| In-app autonomous self-tests | CODE IMPLEMENTED; CI/device UNVERIFIED | Unattended startup and import-triggered smoke suite, bounded private reports, real import/playback numeric observations, optional report sharing; hardware/long-run fault tests NOT RUN |
 | Android TV + phone single app | Implemented, UNVERIFIED on devices | Launcher and Leanback entries, placeholder icon/banner |
 | M3U import | Implemented, PASS (CI), device UNVERIFIED | Bounded lines and 25k-channel import; source-scoped IDs, capped accepted-ID set and pooled headers; regression tests for overflow and duplicates |
 | XMLTV import | Android compatibility/security hardening pending CI; device UNVERIFIED | Streaming SAX XMLReader with mandatory lexical DTD rejection and external-entity denial; avoids unsupported Android JAXP flags. Bounded titles/names (256) and optional descriptions (2,048). New JVM security tests, real Android importer acceptance NOT RUN |
