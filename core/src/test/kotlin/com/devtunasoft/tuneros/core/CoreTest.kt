@@ -534,6 +534,8 @@ https://example.com/live.m3u8
         val saved = "https://example.invalid/m3u"
         assertTrue(SourceRecoveryPolicy.shouldRestore(saved, saved, false, false))
         assertEquals(false, SourceRecoveryPolicy.shouldRestore(null, saved, false, false))
+        assertEquals(false, SourceRecoveryPolicy.shouldRestore("", "", false, false))
+        assertEquals(false, SourceRecoveryPolicy.shouldRestore("   ", "   ", false, false))
         assertEquals(false, SourceRecoveryPolicy.shouldRestore(saved, "", false, false))
         assertEquals(false, SourceRecoveryPolicy.shouldRestore(saved, "https://example.invalid/other", false, false))
         assertEquals(false, SourceRecoveryPolicy.shouldRestore(saved, saved, true, false))
