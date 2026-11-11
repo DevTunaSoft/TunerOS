@@ -131,7 +131,7 @@ internal class CableGuideAdapter(
         val snapshot = guide
         val guideId = channel.guideId
         val entries = if (snapshot != null && guideId != null) {
-            TimelineLayout.row(
+            TimelineLayout.rowFromSorted(
                 snapshot.programsBetween(guideId, fromEpochSeconds, toEpochSeconds),
                 fromEpochSeconds,
                 toEpochSeconds,

@@ -40,9 +40,26 @@ object TimelineLayout {
 
         if (sorted.isEmpty()) return listOf(TimelineEntry(fromEpochSeconds, toEpochSeconds))
 
-        val result = ArrayList<TimelineEntry>(sorted.size * 2 + 1)
+        return rowFromSorted(sorted, fromEpochSeconds, toEpochSeconds)
+    }
+
+    /**
+     * Fast path for GuideSnapshot.programsBetween(), whose entries are already sorted
+     * by (start, end). Avoid allocating and sorting another list for every visible
+     * cable-guide row on each clock refresh or horizontal guide-window shift.
+     */
+    fun rowFromSorted(
+        programs: List<GuideProgram>,
+        fromEpochSeconds: Long,
+        toEpochSeconds: Long,
+    ): List<TimelineEntry> {
+        require(toEpochSeconds > fromEpochSeconds)
+        if (programs.isEmpty()) return listOf(TimelineEntry(fromEpochSeconds, toEpochSeconds))
+        // Many overlapping entries may be clipped away: do not preallocate 2N cells.
+        val result = ArrayList<TimelineEntry>(minOf(programs.size * 2 + 1, 64))
         var cursor = fromEpochSeconds
-        for (program in sorted) {
+        for (program in programs) {
+            if (program.startEpochSeconds >= toEpochSeconds) break
             val clippedStart = maxOf(program.startEpochSeconds, fromEpochSeconds, cursor)
             val clippedEnd = minOf(program.endEpochSeconds, toEpochSeconds)
             if (clippedEnd <= clippedStart) continue
