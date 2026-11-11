@@ -1,10 +1,10 @@
 # Feature status — TunerOS
 
-**Status snapshot: 2026-11-11 (merged early alpha; latest code CI PASS, device acceptance NOT RUN).** Source changes are not equivalent to a passing CI build or device acceptance.
+**Status snapshot: 2026-11-11 (autonomous QA additions committed to main; newest CI/emulator outcome UNVERIFIED, physical device acceptance NOT RUN).** Earlier CI passed on source `53d5b7a`; it does not verify the newest QA commits. Source changes are not equivalent to a passing CI build or device acceptance.
 
 | Capability | Status | Evidence / limitation |
 |---|---|---|
-| In-app autonomous self-tests | CODE IMPLEMENTED; CI/device UNVERIFIED | Unattended startup and import-triggered smoke suite, bounded private reports, real import/playback numeric observations, optional report sharing; hardware/long-run fault tests NOT RUN |
+| In-app autonomous self-tests | CODE IMPLEMENTED; NEW CI/device UNVERIFIED | Unattended parser/guide/Keystore/scratch SQLite and DVR tests; real import/live and recorded first-frame, rebuffer, DVR alarm/recorder diagnostics; small capped private reports, explicitly shared export. Android 35 emulator job added; result UNVERIFIED. Physical fault and long-duration tests NOT RUN |
 | Android TV + phone single app | Implemented, UNVERIFIED on devices | Launcher and Leanback entries, placeholder icon/banner |
 | M3U import | Implemented, PASS (CI), device UNVERIFIED | Bounded lines and 25k-channel import; source-scoped IDs, capped accepted-ID set and pooled headers; regression tests for overflow and duplicates |
 | XMLTV import | Android compatibility/security hardening pending CI; device UNVERIFIED | Streaming SAX XMLReader with mandatory lexical DTD rejection and external-entity denial; avoids unsupported Android JAXP flags. Bounded titles/names (256) and optional descriptions (2,048). New JVM security tests, real Android importer acceptance NOT RUN |
