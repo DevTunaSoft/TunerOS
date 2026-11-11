@@ -71,7 +71,8 @@ jobs:
             for attempt in $(seq 1 60); do
               adb shell run-as com.devtunasoft.tuneros cat files/tuneros-selftest-report.txt > on-device-report.txt 2>/dev/null || true
               if grep -Fq "$(printf 'PASS\tdebug-large-guide-stress\t')" on-device-report.txt && \
-                 grep -Fq "$(printf 'PASS\tdebug-ui-focus\t')" on-device-report.txt; then
+                 grep -Fq "$(printf 'PASS\tdebug-ui-focus\t')" on-device-report.txt && \
+                 ! adb shell run-as com.devtunasoft.tuneros ls files/tuneros-selftest-in-progress >/dev/null 2>&1; then
                 break
               fi
               sleep 2
@@ -83,6 +84,10 @@ jobs:
                 exit 1
               fi
             done
+            if adb shell run-as com.devtunasoft.tuneros ls files/tuneros-selftest-in-progress >/dev/null 2>&1; then
+              echo "The self-test has not committed its report and cleared its run marker"
+              exit 1
+            fi
             if grep -q '^FAIL[[:space:]]' on-device-report.txt; then
               echo "Unexpected failure in the app's own self-test report"
               cat on-device-report.txt
