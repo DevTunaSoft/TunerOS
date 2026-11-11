@@ -37,7 +37,8 @@ internal object OnDeviceSelfTest {
         RECORDING_PLAYBACK_STARTED, RECORDING_PLAYBACK_FIRST_FRAME,
         RECORDING_PLAYBACK_ERROR, RECORDING_PLAYBACK_TIMEOUT,
         DVR_REARM_EXACT_COUNT, DVR_REARM_BLOCKED_COUNT, DVR_REARM_FAILURE_COUNT,
-        DVR_ALARM_DELIVERED, DVR_SCHEDULED_SERVICE_REQUESTED
+        DVR_ALARM_DELIVERED, DVR_SCHEDULED_SERVICE_REQUESTED,
+        UI_FOCUS_PROBE_PASS, UI_FOCUS_PROBE_FAIL
     }
 
     data class Check(val id: String, val state: State, val detail: String)
@@ -91,7 +92,12 @@ internal object OnDeviceSelfTest {
 
     /** Safe to call at startup or after an import. No existing recordings are touched. */
     @Synchronized
-    fun run(context: Context, hasPlaylist: Boolean, hasGuide: Boolean): Report {
+    fun run(
+        context: Context,
+        hasPlaylist: Boolean,
+        hasGuide: Boolean,
+        includeStress: Boolean = false,
+    ): Report {
         val previousRunIncomplete = File(context.filesDir, RUN_MARKER).exists()
         val marker = File(context.filesDir, RUN_MARKER)
         marker.writeText(System.currentTimeMillis().toString())
@@ -279,6 +285,10 @@ internal object OnDeviceSelfTest {
             if (recordedFirstFrame) "At least one saved recording video frame was rendered"
             else "No recording video frame observed")
         checks += mostRecentRearmResult(context)
+        if (includeStress) {
+            checks += OnDeviceGuideStress.run()
+            checks += mostRecentUiFocusResult(context)
+        }
         val deliveredAlarm = hasEvent(context, Event.DVR_ALARM_DELIVERED)
         checks += Check("scheduled-dvr-alarm-delivery",
             if (deliveredAlarm) State.PASS else State.NOT_RUN,
@@ -322,6 +332,29 @@ internal object OnDeviceSelfTest {
         return file.useLines { lines ->
             lines.any { line -> line.contains("\t${event.name}\t") }
         }
+    }
+
+    /**
+     * Latest debug-only focus probe wins, including a later recovery from a failure.
+     * This does not claim D-pad navigation or Android TV device certification.
+     */
+    private fun mostRecentUiFocusResult(context: Context): Check {
+        val file = File(context.filesDir, EVENTS_FILE)
+        if (!file.exists() || file.length() > MAX_EVENTS_BYTES) {
+            return Check("debug-ui-focus", State.NOT_RUN, "No UI focus probe observed")
+        }
+        var result: Check? = null
+        file.forEachLine { line ->
+            when (line.split('\t', limit = 4).getOrNull(2)) {
+                Event.UI_FOCUS_PROBE_PASS.name ->
+                    result = Check("debug-ui-focus", State.PASS,
+                        "Actual TunerOS controls accepted keyboard/remote focus")
+                Event.UI_FOCUS_PROBE_FAIL.name ->
+                    result = Check("debug-ui-focus", State.FAIL,
+                        "A visible TunerOS control did not accept focus")
+            }
+        }
+        return result ?: Check("debug-ui-focus", State.NOT_RUN, "No UI focus probe observed")
     }
 
     /**
