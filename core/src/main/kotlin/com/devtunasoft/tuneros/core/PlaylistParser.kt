@@ -12,6 +12,7 @@ object PlaylistParser {
     const val MAX_CHANNELS = 25_000
     const val MAX_LINE_LENGTH = 32_768
     private const val MAX_LINES = 200_000
+    private const val MAX_SHARED_HEADERS = 512
 
     fun parse(reader: Reader, maxChannels: Int = MAX_CHANNELS): List<Channel> =
         parseReport(reader, maxChannels).channels
@@ -22,7 +23,14 @@ object PlaylistParser {
         val seen = HashSet<String>()
         val digest = MessageDigest.getInstance("SHA-256")
         val sharedHeaders = HashMap<String, String>()
-        fun shareHeader(value: String?): String? = value?.let { sharedHeaders.getOrPut(it) { it } }
+        fun shareHeader(value: String?): String? {
+            if (value == null) return null
+            sharedHeaders[value]?.let { return it }
+            // Repeated provider headers are common, but a feed with unique values must
+            // not create an unbounded string-interning map.
+            if (sharedHeaders.size < MAX_SHARED_HEADERS) sharedHeaders[value] = value
+            return value
+        }
         val input = if (reader is BufferedReader) reader else BufferedReader(reader)
         var pending: Pending? = null
         var userAgent: String? = null
@@ -51,8 +59,12 @@ object PlaylistParser {
                     if (!isAllowedUrl(line) || metadata.name.isBlank()) continue
                     val stableKey = sourceId + "\u0000" + metadata.guideId.orEmpty() + "\u0000" + line
                     val id = stableId(digest, stableKey)
+                    if (result.size == maxChannels) {
+                        // The accepted-ID set must stop growing once the channel cap is hit.
+                        if (id !in seen) skipped++
+                        continue
+                    }
                     if (!seen.add(id)) continue
-                    if (result.size == maxChannels) { skipped++; continue }
                     result += Channel(
                         id = id, name = metadata.name.take(256), streamUrl = line,
                         guideId = metadata.guideId, logoUrl = metadata.logo?.takeIf(::isAllowedUrl),
