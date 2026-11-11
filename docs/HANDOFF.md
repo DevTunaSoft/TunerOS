@@ -287,3 +287,9 @@ Current branch `perf/windowed-epg-retention` now contains a bounded DVR foundati
 - **PASS — static consistency only:** six latest files fetched; all 24 `MainActivity` diagnostic event references resolve, all CI-asserted check identifiers remain present, all five touched Kotlin source files have balanced braces, and source recovery guard and synthetic recycler probe are wired.
 - **UNVERIFIED / NOT RUN:** full Gradle and Android build at the latest SHA, emulator execution, physical TV D-pad/recycler behavior, and process-death restoration on real provider feeds. Repo sync and source consistency do not prove device acceptance.
 - **Next highest priority:** inspect Android push-triggered Actions job logs; correct actual failures if any. Then add bounded instrumented recreation acceptance and persisted source recovery checks using injected synthetic inputs, without network credentials or new background services.
+
+## 2026-11-11 final recovery-policy hardening
+
+- Reject empty/whitespace-only saved source entries before attempting automatic restore, with matching JVM and autonomous in-app assertions.
+- **PASS:** independently compiled the small Kotlin recovery policy with `kotlinc-jvm 1.9.0` and executed **5,210 assertions** after the blank-source change. The Android application and Kotlin unit test suite were not compiled or executed locally because an Android SDK/Gradle installation is unavailable in the execution environment.
+- Latest confirmed direct-`main` commit at this checkpoint: `4e6c7b8`. GitHub connector shows no combined status or PR-triggered workflow runs for this SHA; this connector does not enumerate push-triggered Actions jobs. **CI build and emulator remain UNVERIFIED**, not failed or passed.
