@@ -91,7 +91,10 @@ internal class ProgramTimelineView(
         }
 
         val selectable = selectedIndex >= 0
-        isFocusable = selectable
+        // Keep an empty-guide timeline focusable so a TV remote can cross
+        // consecutive gaps by pressing LEFT/RIGHT to shift the window.
+        // No programme -> OK remains disabled; navigation remains enabled.
+        isFocusable = true
         isClickable = selectable
         updateAccessibilityDescription()
         invalidate()
