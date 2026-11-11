@@ -502,10 +502,16 @@ class MainActivity : Activity() {
                     if (player === created) observe(OnDeviceSelfTest.Event.PLAYBACK_FIRST_FRAME)
                 }
                 override fun onPlaybackStateChanged(playbackState: Int) {
-                    if (player === created && playbackState == Player.STATE_READY) {
-                        clearPlaybackTimeout()
-                        observe(OnDeviceSelfTest.Event.PLAYBACK_READY)
-                        showStatus("Playing: " + (activeChannelName ?: "channel"))
+                    if (player !== created) return
+                    when (playbackState) {
+                        Player.STATE_READY -> {
+                            clearPlaybackTimeout()
+                            observe(OnDeviceSelfTest.Event.PLAYBACK_READY)
+                            showStatus("Playing: " + (activeChannelName ?: "channel"))
+                        }
+                        // A one-shot timeout also covers rebuffering *after* playback started.
+                        Player.STATE_BUFFERING -> if (created.playWhenReady) armPlaybackTimeout(created)
+                        Player.STATE_ENDED -> clearPlaybackTimeout()
                     }
                 }
             })
@@ -832,20 +838,38 @@ class MainActivity : Activity() {
         playerView.player = newPlayer
         newPlayer.addListener(object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
+                if (player !== newPlayer) return
                 updateKeepScreenOn(isPlaying)
+                if (isPlaying) observe(OnDeviceSelfTest.Event.RECORDING_PLAYBACK_STARTED)
+            }
+            override fun onRenderedFirstFrame() {
+                if (player === newPlayer) {
+                    observe(OnDeviceSelfTest.Event.RECORDING_PLAYBACK_FIRST_FRAME)
+                }
             }
             override fun onPlayerError(error: PlaybackException) {
                 if (player === newPlayer) {
+                    clearPlaybackTimeout()
+                    observe(OnDeviceSelfTest.Event.RECORDING_PLAYBACK_ERROR, error.errorCode.toLong())
                     showStatus(playbackFailureMessage(error))
                 }
             }
             override fun onPlaybackStateChanged(playbackState: Int) {
-                if (player === newPlayer && playbackState == Player.STATE_READY) {
-                    showStatus("Playing recording: " + entry.title)
+                if (player !== newPlayer) return
+                when (playbackState) {
+                    Player.STATE_READY -> {
+                        clearPlaybackTimeout()
+                        observe(OnDeviceSelfTest.Event.RECORDING_PLAYBACK_READY)
+                        showStatus("Playing recording: " + entry.title)
+                    }
+                    Player.STATE_BUFFERING -> if (newPlayer.playWhenReady) armPlaybackTimeout(newPlayer)
+                    Player.STATE_ENDED -> clearPlaybackTimeout()
                 }
             }
         })
+        observe(OnDeviceSelfTest.Event.RECORDING_PLAYBACK_REQUESTED)
         newPlayer.setMediaItem(MediaItem.fromUri(uri))
+        armPlaybackTimeout(newPlayer)
         newPlayer.prepare()
         newPlayer.playWhenReady = true
     }
@@ -934,7 +958,12 @@ class MainActivity : Activity() {
         clearPlaybackTimeout()
         val timeout = Runnable {
             if (player === target && target.playbackState != Player.STATE_READY) {
-                observe(OnDeviceSelfTest.Event.PLAYBACK_TIMEOUT, 30_000L)
+                val recorded = playingRecordingId != null
+                observe(
+                    if (recorded) OnDeviceSelfTest.Event.RECORDING_PLAYBACK_TIMEOUT
+                    else OnDeviceSelfTest.Event.PLAYBACK_TIMEOUT,
+                    30_000L,
+                )
                 showStatus("Stream Doctor: playback not ready after 30 seconds")
             }
         }
