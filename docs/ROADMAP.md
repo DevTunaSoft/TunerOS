@@ -38,8 +38,8 @@ DVR is now active development rather than a later placeholder. The recorder is d
 ## 2026-11-11 integration and validation priority
 
 1. **COMPLETE:** Reconciled and merged PR #1 (classic cable + experimental DVR) to `main` at `d618c91`; later fixes and regression tests now pass on `53d5b7a`.
-2. Run Android TV/mobile manual acceptance: remote navigation and horizontal DVR actions, rotation restoration, stream switching, playback, saved sources.
-3. Run real DVR acceptance: HLS/raw capture, interrupted/partial files, exact-alarm reboot recovery with >200 jobs, SAF USB/SD removable storage, storage pressure and provider failure.
+2. Implement autonomous Android TV/mobile acceptance in-app: self-directed remote-focus/guide checks, lifecycle and rotation assertions, observed stream switching/playback, and secure saved-source validation.
+3. Implement autonomous DVR acceptance: synthetic/real HLS and raw capture probes, interruption/recovery evidence, exact-alarm reboot telemetry with >200 jobs, SAF USB/SD fault observations, storage pressure and provider-failure classification.
 4. Benchmark 1 GiB/2 GiB guide imports and long recording sessions before asserting measured memory savings. Keep XMLTV windowing off until future-only guide semantics and refresh policy are implemented.
 
 **2026-11-11 main integration:** PR #1 merged at `d618c91`. Main CI run 42972145588 passed tests and debug APK assembly. The next pure-core hardening slice validates HLS byte-range byte counts (CI pending). Prioritize real-device acceptance and bounded Stream Doctor diagnostics before expanding DVR formats or multiview.
@@ -49,8 +49,8 @@ DVR is now active development rather than a later placeholder. The recorder is d
 
 | Priority | Workstream / file scope | Acceptance | State |
 |---|---|---|---|
-| P0 | Android device QA, no code edits: Android TV navigation, focus, rotation, URL encryption/migration and live Media3 playback | Timestamped device logs, reproducible PASS/FAIL cases | BLOCKED: no target device/emulator accessible to this execution |
-| P0 | DVR hardware QA, no code edits: scheduled reboot, >200-job rearming, HLS/HTTP and SAF SD/USB fault injection | Verified recordings and recovery with no existing media loss | BLOCKED: no target hardware accessible |
+| P0 | Android in-app QA instrumentation: TV navigation, focus, rotation, URL encryption/migration and live Media3 playback | Timestamped automatically collected device logs, reproducible PASS/FAIL cases; no manual tester | PARTIAL runner implemented, device/execution UNVERIFIED |
+| P0 | DVR automated acceptance: scheduled reboot recovery observation, >200-job rearming, HLS/HTTP and SAF SD/USB fault telemetry | Evidence automatically captured in-app; no existing media loss | PARTIAL DVR outcome logging, hardware acceptance BLOCKED |
 | P1 | Core performance: `core/` XMLTV bounded indexes and data retention | Code/regression tests PASS at `53d5b7a`; measure heap on 1 GiB/2 GiB Android TV, preserve future-only EPG channels | CODE PASS; DEVICE MEMORY UNVERIFIED |
 | P1 | Stream Doctor: Android Media3 error classification and safe user diagnostics (separate new helper + tests, no DVR storage edits) | Actionable messages without URL/header credential leaks; regression coverage | PASS (CI) at `2e9f612`; device UNVERIFIED |
 | P2 | Playback/multiview: Android player controller, decoder constraints and selectable audio | Real HLS/DASH/non-HLS switching, decoder/release stress, memory caps | BLOCKED pending device playback acceptance |
