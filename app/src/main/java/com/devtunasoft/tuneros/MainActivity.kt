@@ -249,6 +249,8 @@ class MainActivity : Activity() {
                 if (!isFinishing && !isDestroyed) {
                     if (playlistUrl.text.isEmpty()) playlist?.let { playlistUrl.setText(it) }
                     if (guideUrl.text.isEmpty()) epg?.let { guideUrl.setText(it) }
+                    // Fold real alarm re-arm evidence into the next unattended report.
+                    scheduleSelfTests()
                 }
             }
         }
