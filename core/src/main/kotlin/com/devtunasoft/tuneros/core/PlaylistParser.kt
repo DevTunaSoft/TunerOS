@@ -13,6 +13,10 @@ object PlaylistParser {
     const val MAX_LINE_LENGTH = 32_768
     private const val MAX_LINES = 200_000
     private const val MAX_SHARED_HEADERS = 512
+    // XMLTV channel identifiers have the same 256-character cap. Retain the
+    // complete provider ID only long enough to compute its unchanged hash.
+    private const val MAX_STORED_GUIDE_ID = 256
+    private const val MAX_LOGO_URL = 2048
 
     fun parse(reader: Reader, maxChannels: Int = MAX_CHANNELS): List<Channel> =
         parseReport(reader, maxChannels).channels
@@ -69,7 +73,10 @@ object PlaylistParser {
                     if (!seen.add(id)) continue
                     result += Channel(
                         id = id, name = metadata.name.take(256), streamUrl = line,
-                        guideId = metadata.guideId, logoUrl = metadata.logo?.takeIf(::isAllowedUrl),
+                        guideId = metadata.guideId?.take(MAX_STORED_GUIDE_ID),
+                        logoUrl = metadata.logo?.takeIf {
+                            it.length <= MAX_LOGO_URL && isAllowedUrl(it)
+                        },
                         group = metadata.group?.take(128), userAgent = shareHeader(userAgent), referer = shareHeader(referer),
                     )
                     userAgent = null; referer = null
