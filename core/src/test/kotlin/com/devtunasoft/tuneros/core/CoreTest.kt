@@ -138,6 +138,53 @@ https://example.com/live.m3u8
         }
     }
 
+    @Test fun extinfIgnoresUnusedAttributesWithoutChangingKnownMetadata() {
+        val extras = (0 until 100).joinToString(" ") { "unused-$it=\"ignore-$it\"" }
+        val playlist = """
+            #EXTM3U
+            #EXTINF:-1 tvg-id="old" tvg-id='sports.ch' tvg-name="Fallback Station" tvg-logo="https://example.org/logo.png" group-title='Sports' $extras,
+            https://example.org/live.ts
+        """.trimIndent()
+        val channel = PlaylistParser.parse(playlist.reader()).single()
+        assertEquals("Fallback Station", channel.name)
+        assertEquals("sports.ch", channel.guideId)
+        assertEquals("Sports", channel.group)
+        assertEquals("https://example.org/logo.png", channel.logoUrl)
+    }
+
+    @Test fun extinfMetadataMatchesPriorMapParser() {
+        val legacyAttributes = Regex("""([A-Za-z][A-Za-z0-9_-]*)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s,]+))""")
+        val random = kotlin.random.Random(671129)
+        val keys = listOf("tvg-id", "tvg-name", "tvg-logo", "group-title", "unused", "custom-tag")
+        val quotes = listOf("\"", "'", "")
+        repeat(300) { fixture ->
+            val attrs = (0 until random.nextInt(0, 24)).joinToString(" ") {
+                val key = keys[random.nextInt(keys.size)]
+                val value = "value" + random.nextInt(0, 60)
+                val q = quotes[random.nextInt(quotes.size)]
+                key + "=" + q + value + q
+            }
+            val title = if (fixture % 3 == 0) "Display $fixture" else ""
+            val info = "#EXTINF:-1 $attrs,$title"
+            val legacyMap = legacyAttributes.findAll(info).associate { match ->
+                match.groupValues[1].lowercase() to
+                    match.groupValues[2].ifEmpty { match.groupValues[3] }
+                        .ifEmpty { match.groupValues[4] }
+            }
+            val expectedName = title.ifBlank { legacyMap["tvg-name"].orEmpty() }
+            val feed = "#EXTM3U\n$info\nhttps://example.org/stream/$fixture\n"
+            val items = PlaylistParser.parse(feed.reader())
+            if (expectedName.isBlank()) {
+                assertTrue(items.isEmpty())
+            } else {
+                val channel = items.single()
+                assertEquals(expectedName, channel.name)
+                assertEquals(legacyMap["tvg-id"], channel.guideId)
+                assertEquals(legacyMap["group-title"]?.take(128), channel.group)
+            }
+        }
+    }
+
     @Test fun hugeLineIsRejectedByBoundedReader() {
         val input = "#EXTM3U\n" + "X".repeat(PlaylistParser.MAX_LINE_LENGTH + 1)
         assertFailsWith<IllegalArgumentException> { PlaylistParser.parse(input.reader()) }
