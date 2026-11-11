@@ -44,4 +44,4 @@ If a new source is empty or fails to download or parse, TunerOS retains the prev
 
 ## Current-time indicator and power use
 
-While the guide is open, the current-time line moves as the clock advances. TunerOS updates the visible time markers rather than reloading channel rows each minute. The minute refresh is inactive when the app is stopped or no programme guide has been loaded. This behavior is implemented in source and has a debug-only self-test; device verification remains pending.
+While the guide is open, the current-time line moves as the clock advances. TunerOS updates the visible time markers rather than reloading channel rows each minute. The minute refresh is inactive when the app is stopped, no programme guide has been loaded, or the recording library is displayed. This behavior is implemented in source and has a debug-only self-test; device verification remains pending.
