@@ -228,6 +228,17 @@ https://example.com/live.m3u8
         assertTrue(emptyReads in 16..17)
     }
 
+    @Test fun setupFailureClosesAcquiredInputStream() {
+        var closed = false
+        val source = object : InputStream() {
+            override fun read(): Int = throw IOException("Synthetic sniff failure")
+            override fun close() { closed = true }
+        }
+        val loader = SourceDownloader { StubConnection(it, inputOverride = source) }
+        assertFailsWith<IOException> { loader.open("https://example.org/broken", 128) }
+        assertTrue(closed, "The HTTP response stream must close on sniffing failure")
+    }
+
     @Test fun directBulkReadAlsoAbortsStalledSource() {
         var emptyReads = 0
         val stalled = object : InputStream() {
