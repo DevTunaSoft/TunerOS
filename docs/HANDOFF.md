@@ -212,3 +212,9 @@ Current branch `perf/windowed-epg-retention` now contains a bounded DVR foundati
 - The indexed guide already returns programmes sorted by start/end. Previously `CableGuideAdapter` passed those entries to `TimelineLayout.row`, which filtered, sorted, and copied them again for **every visible row** on each refresh or guide shift.
 - The cable adapter now uses `TimelineLayout.rowFromSorted`, a single-pass renderer that creates only the required clipped timeline cells. The original generic `row` method retains unsorted-input semantics for other callers. Allocation pre-sizing is capped at 64 cells when most overlapping programmes will be discarded.
 - Added randomized parity tests comparing indexed/fast-row output to the generic implementation, plus expired and overlap edge cases. **CI pending for this exact commit**. RAM allocations were not device-profiled; no numerical memory saving claimed.
+
+## 2026-11-11 M3U import transient-allocation checkpoint
+
+- Imported channel IDs were already stable SHA-256 prefixes, but generating each hex string allocated at least 12 formatter result strings (plus formatting machinery) per channel. This was repeated up to 25,000 times per import.
+- The new encoder writes the first 12 digest bytes into one 24-character buffer, preserving exact historical IDs, case, and collisions semantics; HTTP(S) URL scheme checks no longer construct a temporary set or lowercase scheme string.
+- `PlaylistStableIdTest` checks original SHA-256 hex equality, provider separation, uppercase protocol acceptance and reproducibility across two 1,000-channel imports. **CI pending** for exact commit; no empirical heap or CPU claim until instrumented device profiling.

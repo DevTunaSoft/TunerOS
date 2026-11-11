@@ -80,8 +80,9 @@ object PlaylistParser {
 
     private fun isAllowedUrl(value: String): Boolean = runCatching {
         val uri = URI(value)
-        uri.scheme?.lowercase() in setOf("http", "https") && !uri.host.isNullOrBlank() &&
-            value.none { it.code < 32 || it.code == 127 }
+        (uri.scheme.equals("http", ignoreCase = true) ||
+            uri.scheme.equals("https", ignoreCase = true)) &&
+            !uri.host.isNullOrBlank() && value.none { it.code < 32 || it.code == 127 }
     }.getOrDefault(false)
 
     private data class Pending(val name: String, val guideId: String?, val logo: String?, val group: String?)
@@ -96,7 +97,17 @@ object PlaylistParser {
         return Pending(name, attrs["tvg-id"], attrs["tvg-logo"], attrs["group-title"])
     }
 
-    private fun stableId(digest: MessageDigest, value: String): String = digest
-        .digest(value.toByteArray(Charsets.UTF_8))
-        .take(12).joinToString("") { "%02x".format(it) }
+    private val hexDigits = "0123456789abcdef".toCharArray()
+
+    /** Encode the existing 96-bit SHA-256 ID without 12 format strings per channel. */
+    private fun stableId(digest: MessageDigest, value: String): String {
+        val hash = digest.digest(value.toByteArray(Charsets.UTF_8))
+        val chars = CharArray(24)
+        for (index in 0 until 12) {
+            val byte = hash[index].toInt() and 0xff
+            chars[index * 2] = hexDigits[byte ushr 4]
+            chars[index * 2 + 1] = hexDigits[byte and 0x0f]
+        }
+        return String(chars)
+    }
 }

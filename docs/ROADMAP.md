@@ -69,3 +69,5 @@ The GitHub Actions suite passed at [run 42972740969](https://github.com/DevTunaS
 **2026-11-11 high-priority XMLTV compatibility fix:** Replace unportable vendor-specific SAX flags with mandatory DTD rejection via lexical handler and external entity denial, preserving streaming bounded memory. New JVM security regressions; real Android Expat acceptance pending. This fixes a likely guide-import failure instead of adding redundant features.
 
 **2026-11-11 timeline allocation reduction:** Indexed programme lists are already sorted. Reuse them in the guide renderer without another filtered/sorted intermediate list. Keep generic unsorted caller semantics and add randomized equivalence tests. Device RAM measurement remains a release acceptance gate.
+
+**2026-11-11 playlist allocation reduction:** Preserve exact provider-scoped SHA-256 channel IDs but replace per-byte `String.format` hexadecimal conversions with a fixed 24-character encoding buffer; avoid per-URL `setOf` and lowercased scheme strings. Add regression cases proving IDs are byte-identical and source-scoped. No format/ID migration; device RAM metrics pending.
