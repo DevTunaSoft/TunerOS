@@ -39,7 +39,8 @@ internal object OnDeviceSelfTest {
         RECORDING_PLAYBACK_ERROR, RECORDING_PLAYBACK_TIMEOUT,
         DVR_REARM_EXACT_COUNT, DVR_REARM_BLOCKED_COUNT, DVR_REARM_FAILURE_COUNT,
         DVR_ALARM_DELIVERED, DVR_SCHEDULED_SERVICE_REQUESTED,
-        UI_FOCUS_PROBE_PASS, UI_FOCUS_PROBE_FAIL
+        UI_FOCUS_PROBE_PASS, UI_FOCUS_PROBE_FAIL,
+        UI_EMPTY_TIMELINE_PASS, UI_EMPTY_TIMELINE_FAIL
     }
 
     data class Check(val id: String, val state: State, val detail: String)
@@ -292,6 +293,7 @@ internal object OnDeviceSelfTest {
         if (includeStress) {
             checks += OnDeviceGuideStress.run()
             checks += mostRecentUiFocusResult(context)
+            checks += mostRecentEmptyTimelineResult(context)
         }
         val deliveredAlarm = hasEvent(context, Event.DVR_ALARM_DELIVERED)
         checks += Check("scheduled-dvr-alarm-delivery",
@@ -363,6 +365,31 @@ internal object OnDeviceSelfTest {
         }
         return@synchronized result ?: Check("debug-ui-focus", State.NOT_RUN, "No UI focus probe observed")
     }
+    /** The actual synthetic ProgramTimelineView dispatched left/right key handlers. */
+    private fun mostRecentEmptyTimelineResult(context: Context): Check = synchronized(eventLock) {
+        val file = File(context.filesDir, EVENTS_FILE)
+        if (!file.exists() || file.length() > MAX_EVENTS_BYTES) {
+            return@synchronized Check(
+                "debug-empty-guide-dpad", State.NOT_RUN, "No empty-guide UI probe observed",
+            )
+        }
+        var state = State.NOT_RUN
+        file.forEachLine { line ->
+            when (line.split('\t', limit = 4).getOrNull(2)) {
+                Event.UI_EMPTY_TIMELINE_PASS.name -> state = State.PASS
+                Event.UI_EMPTY_TIMELINE_FAIL.name -> state = State.FAIL
+            }
+        }
+        Check(
+            "debug-empty-guide-dpad", state,
+            when (state) {
+                State.PASS -> "Actual View accepted left/right keys without launching a stream"
+                State.FAIL -> "Empty-guide row lost D-pad navigation or triggered playback"
+                else -> "No empty-guide UI probe observed"
+            },
+        )
+    }
+
     /**
      * The last nonempty re-arm batch wins. The recorder writes EXACT, then
      * BLOCKED, then FAILED counters; if a batch has mixed outcomes, the
