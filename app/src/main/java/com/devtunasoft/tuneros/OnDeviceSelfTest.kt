@@ -161,7 +161,7 @@ internal object OnDeviceSelfTest {
                     override fun connect() {}
                     override fun disconnect() {}
                     override fun usingProxy() = false
-                    override fun getResponseCode() = HTTP_OK
+                    override fun getResponseCode() = HttpURLConnection.HTTP_OK
                     override fun getInputStream(): InputStream = stalled
                 }
             }
