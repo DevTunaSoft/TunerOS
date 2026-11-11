@@ -161,7 +161,17 @@ internal object OnDeviceSelfTest {
                 } &&
                 row.mapNotNull { it.program?.title } == listOf("First", "Second") &&
                 TimelineFocusPolicy.shiftedIndex(row, 140L, -1) == 0 &&
-                TimelineFocusPolicy.shiftedIndex(row, 90L, 1) == 2
+                TimelineFocusPolicy.shiftedIndex(row, 90L, 1) == 2 &&
+                GuideSnapshot(
+                    listOf(
+                        GuideProgram("overlap", "Long", 0, 500),
+                        GuideProgram("overlap", "Expired", 10, 20),
+                        GuideProgram("overlap", "Current", 100, 160),
+                    ),
+                    emptyMap(),
+                ).apply { prepareIndex() }
+                    .programsBetween("overlap", 120, 200)
+                    .map { it.title } == listOf("Long", "Current")
         }
 
         checks += check("offline-xmltv-dtd-block", "DTD and entity injection rejected") {
