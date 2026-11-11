@@ -6,6 +6,7 @@ import android.app.AlarmManager
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.os.SystemClock
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
@@ -107,6 +108,7 @@ class MainActivity : Activity() {
     private lateinit var diagnosticsSummary: TextView
     private var selfTestsQueued = false
     private var selfTestsDirty = false
+    private var playbackTimeout: Runnable? = null
     private lateinit var timeRail: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -343,6 +345,7 @@ class MainActivity : Activity() {
         val url = playlistUrl.text.toString().trim()
         if (!isHttpUrl(url)) { showStatus("Enter a valid HTTP or HTTPS playlist URL"); return }
         val epoch = playlistEpoch.incrementAndGet()
+        val startedAtMs = SystemClock.elapsedRealtime()
         showStatus("Importing channels…")
         worker.execute {
             val saved = secureSources.save("playlist", url)
@@ -355,9 +358,13 @@ class MainActivity : Activity() {
                     showStatus("Loaded ${it.channels.size} channels" + if (warnings.isEmpty()) "" else "; WARNING: " + warnings.joinToString("; "))
                     renderChannels()
                     observe(OnDeviceSelfTest.Event.PLAYLIST_IMPORTED, it.channels.size.toLong())
+                    observe(OnDeviceSelfTest.Event.PLAYLIST_IMPORT_MILLIS,
+                        SystemClock.elapsedRealtime() - startedAtMs)
                     scheduleSelfTests()
                 }.onFailure {
                     observe(OnDeviceSelfTest.Event.PLAYLIST_IMPORT_FAILED)
+                    observe(OnDeviceSelfTest.Event.PLAYLIST_IMPORT_MILLIS,
+                        SystemClock.elapsedRealtime() - startedAtMs)
                     showStatus("Playlist import failed: ${it.javaClass.simpleName}")
                 }
             }
@@ -368,6 +375,7 @@ class MainActivity : Activity() {
         val url = guideUrl.text.toString().trim()
         if (!isHttpUrl(url)) { showStatus("Enter a valid HTTP or HTTPS XMLTV URL"); return }
         val epoch = guideEpoch.incrementAndGet()
+        val startedAtMs = SystemClock.elapsedRealtime()
         showStatus("Importing guide…")
         worker.execute {
             val saved = secureSources.save("guide", url)
@@ -384,9 +392,13 @@ class MainActivity : Activity() {
                         if (warnings.isEmpty()) "" else "; WARNING: " + warnings.joinToString("; "))
                     renderChannels()
                     observe(OnDeviceSelfTest.Event.GUIDE_IMPORTED, it.programs.size.toLong())
+                    observe(OnDeviceSelfTest.Event.GUIDE_IMPORT_MILLIS,
+                        SystemClock.elapsedRealtime() - startedAtMs)
                     scheduleSelfTests()
                 }.onFailure {
                     observe(OnDeviceSelfTest.Event.GUIDE_IMPORT_FAILED)
+                    observe(OnDeviceSelfTest.Event.GUIDE_IMPORT_MILLIS,
+                        SystemClock.elapsedRealtime() - startedAtMs)
                     showStatus("Guide import failed: ${it.javaClass.simpleName}")
                 }
             }
@@ -480,12 +492,17 @@ class MainActivity : Activity() {
                 }
                 override fun onPlayerError(error: PlaybackException) {
                     if (player === created) {
+                        clearPlaybackTimeout()
                         observe(OnDeviceSelfTest.Event.PLAYBACK_ERROR, error.errorCode.toLong())
                         showStatus(playbackFailureMessage(error))
                     }
                 }
+                override fun onRenderedFirstFrame() {
+                    if (player === created) observe(OnDeviceSelfTest.Event.PLAYBACK_FIRST_FRAME)
+                }
                 override fun onPlaybackStateChanged(playbackState: Int) {
                     if (player === created && playbackState == Player.STATE_READY) {
+                        clearPlaybackTimeout()
                         observe(OnDeviceSelfTest.Event.PLAYBACK_READY)
                         showStatus("Playing: " + (activeChannelName ?: "channel"))
                     }
@@ -501,6 +518,7 @@ class MainActivity : Activity() {
         if (path.endsWith(".mpd")) builder.setMimeType(MimeTypes.APPLICATION_MPD)
         observe(OnDeviceSelfTest.Event.PLAYBACK_REQUESTED)
         target.setMediaItem(builder.build())
+        armPlaybackTimeout(target)
         target.prepare()
         target.playWhenReady = true
         showStatus("Connecting: ${channel.name}")
@@ -906,12 +924,30 @@ class MainActivity : Activity() {
         )
     }
 
+    private fun clearPlaybackTimeout() {
+        playbackTimeout?.let { uiHandler.removeCallbacks(it) }
+        playbackTimeout = null
+    }
+
+    private fun armPlaybackTimeout(target: ExoPlayer) {
+        clearPlaybackTimeout()
+        val timeout = Runnable {
+            if (player === target && target.playbackState != Player.STATE_READY) {
+                observe(OnDeviceSelfTest.Event.PLAYBACK_TIMEOUT, 30_000L)
+                showStatus("Stream Doctor: playback not ready after 30 seconds")
+            }
+        }
+        playbackTimeout = timeout
+        uiHandler.postDelayed(timeout, 30_000L)
+    }
+
     private fun updateKeepScreenOn(isPlaying: Boolean) {
         if (isPlaying) window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         else window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
     }
 
     private fun releasePlayer() {
+        clearPlaybackTimeout()
         updateKeepScreenOn(false)
         playerView.player = null
         player?.release()
