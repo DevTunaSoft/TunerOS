@@ -81,7 +81,8 @@ internal class RecordingCatalog(context: Context) :
         db.execSQL("CREATE INDEX recordings_started_idx ON recordings(started_epoch DESC)")
     }
 
-    fun upsertStart(id: String, title: String, channelId: String, startedEpochSeconds: Long) {
+    /** A recording ID is immutable: never clobber an existing recording or protection flag. */
+    fun upsertStart(id: String, title: String, channelId: String, startedEpochSeconds: Long): Boolean {
         val values = ContentValues().apply {
             put("id", id)
             put("title", title)
@@ -100,9 +101,7 @@ internal class RecordingCatalog(context: Context) :
             values,
             SQLiteDatabase.CONFLICT_IGNORE,
         )
-        if (inserted == -1L) {
-            db.update("recordings", values, "id=?", arrayOf(id))
-        }
+        return inserted != -1L
     }
 
     fun updateProgress(id: String, bytesWritten: Long) {

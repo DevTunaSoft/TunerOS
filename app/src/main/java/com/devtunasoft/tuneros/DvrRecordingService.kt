@@ -86,15 +86,20 @@ class DvrRecordingService : Service() {
 
         if (!activeRecordingId.compareAndSet(null, id)) {
             if (activeRecordingId.get() != id) {
-                catalog.upsertStart(id, title, channelId, nowSeconds())
-                catalog.finish(id, "FAILED", nowSeconds(), 0, null, "Recorder busy")
+                if (catalog.upsertStart(id, title, channelId, nowSeconds())) {
+                    catalog.finish(id, "FAILED", nowSeconds(), 0, null, "Recorder busy")
+                }
             }
             return
         }
 
         val endEpochSeconds = intent.getLongExtra(EXTRA_END_EPOCH_SECONDS, Long.MAX_VALUE)
         cancelled.set(false)
-        catalog.upsertStart(id, title, channelId, nowSeconds())
+        if (!catalog.upsertStart(id, title, channelId, nowSeconds())) {
+            activeRecordingId.compareAndSet(id, null)
+            stopSelf(startId)
+            return
+        }
         startForeground(
             NOTIFICATION_ID,
             android.app.Notification.Builder(this, CHANNEL_ID)

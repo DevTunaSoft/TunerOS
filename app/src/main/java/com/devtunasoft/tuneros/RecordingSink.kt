@@ -73,7 +73,14 @@ private class InternalRecordingSink(
 
     override fun openOutput(): OutputStream {
         check(counter == null) { "Recording output already opened" }
-        val output = CountingOutputStream(partial.outputStream())
+        check(!completed.exists()) { "Recording file already exists" }
+        check(partial.createNewFile()) { "Partial recording file already exists" }
+        val output = try {
+            CountingOutputStream(partial.outputStream())
+        } catch (error: Exception) {
+            partial.delete()
+            throw error
+        }
         counter = output
         return output
     }
@@ -81,7 +88,8 @@ private class InternalRecordingSink(
     override fun freeBytes(): Long = directory.usableSpace
 
     override fun finalizeRecording(): String? {
-        if (completed.exists() && !completed.delete()) return null
+        // Never delete an older recording to make a colliding filename available.
+        if (completed.exists()) return null
         if (!partial.renameTo(completed)) return null
         current = completed
         return current.absolutePath
