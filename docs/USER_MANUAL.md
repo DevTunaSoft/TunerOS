@@ -45,3 +45,7 @@ If a new source is empty or fails to download or parse, TunerOS retains the prev
 ## Current-time indicator and power use
 
 While the guide is open, the current-time line moves as the clock advances. TunerOS updates the visible time markers rather than reloading channel rows each minute. The minute refresh is inactive when the app is stopped, no programme guide has been loaded, or the recording library is displayed. This behavior is implemented in source and has a debug-only self-test; device verification remains pending.
+
+## Large provider feeds
+
+TunerOS places limits on imported metadata to protect memory usage on Android TV devices. Channel guide identifiers are stored at up to 256 characters and logo URLs over 2,048 characters are not retained. The supported channel ID format remains unchanged, and valid provider guide and playlist imports continue to run in the background. XMLTV with unusually deep nested elements (more than 64 levels) is rejected instead of risking excessive parser resource use. These are source-level protections; Android device acceptance remains pending.
