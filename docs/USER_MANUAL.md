@@ -31,3 +31,7 @@ Normal TunerOS installations automatically run short, safe offline checks withou
 ## Android TV remote navigation
 
 In the Classic Cable programme guide, use **Left** and **Right** to move between programmes. When you reach the beginning or end of the visible timeline, pressing the same direction shifts the time window by 30 minutes. The highlighted programme is chosen near the previous selection in the direction you pressed, without building additional programme views. Press **OK / Enter** to play the selected channel. A channel name itself also provides a selectable target where the programme guide has no schedule. **This navigation update is in source; physical-device verification is pending.**
+
+## Empty channels and missing schedules
+
+A channel without an EPG listing remains navigable in the cable guide. If a selected time window contains only empty gaps, use **Left** and **Right** to continue moving through time. Empty gaps do not launch playback when pressing OK. To hide channels with no schedule at all, use the optional **Hide channels with no EPG** setting. The new empty-guide navigation handling is implemented in source; Android device acceptance is still pending.
