@@ -81,6 +81,7 @@ internal object OnDeviceSelfTest {
     private const val MAX_SHARE_EVENTS = 8 * 1024
     private const val CANARY_KEY = "tuneros_selftest_canary_v1"
     private const val RUN_MARKER = "tuneros-selftest-in-progress"
+    private val eventLock = Any() // Never held while executing lengthy self-tests.
 
     private fun check(id: String, detail: String, test: () -> Boolean): Check =
         try {
@@ -301,10 +302,13 @@ internal object OnDeviceSelfTest {
             System.currentTimeMillis(), SystemClock.elapsedRealtime(),
             Build.VERSION.SDK_INT, Debug.getPss(), checks,
         )
-        context.openFileOutput(REPORT_FILE, Context.MODE_PRIVATE).bufferedWriter().use {
-            it.write(report.text())
+        // Publish a fully written report atomically; a crash must not expose a
+        // partial PASS report to CI or the user.
+        val pending = File(context.filesDir, "$REPORT_FILE.pending")
+        pending.writeText(report.text())
+        kotlin.check(pending.renameTo(File(context.filesDir, REPORT_FILE))) {
+            "Could not publish completed self-test report"
         }
-        // Marker is removed only after the report has been written successfully.
         kotlin.check(marker.delete()) { "Could not clear self-test run marker" }
         return report
     }
@@ -314,34 +318,34 @@ internal object OnDeviceSelfTest {
      * URLs, error messages, titles or tokens from entering persistent diagnostics.
      * Event file is strictly bounded, with no unbounded in-memory history.
      */
-    @Synchronized
     fun observe(context: Context, event: Event, metric: Long = 0) {
-        val file = File(context.filesDir, EVENTS_FILE)
-        val line = "${System.currentTimeMillis()}\t${SystemClock.elapsedRealtime()}" +
-            "\t${event.name}\t$metric\t${Debug.getPss()}\n"
-        if (file.length() + line.length > MAX_EVENTS_BYTES) {
-            // Rotation is size-based, never a periodic timer or an in-memory queue.
-            file.writeText("")
+        // Lock only the small, bounded event file. Recording finalization is never
+        // forced to wait for guide parsing, SQLite checks or stress testing.
+        synchronized(eventLock) {
+            val file = File(context.filesDir, EVENTS_FILE)
+            val line = "${System.currentTimeMillis()}\t${SystemClock.elapsedRealtime()}" +
+                "\t${event.name}\t$metric\t${Debug.getPss()}\n"
+            if (file.length() + line.length > MAX_EVENTS_BYTES) {
+                file.writeText("")
+            }
+            file.appendText(line)
         }
-        file.appendText(line)
     }
 
-    private fun hasEvent(context: Context, event: Event): Boolean {
+    private fun hasEvent(context: Context, event: Event): Boolean = synchronized(eventLock) {
         val file = File(context.filesDir, EVENTS_FILE)
-        if (!file.exists() || file.length() > MAX_EVENTS_BYTES) return false
-        return file.useLines { lines ->
-            lines.any { line -> line.contains("\t${event.name}\t") }
-        }
+        file.exists() && file.length() <= MAX_EVENTS_BYTES &&
+            file.useLines { lines -> lines.any { line -> line.contains("\t${event.name}\t") } }
     }
 
     /**
      * Latest debug-only focus probe wins, including a later recovery from a failure.
      * This does not claim D-pad navigation or Android TV device certification.
      */
-    private fun mostRecentUiFocusResult(context: Context): Check {
+    private fun mostRecentUiFocusResult(context: Context): Check = synchronized(eventLock) {
         val file = File(context.filesDir, EVENTS_FILE)
         if (!file.exists() || file.length() > MAX_EVENTS_BYTES) {
-            return Check("debug-ui-focus", State.NOT_RUN, "No UI focus probe observed")
+            return@synchronized Check("debug-ui-focus", State.NOT_RUN, "No UI focus probe observed")
         }
         var result: Check? = null
         file.forEachLine { line ->
@@ -354,19 +358,18 @@ internal object OnDeviceSelfTest {
                         "A visible TunerOS control did not accept focus")
             }
         }
-        return result ?: Check("debug-ui-focus", State.NOT_RUN, "No UI focus probe observed")
+        return@synchronized result ?: Check("debug-ui-focus", State.NOT_RUN, "No UI focus probe observed")
     }
-
     /**
      * The last nonempty re-arm batch wins. The recorder writes EXACT, then
      * BLOCKED, then FAILED counters; if a batch has mixed outcomes, the
      * highest-severity outcome is its final observation. No schedules are
      * created by the reporter.
      */
-    private fun mostRecentRearmResult(context: Context): Check {
+    private fun mostRecentRearmResult(context: Context): Check = synchronized(eventLock) {
         val file = File(context.filesDir, EVENTS_FILE)
         if (!file.exists() || file.length() > MAX_EVENTS_BYTES) {
-            return Check("dvr-rearm", State.NOT_RUN, "No pending DVR schedules re-armed")
+            return@synchronized Check("dvr-rearm", State.NOT_RUN, "No pending DVR schedules re-armed")
         }
         var result: Check? = null
         file.forEachLine { line ->
@@ -386,10 +389,8 @@ internal object OnDeviceSelfTest {
                 else -> result
             }
         }
-        return result ?: Check("dvr-rearm", State.NOT_RUN, "No pending DVR schedules re-armed")
+        return@synchronized result ?: Check("dvr-rearm", State.NOT_RUN, "No pending DVR schedules re-armed")
     }
-
-    @Synchronized
     fun latestText(context: Context): String {
         val report = File(context.filesDir, REPORT_FILE)
         val reportText = if (report.exists() && report.length() <= 8 * 1024) {
@@ -398,10 +399,12 @@ internal object OnDeviceSelfTest {
             "On-device self-test has not completed yet."
         }
         val observations = File(context.filesDir, EVENTS_FILE)
-        val eventsText = if (observations.exists() && observations.length() <= MAX_EVENTS_BYTES) {
-            observations.readText().takeLast(MAX_SHARE_EVENTS)
-        } else {
-            "None."
+        val eventsText = synchronized(eventLock) {
+            if (observations.exists() && observations.length() <= MAX_EVENTS_BYTES) {
+                observations.readText().takeLast(MAX_SHARE_EVENTS)
+            } else {
+                "None."
+            }
         }
         return reportText + "\nDevice observations (wall ms, uptime ms, event, numeric value, PSS KiB):\n" +
             eventsText
