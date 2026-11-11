@@ -52,6 +52,11 @@ import java.util.concurrent.atomic.AtomicInteger
 
 /** First playable TunerOS slice: HTTP M3U/XMLTV import, searchable TV guide, Media3 playback. */
 class MainActivity : Activity() {
+    private companion object {
+        const val STATE_SEARCH = "tuneros.state.search"
+        const val STATE_WINDOW = "tuneros.state.window"
+    }
+
     private data class RetainedGuideState(
         val channels: List<Channel>,
         val guide: GuideSnapshot?,
@@ -122,6 +127,10 @@ class MainActivity : Activity() {
             channels = retained.channels
             guide = retained.guide
             guideWindowStart = retained.guideWindowStart
+        } else {
+            // A Bundle holds only small UI metadata. Never parcel 250,000 EPG
+            // entries or provider URLs: Android may kill a process after saving.
+            guideWindowStart = savedInstanceState?.getLong(STATE_WINDOW) ?: 0L
         }
         window.decorView.setBackgroundColor(Color.rgb(13, 21, 34))
         val root = LinearLayout(this).apply {
@@ -166,7 +175,10 @@ class MainActivity : Activity() {
         })
         root.addView(sourcePanel)
         setSourcesVisible(retained?.guide == null)
-        search = urlField("Search channels", retained?.searchQuery.orEmpty())
+        search = urlField(
+            "Search channels",
+            retained?.searchQuery ?: savedInstanceState?.getString(STATE_SEARCH).orEmpty(),
+        )
         root.addView(search)
         hideNoGuide = CheckBox(this).apply {
             text = "Hide channels with no EPG"
@@ -258,6 +270,23 @@ class MainActivity : Activity() {
                     // Avoid a second expensive parser/Keystore/SQLite QA pass on
                     // the ordinary startup path with no scheduled DVR jobs.
                     if (hadPendingSchedules) scheduleSelfTests()
+                    if (retained == null) {
+                        // Rebuild transient guide/channel state after process death
+                        // using saved encrypted source references. No large Bundle
+                        // and no separate worker. A user-initiated import wins.
+                        if (playlist != null && channels.isEmpty() &&
+                            playlistEpoch.get() == 0 &&
+                            playlistUrl.text.toString() == playlist
+                        ) {
+                            importPlaylist(playlist, saveOnSuccess = false)
+                        }
+                        if (epg != null && guide == null &&
+                            guideEpoch.get() == 0 &&
+                            guideUrl.text.toString() == epg
+                        ) {
+                            importGuide(epg, saveOnSuccess = false)
+                        }
+                    }
                 }
             }
         }
@@ -1090,6 +1119,12 @@ class MainActivity : Activity() {
         super.onStop()
         releasePlayer()
     }
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putString(STATE_SEARCH, if (::search.isInitialized) search.text.toString() else "")
+        outState.putLong(STATE_WINDOW, guideWindowStart)
+        super.onSaveInstanceState(outState)
+    }
+
     override fun onRetainNonConfigurationInstance(): Any? {
         val query = if (::search.isInitialized) search.text.toString() else ""
         if (channels.isEmpty() && guide == null && guideWindowStart == 0L && query.isEmpty()) {
