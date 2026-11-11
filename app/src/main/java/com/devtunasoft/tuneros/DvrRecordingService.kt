@@ -86,7 +86,7 @@ class DvrRecordingService : Service() {
 
         if (!activeRecordingId.compareAndSet(null, id)) {
             if (activeRecordingId.get() != id) {
-                if (catalog.upsertStart(id, title, channelId, nowSeconds())) {
+                if (catalog.tryInsertStart(id, title, channelId, nowSeconds())) {
                     catalog.finish(id, "FAILED", nowSeconds(), 0, null, "Recorder busy")
                 }
             }
@@ -95,7 +95,7 @@ class DvrRecordingService : Service() {
 
         val endEpochSeconds = intent.getLongExtra(EXTRA_END_EPOCH_SECONDS, Long.MAX_VALUE)
         cancelled.set(false)
-        if (!catalog.upsertStart(id, title, channelId, nowSeconds())) {
+        if (!catalog.tryInsertStart(id, title, channelId, nowSeconds())) {
             activeRecordingId.compareAndSet(id, null)
             stopSelf(startId)
             return

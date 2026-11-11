@@ -82,7 +82,7 @@ internal class RecordingCatalog(context: Context) :
     }
 
     /** A recording ID is immutable: never clobber an existing recording or protection flag. */
-    fun upsertStart(id: String, title: String, channelId: String, startedEpochSeconds: Long): Boolean {
+    fun tryInsertStart(id: String, title: String, channelId: String, startedEpochSeconds: Long): Boolean {
         val values = ContentValues().apply {
             put("id", id)
             put("title", title)

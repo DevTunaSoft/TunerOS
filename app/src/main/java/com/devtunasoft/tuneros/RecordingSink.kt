@@ -66,15 +66,18 @@ private class InternalRecordingSink(
     private val partial = File(directory, "$safeId.partial")
     private val completed = File(directory, safeId + extension)
     private var current = partial
+    private var ownsCurrent = false
     private var counter: CountingOutputStream? = null
 
     override val location: String get() = current.absolutePath
-    override val bytesWritten: Long get() = counter?.count ?: current.takeIf { it.exists() }?.length() ?: 0L
+    override val bytesWritten: Long get() =
+        counter?.count ?: current.takeIf { ownsCurrent && it.exists() }?.length() ?: 0L
 
     override fun openOutput(): OutputStream {
         check(counter == null) { "Recording output already opened" }
         check(!completed.exists()) { "Recording file already exists" }
         check(partial.createNewFile()) { "Partial recording file already exists" }
+        ownsCurrent = true
         val output = try {
             CountingOutputStream(partial.outputStream())
         } catch (error: Exception) {
@@ -96,7 +99,7 @@ private class InternalRecordingSink(
     }
 
     override fun delete(): Boolean =
-        !current.exists() || current.delete()
+        ownsCurrent && (!current.exists() || current.delete())
 }
 
 private class SafRecordingSink(
