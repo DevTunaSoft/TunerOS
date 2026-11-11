@@ -27,3 +27,7 @@ The player and DVR remain alpha quality. Remote focus behavior, all provider str
 ## Testing behavior (debug vs. normal installs)
 
 Normal TunerOS installations automatically run short, safe offline checks without interrupting playback or changing focus. The larger guide stress and interface focusability tests run only in an explicitly launched **debug/CI** build and are not part of normal viewing. The local report records whether each check actually ran; `INCOMPLETE` means the app still lacks evidence for one or more release scenarios. The report's share option is optional, not a required testing step.
+
+## Android TV remote navigation
+
+In the Classic Cable programme guide, use **Left** and **Right** to move between programmes. When you reach the beginning or end of the visible timeline, pressing the same direction shifts the time window by 30 minutes. The highlighted programme is chosen near the previous selection in the direction you pressed, without building additional programme views. Press **OK / Enter** to play the selected channel. A channel name itself also provides a selectable target where the programme guide has no schedule. **This navigation update is in source; physical-device verification is pending.**
