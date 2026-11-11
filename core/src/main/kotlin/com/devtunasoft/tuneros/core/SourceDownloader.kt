@@ -18,7 +18,6 @@ class SourceDownloader(
         var current = checkedUrl(source)
         for (hop in 0..MAX_REDIRECTS) {
             val connection = connect(current)
-            var opened: InputStream? = null
             try {
                 connection.instanceFollowRedirects = false
                 connection.connectTimeout = 10_000
@@ -38,63 +37,62 @@ class SourceDownloader(
                 }
                 if (code != HttpURLConnection.HTTP_OK) throw IllegalArgumentException("Source returned HTTP $code")
                 val raw = PushbackInputStream(connection.inputStream, 2)
-                opened = raw
-                val first = raw.read()
-                val second = raw.read()
-                if (second != -1) raw.unread(second)
-                if (first != -1) raw.unread(first)
-                val gzip = first == 0x1f && second == 0x8b
-                val decoded = if (gzip || connection.contentEncoding.equals("gzip", true) ||
-                    current.path.endsWith(".gz", true)) GZIPInputStream(raw) else raw
-                opened = decoded
-                return object : FilterInputStream(decoded) {
-                    private var count = 0L
-                    override fun read(): Int {
-                        val value = super.read()
-                        if (value != -1) checkLimit(1)
-                        return value
-                    }
-                    override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
-                        // A broken provider stream can repeatedly return zero.
-                        // Handle it here so parsers and callers other than skip()
-                        // cannot enter an unbounded busy loop. A zero-length read
-                        // legitimately returns zero and retains JDK validation.
-                        var emptyReads = 0
-                        while (true) {
-                            val n = super.read(buffer, offset, length)
-                            if (n != 0 || length == 0) {
-                                if (n > 0) checkLimit(n)
-                                return n
-                            }
-                            if (++emptyReads >= MAX_EMPTY_READS) {
-                                throw IOException("Source made no progress")
+                try {
+                    val first = raw.read()
+                    val second = raw.read()
+                    if (second != -1) raw.unread(second)
+                    if (first != -1) raw.unread(first)
+                    val gzip = first == 0x1f && second == 0x8b
+                    val decoded = if (gzip || connection.contentEncoding.equals("gzip", true) ||
+                        current.path.endsWith(".gz", true)) GZIPInputStream(raw) else raw
+                    return object : FilterInputStream(decoded) {
+                        private var count = 0L
+                        override fun read(): Int {
+                            val value = super.read()
+                            if (value != -1) checkLimit(1)
+                            return value
+                        }
+                        override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
+                            // A broken provider stream can repeatedly return zero.
+                            // Handle it here so parsers and callers other than skip()
+                            // cannot enter an unbounded busy loop. A zero-length read
+                            // legitimately returns zero and retains JDK validation.
+                            var emptyReads = 0
+                            while (true) {
+                                val n = super.read(buffer, offset, length)
+                                if (n != 0 || length == 0) {
+                                    if (n > 0) checkLimit(n)
+                                    return n
+                                }
+                                if (++emptyReads >= MAX_EMPTY_READS) {
+                                    throw IOException("Source made no progress")
+                                }
                             }
                         }
-                    }
-                    /** Consume skipped bytes through the checked read path; never bypass the size cap. */
-                    override fun skip(n: Long): Long {
-                        if (n <= 0) return 0
-                        val scratch = ByteArray(SKIP_BUFFER_BYTES)
-                        var remaining = n
-                        while (remaining > 0) {
-                            // read(byte[]) guarantees bounded progress or throws.
-                            val amount = read(scratch, 0, minOf(remaining, scratch.size.toLong()).toInt())
-                            if (amount == -1) break
-                            remaining -= amount
+                        /** Consume skipped bytes through the checked read path; never bypass the size cap. */
+                        override fun skip(n: Long): Long {
+                            if (n <= 0) return 0
+                            val scratch = ByteArray(SKIP_BUFFER_BYTES)
+                            var remaining = n
+                            while (remaining > 0) {
+                                // read(byte[]) guarantees bounded progress or throws.
+                                val amount = read(scratch, 0, minOf(remaining, scratch.size.toLong()).toInt())
+                                if (amount == -1) break
+                                remaining -= amount
+                            }
+                            return n - remaining
                         }
-                        return n - remaining
+                        private fun checkLimit(n: Int) {
+                            count += n
+                            if (count > maxBytes) throw IllegalArgumentException("Source exceeds decompressed size limit")
+                        }
+                        override fun close() { try { super.close() } finally { connection.disconnect() } }
                     }
-                    private fun checkLimit(n: Int) {
-                        count += n
-                        if (count > maxBytes) throw IllegalArgumentException("Source exceeds decompressed size limit")
-                    }
-                    override fun close() { try { super.close() } finally { connection.disconnect() } }
+                } catch (failure: Exception) {
+                    try { raw.close() } catch (_: Exception) { }
+                    throw failure
                 }
             } catch (failure: Exception) {
-                // If sniffing or the gzip constructor throws before returning
-                // the owned wrapper, close the acquired stream, not just its
-                // connection. Never mask the original import failure.
-                try { opened?.close() } catch (_: Exception) { }
                 connection.disconnect()
                 throw failure
             }
