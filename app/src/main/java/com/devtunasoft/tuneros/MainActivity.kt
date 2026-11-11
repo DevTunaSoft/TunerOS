@@ -43,6 +43,7 @@ import com.devtunasoft.tuneros.core.GuideParser
 import com.devtunasoft.tuneros.core.GuideSnapshot
 import com.devtunasoft.tuneros.core.GuideProgram
 import com.devtunasoft.tuneros.core.SourceDownloader
+import com.devtunasoft.tuneros.core.SourceRecoveryPolicy
 import com.devtunasoft.tuneros.core.StreamDoctor
 import com.devtunasoft.tuneros.core.PlaylistParser
 import com.devtunasoft.tuneros.core.RecordingPolicy
@@ -274,15 +275,21 @@ class MainActivity : Activity() {
                         // Rebuild transient guide/channel state after process death
                         // using saved encrypted source references. No large Bundle
                         // and no separate worker. A user-initiated import wins.
-                        if (playlist != null && channels.isEmpty() &&
-                            playlistEpoch.get() == 0 &&
-                            playlistUrl.text.toString() == playlist
+                        if (playlist != null && SourceRecoveryPolicy.shouldRestore(
+                                savedUrl = playlist,
+                                displayedUrl = playlistUrl.text.toString(),
+                                hasLoadedData = channels.isNotEmpty(),
+                                hasActiveImport = playlistEpoch.get() != 0,
+                            )
                         ) {
                             importPlaylist(playlist, saveOnSuccess = false)
                         }
-                        if (epg != null && guide == null &&
-                            guideEpoch.get() == 0 &&
-                            guideUrl.text.toString() == epg
+                        if (epg != null && SourceRecoveryPolicy.shouldRestore(
+                                savedUrl = epg,
+                                displayedUrl = guideUrl.text.toString(),
+                                hasLoadedData = guide != null,
+                                hasActiveImport = guideEpoch.get() != 0,
+                            )
                         ) {
                             importGuide(epg, saveOnSuccess = false)
                         }
@@ -463,7 +470,9 @@ class MainActivity : Activity() {
             }
             // Failed, empty or superseded imports must not overwrite a usable
             // encrypted source. Keep writes on the existing background worker.
-            val saved = result.isSuccess && epoch == playlistEpoch.get() &&
+            val saved = SourceRecoveryPolicy.mayCommit(
+                result.isSuccess, epoch, playlistEpoch.get(),
+            ) &&
                 (!saveOnSuccess || runCatching {
                     secureSources.save("playlist", url)
                 }.getOrDefault(false))
@@ -504,7 +513,9 @@ class MainActivity : Activity() {
                     parsed.prepareIndex()
                 }
             }
-            val saved = result.isSuccess && epoch == guideEpoch.get() &&
+            val saved = SourceRecoveryPolicy.mayCommit(
+                result.isSuccess, epoch, guideEpoch.get(),
+            ) &&
                 (!saveOnSuccess || runCatching {
                     secureSources.save("guide", url)
                 }.getOrDefault(false))
