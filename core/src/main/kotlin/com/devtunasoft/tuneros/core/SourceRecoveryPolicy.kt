@@ -13,7 +13,7 @@ object SourceRecoveryPolicy {
         hasLoadedData: Boolean,
         hasActiveImport: Boolean,
     ): Boolean =
-        savedUrl != null && savedUrl == displayedUrl &&
+        !savedUrl.isNullOrBlank() && savedUrl == displayedUrl &&
             !hasLoadedData && !hasActiveImport
 
     /** Ignore a result once a newer import request has superseded it. */
