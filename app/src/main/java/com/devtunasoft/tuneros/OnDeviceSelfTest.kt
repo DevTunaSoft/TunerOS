@@ -120,6 +120,7 @@ internal object OnDeviceSelfTest {
             val saved = "https://example.invalid/qa-playlist"
             SourceRecoveryPolicy.shouldRestore(saved, saved, false, false) &&
                 !SourceRecoveryPolicy.shouldRestore(null, saved, false, false) &&
+                !SourceRecoveryPolicy.shouldRestore("", "", false, false) &&
                 !SourceRecoveryPolicy.shouldRestore(saved, "", false, false) &&
                 !SourceRecoveryPolicy.shouldRestore(saved, saved, true, false) &&
                 !SourceRecoveryPolicy.shouldRestore(saved, saved, false, true) &&
