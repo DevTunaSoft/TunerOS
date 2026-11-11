@@ -108,6 +108,20 @@ internal class ProgramTimelineView(
         if (hasFocus()) notifyFocusedProgram()
     }
 
+    /**
+     * Clock ticks only move the now marker. Keep the indexed programme row,
+     * focus selection and Canvas text layout untouched until an actual guide
+     * window, search or source change requires bind().
+     */
+    fun refreshNow(now: Long) {
+        if (now == nowEpochSeconds) return
+        val wasVisible = nowEpochSeconds >= fromEpochSeconds && nowEpochSeconds < toEpochSeconds
+        nowEpochSeconds = now
+        if (wasVisible || (now >= fromEpochSeconds && now < toEpochSeconds)) {
+            invalidate()
+        }
+    }
+
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         if (entries.isEmpty() || width <= 0 || height <= 0) return
