@@ -52,28 +52,31 @@ class SourceDownloader(
                         return value
                     }
                     override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
-                        val n = super.read(buffer, offset, length)
-                        if (n > 0) checkLimit(n)
-                        return n
+                        // A broken provider stream can repeatedly return zero.
+                        // Handle it here so parsers and callers other than skip()
+                        // cannot enter an unbounded busy loop. A zero-length read
+                        // legitimately returns zero and retains JDK validation.
+                        var emptyReads = 0
+                        while (true) {
+                            val n = super.read(buffer, offset, length)
+                            if (n != 0 || length == 0) {
+                                if (n > 0) checkLimit(n)
+                                return n
+                            }
+                            if (++emptyReads >= MAX_EMPTY_READS) {
+                                throw IOException("Source made no progress")
+                            }
+                        }
                     }
                     /** Consume skipped bytes through the checked read path; never bypass the size cap. */
                     override fun skip(n: Long): Long {
                         if (n <= 0) return 0
                         val scratch = ByteArray(SKIP_BUFFER_BYTES)
                         var remaining = n
-                        var emptyReads = 0
                         while (remaining > 0) {
+                            // read(byte[]) guarantees bounded progress or throws.
                             val amount = read(scratch, 0, minOf(remaining, scratch.size.toLong()).toInt())
                             if (amount == -1) break
-                            if (amount == 0) {
-                                // Non-conforming or stalled streams must not spin a
-                                // core indefinitely during a large XMLTV/M3U import.
-                                if (++emptyReads >= MAX_EMPTY_READS) {
-                                    throw IOException("Source stalled during skip")
-                                }
-                                continue
-                            }
-                            emptyReads = 0
                             remaining -= amount
                         }
                         return n - remaining
