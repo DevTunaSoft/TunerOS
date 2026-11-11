@@ -31,3 +31,11 @@ Windows bootstrap helper added as a temporary alternative to manually installing
 ## DVR implementation checkpoint — 2026-11-10
 
 DVR is now active development rather than a later placeholder. The recorder is designed so recording duration does not grow its working buffer: raw streams use a fixed 64 KiB copy buffer, and HLS reuses one 64 KiB segment buffer while polling bounded manifests and retaining only new segment metadata. Future jobs are persisted separately from recording history; credential-bearing source URLs and provider headers are kept in Android Keystore-backed encrypted storage rather than plaintext SQLite. Exact-alarm permission is required before a background future recording is armed on modern Android. Encrypted HLS, fMP4 HLS, separate rendition muxing and DASH recording remain explicitly unsupported until implemented and tested.
+
+
+## 2026-11-11 integration and validation priority
+
+1. Reconcile the existing full-feature PR #1 (classic cable + experimental DVR) instead of duplicating work; verify CI before merging to `main`.
+2. Run Android TV/mobile manual acceptance: remote navigation and horizontal DVR actions, rotation restoration, stream switching, playback, saved sources.
+3. Run real DVR acceptance: HLS/raw capture, interrupted/partial files, exact-alarm reboot recovery with >200 jobs, SAF USB/SD removable storage, storage pressure and provider failure.
+4. Benchmark 1 GiB/2 GiB guide imports and long recording sessions before asserting measured memory savings. Keep XMLTV windowing off until future-only guide semantics and refresh policy are implemented.

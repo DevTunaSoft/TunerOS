@@ -129,3 +129,13 @@ Current branch `perf/windowed-epg-retention` now contains a bounded DVR foundati
 - The UI can choose a recording tree, return future recordings to internal storage, play/delete existing internal or external recordings, and keeps prior persisted grants so recordings on previously selected media remain accessible.
 - Automated evidence: GitHub Actions run **42848491493** completed successfully on code head `48a96c6709a05d5de738c9b983541426f6b51635`, including core tests, debug APK assembly and artifact upload.
 - **UNVERIFIED / NOT RUN:** selecting an actual removable SD/USB device on target Android hardware, long recording to removable media, removal during capture, reinsertion and playback, provider-specific rename behavior, and storage-pressure behavior on a real device.
+
+
+## 2026-11-11 PR integration audit and bounded-resource fixes
+
+- Audited live `main` (`b78d42b`) and PR #1: despite its original narrow title, it contains 37 changed files covering the guide timeline and experimental DVR/PVR. Avoid duplicating these implementations on a second branch.
+- HLS capture polling: clamp target duration to 2–20 seconds **before** multiplication to avoid overflow and rapid network polling from malformed manifests. Added `extremeTargetDurationUsesBoundedPollingInterval` JVM regression (commit `5b36ff2`).
+- Scheduled DVR recovery: replace the first-200-jobs-only query with stable keyset pagination (`start_epoch,id`) and process all pending jobs in bounded batches of 200. This resolves a silent omission of later schedules while keeping memory bounded; Android SQLite/reboot acceptance is **NOT RUN**.
+- UI: collect the nine DVR actions in one horizontally scrollable toolbar so they do not crowd out the video/guide on shorter displays. TV focus/remote behavior remains **UNVERIFIED**.
+- Android guide import now uses `includeDescriptions = false`. Programme descriptions are not used by the current alpha UI, so omitting them avoids retaining strings; actual heap savings are **UNMEASURED**. Windowed retention remains disabled at the app call site to avoid hiding channels with only future schedules.
+- Integration gate: require successful CI unit tests and debug APK assembly for the final branch head before merging. Physical-device playback, SAF/USB recording, and reboot scheduling require subsequent acceptance; these are not implied by a green CI result.
