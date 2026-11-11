@@ -76,6 +76,7 @@ internal object OnDeviceSelfTest {
         }
 
     /** Safe to call at startup or after an import. No existing recordings are touched. */
+    @Synchronized
     fun run(context: Context, hasPlaylist: Boolean, hasGuide: Boolean): Report {
         val previousRunIncomplete = File(context.filesDir, RUN_MARKER).exists()
         val marker = File(context.filesDir, RUN_MARKER)
@@ -225,6 +226,7 @@ internal object OnDeviceSelfTest {
      * URLs, error messages, titles or tokens from entering persistent diagnostics.
      * Event file is strictly bounded, with no unbounded in-memory history.
      */
+    @Synchronized
     fun observe(context: Context, event: Event, metric: Long = 0) {
         val file = File(context.filesDir, EVENTS_FILE)
         val line = "${System.currentTimeMillis()}\t${SystemClock.elapsedRealtime()}" +
@@ -244,6 +246,7 @@ internal object OnDeviceSelfTest {
         }
     }
 
+    @Synchronized
     fun latestText(context: Context): String {
         val report = File(context.filesDir, REPORT_FILE)
         val reportText = if (report.exists() && report.length() <= 8 * 1024) {
