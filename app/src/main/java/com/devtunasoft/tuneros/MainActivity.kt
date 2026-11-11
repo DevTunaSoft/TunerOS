@@ -1,6 +1,7 @@
 package com.devtunasoft.tuneros
 
 import android.app.Activity
+import android.app.AlertDialog
 import android.app.AlarmManager
 import android.content.Intent
 import android.net.Uri
@@ -103,6 +104,8 @@ class MainActivity : Activity() {
     private lateinit var search: EditText
     private lateinit var hideNoGuide: CheckBox
     private lateinit var status: TextView
+    private lateinit var diagnosticsSummary: TextView
+    private var selfTestsQueued = false
     private lateinit var timeRail: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -176,6 +179,8 @@ class MainActivity : Activity() {
         root.addView(playerView, LinearLayout.LayoutParams(-1, 0, 0.7f))
         status = label("Enter an M3U URL to begin", 13)
         root.addView(status)
+        diagnosticsSummary = label("Autonomous QA: scheduled", 12)
+        root.addView(diagnosticsSummary)
         // A single focus-scrollable action row keeps the TV guide visible on short screens.
         val dvrActions = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -188,6 +193,7 @@ class MainActivity : Activity() {
             addView(button("Delete recording") { deleteFocusedRecording() })
             addView(button("Choose recording storage") { chooseRecordingStorage() })
             addView(button("Use internal recording storage") { useInternalRecordingStorage() })
+            addView(button("Self-test report") { showDiagnostics() })
         }
         root.addView(HorizontalScrollView(this).apply {
             isHorizontalScrollBarEnabled = true
@@ -249,6 +255,51 @@ class MainActivity : Activity() {
             }
             override fun afterTextChanged(s: android.text.Editable?) = Unit
         })
+        scheduleSelfTests()
+    }
+
+    private fun scheduleSelfTests() {
+        // Only one probe pass at once; use the app's existing serial worker.
+        if (selfTestsQueued || worker.isShutdown) return
+        selfTestsQueued = true
+        val hasPlaylist = channels.isNotEmpty()
+        val hasGuide = guide != null
+        worker.execute {
+            val report = runCatching {
+                OnDeviceSelfTest.run(applicationContext, hasPlaylist, hasGuide)
+            }
+            runOnUiThread {
+                selfTestsQueued = false
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                report.onSuccess { diagnosticsSummary.text = it.summary() }
+                    .onFailure { diagnosticsSummary.text = "Autonomous QA: FAIL (runner)" }
+            }
+        }
+    }
+
+    private fun observe(event: OnDeviceSelfTest.Event, value: Long = 0) {
+        if (worker.isShutdown) return
+        worker.execute {
+            runCatching { OnDeviceSelfTest.observe(applicationContext, event, value) }
+        }
+    }
+
+    private fun showDiagnostics() {
+        val text = OnDeviceSelfTest.latestText(applicationContext)
+        AlertDialog.Builder(this)
+            .setTitle("Autonomous device diagnostics")
+            .setMessage(text)
+            .setPositiveButton("Close", null)
+            .setNegativeButton("Run again") { _, _ -> scheduleSelfTests() }
+            .setNeutralButton("Share report") { _, _ ->
+                val share = Intent(Intent.ACTION_SEND).apply {
+                    type = "text/plain"
+                    putExtra(Intent.EXTRA_TEXT, text)
+                }
+                runCatching { startActivity(Intent.createChooser(share, "Share TunerOS diagnostics")) }
+                    .onFailure { showStatus("No compatible app available for sharing") }
+            }
+            .show()
     }
 
     private fun setSourcesVisible(visible: Boolean) {
@@ -293,7 +344,12 @@ class MainActivity : Activity() {
                     val warnings = it.warnings + if (saved) emptyList() else listOf("URL not saved securely")
                     showStatus("Loaded ${it.channels.size} channels" + if (warnings.isEmpty()) "" else "; WARNING: " + warnings.joinToString("; "))
                     renderChannels()
-                }.onFailure { showStatus("Playlist import failed: ${it.javaClass.simpleName}") }
+                    observe(OnDeviceSelfTest.Event.PLAYLIST_IMPORTED, it.channels.size.toLong())
+                    scheduleSelfTests()
+                }.onFailure {
+                    observe(OnDeviceSelfTest.Event.PLAYLIST_IMPORT_FAILED)
+                    showStatus("Playlist import failed: ${it.javaClass.simpleName}")
+                }
             }
         }
     }
@@ -317,7 +373,12 @@ class MainActivity : Activity() {
                     showStatus("Loaded ${it.programs.size} programs across ${it.channelNames.size} guide channels" +
                         if (warnings.isEmpty()) "" else "; WARNING: " + warnings.joinToString("; "))
                     renderChannels()
-                }.onFailure { showStatus("Guide import failed: ${it.javaClass.simpleName}") }
+                    observe(OnDeviceSelfTest.Event.GUIDE_IMPORTED, it.programs.size.toLong())
+                    scheduleSelfTests()
+                }.onFailure {
+                    observe(OnDeviceSelfTest.Event.GUIDE_IMPORT_FAILED)
+                    showStatus("Guide import failed: ${it.javaClass.simpleName}")
+                }
             }
         }
     }
@@ -402,13 +463,20 @@ class MainActivity : Activity() {
             playerView.player = created
             created.addListener(object : Player.Listener {
                 override fun onIsPlayingChanged(isPlaying: Boolean) {
-                    if (player === created) updateKeepScreenOn(isPlaying)
+                    if (player === created) {
+                        updateKeepScreenOn(isPlaying)
+                        if (isPlaying) observe(OnDeviceSelfTest.Event.PLAYBACK_STARTED)
+                    }
                 }
                 override fun onPlayerError(error: PlaybackException) {
-                    if (player === created) showStatus(playbackFailureMessage(error))
+                    if (player === created) {
+                        observe(OnDeviceSelfTest.Event.PLAYBACK_ERROR, error.errorCode.toLong())
+                        showStatus(playbackFailureMessage(error))
+                    }
                 }
                 override fun onPlaybackStateChanged(playbackState: Int) {
                     if (player === created && playbackState == Player.STATE_READY) {
+                        observe(OnDeviceSelfTest.Event.PLAYBACK_READY)
                         showStatus("Playing: " + (activeChannelName ?: "channel"))
                     }
                 }
@@ -421,6 +489,7 @@ class MainActivity : Activity() {
         val path = channel.streamUrl.substringBefore('?').lowercase()
         if (path.endsWith(".m3u8")) builder.setMimeType(MimeTypes.APPLICATION_M3U8)
         if (path.endsWith(".mpd")) builder.setMimeType(MimeTypes.APPLICATION_MPD)
+        observe(OnDeviceSelfTest.Event.PLAYBACK_REQUESTED)
         target.setMediaItem(builder.build())
         target.prepare()
         target.playWhenReady = true
