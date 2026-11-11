@@ -84,6 +84,8 @@ class MainActivity : Activity() {
     private var showingRecordings = false
     private var focusedRecording: RecordingCatalogEntry? = null
     private var playingRecordingId: String? = null
+    private lateinit var sourcePanel: LinearLayout
+    private lateinit var sourcesButton: Button
     private lateinit var playlistUrl: EditText
     private lateinit var guideUrl: EditText
     private lateinit var search: EditText
@@ -114,13 +116,34 @@ class MainActivity : Activity() {
             }
         }
         setContentView(root)
-        root.addView(label("TunerOS · Classic Cable Alpha", 22))
+        sourcesButton = button("Hide sources") {
+            setSourcesVisible(sourcePanel.visibility != android.view.View.VISIBLE)
+        }
+        root.addView(LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            addView(label("TunerOS · Classic Cable Alpha", 22),
+                LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+            addView(sourcesButton)
+        })
+        sourcePanel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+        }
         playlistUrl = urlField("M3U playlist URL", "")
-        root.addView(playlistUrl)
-        root.addView(button("Load channels") { loadPlaylist() })
+        sourcePanel.addView(LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            addView(playlistUrl, LinearLayout.LayoutParams(0,
+                LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+            addView(button("Load channels") { loadPlaylist() })
+        })
         guideUrl = urlField("XMLTV guide URL (optional)", "")
-        root.addView(guideUrl)
-        root.addView(button("Load guide") { loadGuide() })
+        sourcePanel.addView(LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            addView(guideUrl, LinearLayout.LayoutParams(0,
+                LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+            addView(button("Load guide") { loadGuide() })
+        })
+        root.addView(sourcePanel)
+        setSourcesVisible(retained?.guide == null)
         search = urlField("Search channels", retained?.searchQuery.orEmpty())
         root.addView(search)
         hideNoGuide = CheckBox(this).apply {
@@ -138,7 +161,7 @@ class MainActivity : Activity() {
             setBackgroundColor(Color.BLACK)
             isFocusable = true
         }
-        root.addView(playerView, LinearLayout.LayoutParams(-1, 0, 1.1f))
+        root.addView(playerView, LinearLayout.LayoutParams(-1, 0, 0.7f))
         status = label("Enter an M3U URL to begin", 13)
         root.addView(status)
         // A single focus-scrollable action row keeps the TV guide visible on short screens.
@@ -187,7 +210,7 @@ class MainActivity : Activity() {
             isFocusable = true
             dividerHeight = 0
         }
-        root.addView(channelList, LinearLayout.LayoutParams(-1, 0, 1.0f))
+        root.addView(channelList, LinearLayout.LayoutParams(-1, 0, 1.3f))
         if (retained != null) {
             renderChannels()
             showStatus(
@@ -214,6 +237,12 @@ class MainActivity : Activity() {
             }
             override fun afterTextChanged(s: android.text.Editable?) = Unit
         })
+    }
+
+    private fun setSourcesVisible(visible: Boolean) {
+        if (!::sourcePanel.isInitialized || !::sourcesButton.isInitialized) return
+        sourcePanel.visibility = if (visible) android.view.View.VISIBLE else android.view.View.GONE
+        sourcesButton.text = if (visible) "Hide sources" else "Show sources"
     }
 
     private fun label(value: String, size: Int): TextView = TextView(this).apply {
@@ -271,6 +300,7 @@ class MainActivity : Activity() {
                 if (epoch != guideEpoch.get() || isFinishing || isDestroyed) return@runOnUiThread
                 result.onSuccess {
                     guide = it
+                    setSourcesVisible(false)
                     val warnings = it.warnings + if (saved) emptyList() else listOf("URL not saved securely")
                     showStatus("Loaded ${it.programs.size} programs across ${it.channelNames.size} guide channels" +
                         if (warnings.isEmpty()) "" else "; WARNING: " + warnings.joinToString("; "))
