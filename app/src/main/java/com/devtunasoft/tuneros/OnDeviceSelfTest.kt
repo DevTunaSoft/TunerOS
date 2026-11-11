@@ -27,8 +27,10 @@ import java.io.FileOutputStream
 internal object OnDeviceSelfTest {
     enum class State { PASS, FAIL, BLOCKED, NOT_RUN }
     enum class Event {
-        PLAYLIST_IMPORTED, PLAYLIST_IMPORT_FAILED, GUIDE_IMPORTED, GUIDE_IMPORT_FAILED,
-        PLAYBACK_REQUESTED, PLAYBACK_READY, PLAYBACK_STARTED, PLAYBACK_ERROR
+        PLAYLIST_IMPORTED, PLAYLIST_IMPORT_FAILED, PLAYLIST_IMPORT_MILLIS,
+        GUIDE_IMPORTED, GUIDE_IMPORT_FAILED, GUIDE_IMPORT_MILLIS,
+        PLAYBACK_REQUESTED, PLAYBACK_READY, PLAYBACK_STARTED, PLAYBACK_ERROR,
+        PLAYBACK_FIRST_FRAME, PLAYBACK_TIMEOUT
     }
 
     data class Check(val id: String, val state: State, val detail: String)
@@ -81,7 +83,7 @@ internal object OnDeviceSelfTest {
         val previousRunIncomplete = File(context.filesDir, RUN_MARKER).exists()
         val marker = File(context.filesDir, RUN_MARKER)
         marker.writeText(System.currentTimeMillis().toString())
-        val checks = ArrayList<Check>(14)
+        val checks = ArrayList<Check>(16)
         checks += Check(
             "previous-test-run",
             if (previousRunIncomplete) State.BLOCKED else State.PASS,
@@ -206,6 +208,11 @@ internal object OnDeviceSelfTest {
             if (observedPlayback)
                 "A player previously reached isPlaying; decoder/format coverage unverified"
             else "No real provider stream has reached isPlaying in retained observations")
+        checks += Check("live-first-video-frame",
+            if (hasEvent(context, Event.PLAYBACK_FIRST_FRAME)) State.PASS else State.NOT_RUN,
+            if (hasEvent(context, Event.PLAYBACK_FIRST_FRAME))
+                "At least one video frame was rendered on this installation"
+            else "No on-device video frame callback has been observed yet")
         checks += Check("reboot-usb-and-long-run",
             State.NOT_RUN, "Physical power cuts, USB removal and extended RAM stress cannot be simulated safely")
 
