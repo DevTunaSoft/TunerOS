@@ -214,8 +214,9 @@ class HlsCaptureEngine(
         }
     }
 
+    /** Clamp seconds before multiplication so malformed manifests cannot overflow into rapid polls. */
     private fun pollDelayMillis(targetDurationSeconds: Long?): Long =
-        ((targetDurationSeconds ?: 4L) * 500L).coerceIn(1_000L, 10_000L)
+        (targetDurationSeconds ?: 4L).coerceIn(2L, 20L) * 500L
 
     private fun resolveHttp(base: String, relative: String): String {
         val baseUri = URI(base)
