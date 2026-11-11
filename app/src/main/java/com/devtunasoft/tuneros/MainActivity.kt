@@ -80,11 +80,10 @@ class MainActivity : Activity() {
     private val searchRefresh = Runnable { renderChannels() }
     private val clockRefresh = object : Runnable {
         override fun run() {
-            // EPG data and filters do not change just because one minute passed.
-            // Redraw visible now-markers only; no rebind, sorting or List allocation.
-            if (guide != null && !isFinishing && !isDestroyed &&
-                ::channelAdapter.isInitialized && ::channelList.isInitialized
-            ) {
+            // No background wakeups while the activity is stopped or has no EPG.
+            if (!activityStarted || guide == null || isFinishing || isDestroyed) return
+            // A clock change never requires a dataset refresh or programme rebind.
+            if (::channelAdapter.isInitialized && ::channelList.isInitialized) {
                 channelAdapter.refreshClock(channelList, System.currentTimeMillis() / 1000)
             }
             uiHandler.postDelayed(this, 60_000)
@@ -98,6 +97,7 @@ class MainActivity : Activity() {
     private var filteredGuide: GuideSnapshot? = null
     private var filteredQuery: String? = null
     private var filteredHideNoGuide = false
+    private var activityStarted = false
     private var filteredChannels: List<Channel> = emptyList()
     private var player: ExoPlayer? = null
     // Reuse a single decoder for channels with identical provider request headers.
@@ -604,6 +604,10 @@ class MainActivity : Activity() {
                 result.onSuccess {
                     guide = it
                     setSourcesVisible(false)
+                    if (activityStarted) {
+                        uiHandler.removeCallbacks(clockRefresh)
+                        uiHandler.post(clockRefresh)
+                    }
                     val warnings = it.warnings + if (saved) emptyList() else listOf("URL not saved securely")
                     showStatus("Loaded ${it.programs.size} programs across ${it.channelNames.size} guide channels" +
                         if (warnings.isEmpty()) "" else "; WARNING: " + warnings.joinToString("; "))
@@ -1212,8 +1216,13 @@ class MainActivity : Activity() {
     private fun showStatus(value: String) { status.text = value }
 
     private fun isHttpUrl(value: String): Boolean = runCatching { SourceDownloader.checkedUrl(value) }.isSuccess
-    override fun onStart() { super.onStart(); uiHandler.post(clockRefresh) }
+    override fun onStart() {
+        super.onStart()
+        activityStarted = true
+        if (guide != null) uiHandler.post(clockRefresh)
+    }
     override fun onStop() {
+        activityStarted = false
         uiHandler.removeCallbacks(clockRefresh)
         super.onStop()
         releasePlayer()
