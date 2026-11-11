@@ -456,13 +456,17 @@ class MainActivity : Activity() {
         worker.execute {
             val result = runCatching {
                 downloader.open(url, 16L * 1024 * 1024).bufferedReader().use {
-                    PlaylistParser.parseReport(it)
+                    PlaylistParser.parseReport(it).also { parsed ->
+                        require(parsed.channels.isNotEmpty()) { "Playlist contains no channels" }
+                    }
                 }
             }
-            // A broken download must not replace the last usable encrypted URL.
-            val saved = result.isSuccess && (!saveOnSuccess || runCatching {
-                secureSources.save("playlist", url)
-            }.getOrDefault(false))
+            // Failed, empty or superseded imports must not overwrite a usable
+            // encrypted source. Keep writes on the existing background worker.
+            val saved = result.isSuccess && epoch == playlistEpoch.get() &&
+                (!saveOnSuccess || runCatching {
+                    secureSources.save("playlist", url)
+                }.getOrDefault(false))
             runOnUiThread {
                 if (epoch != playlistEpoch.get() || isFinishing || isDestroyed) return@runOnUiThread
                 result.onSuccess {
@@ -495,11 +499,15 @@ class MainActivity : Activity() {
             val result = runCatching {
                 downloader.open(url, 64L * 1024 * 1024).use {
                     GuideParser.parse(it, includeDescriptions = false)
-                }.also { it.prepareIndex() }
+                }.also { parsed ->
+                    require(parsed.programs.isNotEmpty()) { "Guide contains no programmes" }
+                    parsed.prepareIndex()
+                }
             }
-            val saved = result.isSuccess && (!saveOnSuccess || runCatching {
-                secureSources.save("guide", url)
-            }.getOrDefault(false))
+            val saved = result.isSuccess && epoch == guideEpoch.get() &&
+                (!saveOnSuccess || runCatching {
+                    secureSources.save("guide", url)
+                }.getOrDefault(false))
             runOnUiThread {
                 if (epoch != guideEpoch.get() || isFinishing || isDestroyed) return@runOnUiThread
                 result.onSuccess {
