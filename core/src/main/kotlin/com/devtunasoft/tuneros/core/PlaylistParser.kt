@@ -91,13 +91,30 @@ object PlaylistParser {
     private val attribute = Regex("([A-Za-z][A-Za-z0-9_-]*)\\s*=\\s*(?:\"([^\"]*)\"|'([^']*)'|([^\\s,]+))")
 
     private fun parseExtinf(line: String): Pending {
-        val attrs = attribute.findAll(line).associate {
-            it.groupValues[1].lowercase() to (it.groupValues[2].ifEmpty { it.groupValues[3] }.ifEmpty { it.groupValues[4] })
+        // Large provider feeds often contain unused metadata attributes.
+        // Extract only consumed values: no per-channel attribute map,
+        // Pair objects or lowercase copies. Duplicate keys still use last wins.
+        var tvgName: String? = null
+        var guideId: String? = null
+        var logo: String? = null
+        var group: String? = null
+        for (match in attribute.findAll(line)) {
+            val key = match.groups[1]?.value ?: continue
+            val value = match.groups[2]?.value
+                ?: match.groups[3]?.value
+                ?: match.groups[4]?.value
+                ?: ""
+            when {
+                key.equals("tvg-name", ignoreCase = true) -> tvgName = value
+                key.equals("tvg-id", ignoreCase = true) -> guideId = value
+                key.equals("tvg-logo", ignoreCase = true) -> logo = value
+                key.equals("group-title", ignoreCase = true) -> group = value
+            }
         }
         val display = line.substringAfterLast(',', "").trim()
-        val name = display.ifBlank { attrs["tvg-name"].orEmpty() }
-        return Pending(name, attrs["tvg-id"], attrs["tvg-logo"], attrs["group-title"])
+        return Pending(display.ifBlank { tvgName.orEmpty() }, guideId, logo, group)
     }
+
 
     private val hexDigits = "0123456789abcdef".toCharArray()
 
