@@ -58,7 +58,15 @@ class DvrRecordingService : Service() {
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
-        catalog.markInterruptedRecordings(nowSeconds())
+        val recovered = catalog.markInterruptedRecordings(nowSeconds())
+        if (recovered > 0) {
+            runCatching {
+                OnDeviceSelfTest.observe(
+                    applicationContext, OnDeviceSelfTest.Event.RECORDING_RECOVERED,
+                    recovered.toLong(),
+                )
+            }
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -114,6 +122,11 @@ class DvrRecordingService : Service() {
 
         worker.execute {
             try {
+                runCatching {
+                    OnDeviceSelfTest.observe(
+                        applicationContext, OnDeviceSelfTest.Event.RECORDING_STARTED,
+                    )
+                }
                 capture(id, url, endEpochSeconds, userAgent, referer)
             } finally {
                 activeRecordingId.set(null)
@@ -178,15 +191,17 @@ class DvrRecordingService : Service() {
         } catch (error: Exception) {
             val bytes = sink?.bytesWritten ?: 0L
             val wasCancelled = cancelled.get()
+            val state = if (wasCancelled) "CANCELLED" else if (bytes > 0) "PARTIAL" else "FAILED"
             catalog.finish(
                 id = id,
-                state = if (wasCancelled) "CANCELLED" else if (bytes > 0) "PARTIAL" else "FAILED",
+                state = state,
                 stoppedEpochSeconds = nowSeconds(),
                 bytesWritten = bytes,
                 storageLocation = sink?.location?.takeIf { bytes > 0 },
                 failureReason = if (wasCancelled) null else error.javaClass.simpleName,
             )
             if (bytes == 0L) sink?.delete()
+            observeOutcome(state, bytes)
         } finally {
             initialConnection?.disconnect()
             activeConnection?.disconnect()
@@ -313,15 +328,17 @@ class DvrRecordingService : Service() {
     ) {
         if (outcome.finalizeFile) {
             val finalizedLocation = sink.finalizeRecording()
+            val state = if (finalizedLocation != null) "COMPLETED" else "PARTIAL"
             catalog.finish(
                 id = id,
-                state = if (finalizedLocation != null) "COMPLETED" else "PARTIAL",
+                state = state,
                 stoppedEpochSeconds = nowSeconds(),
                 bytesWritten = outcome.bytesWritten,
                 storageLocation = finalizedLocation ?: sink.location.takeIf { outcome.bytesWritten > 0 },
                 failureReason = if (finalizedLocation != null) null else
                     "Unable to finalize recording output",
             )
+            observeOutcome(state, outcome.bytesWritten)
             return
         }
 
@@ -334,6 +351,19 @@ class DvrRecordingService : Service() {
             storageLocation = sink.location.takeIf { outcome.bytesWritten > 0 },
             failureReason = outcome.failureReason,
         )
+        observeOutcome(outcome.state, outcome.bytesWritten)
+    }
+
+    private fun observeOutcome(state: String, bytes: Long) {
+        val event = when (state) {
+            "COMPLETED" -> if (bytes > 0) OnDeviceSelfTest.Event.RECORDING_COMPLETED
+                else OnDeviceSelfTest.Event.RECORDING_FAILED
+            "PARTIAL" -> OnDeviceSelfTest.Event.RECORDING_PARTIAL
+            "CANCELLED" -> OnDeviceSelfTest.Event.RECORDING_CANCELLED
+            else -> OnDeviceSelfTest.Event.RECORDING_FAILED
+        }
+        // Logging is strictly best effort: it cannot prevent recording finalization.
+        runCatching { OnDeviceSelfTest.observe(applicationContext, event, bytes) }
     }
 
     private fun openHttp(
