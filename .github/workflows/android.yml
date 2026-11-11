@@ -35,3 +35,64 @@ jobs:
           name: TunerOS-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
+
+  emulator-self-test:
+    name: Execute TunerOS autonomous self-tests on Android 35
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: TunerOS-debug-apk
+          path: ci-apk
+      - name: Enable Android emulator KVM acceleration
+        run: |
+          test -e /dev/kvm
+          sudo chmod 666 /dev/kvm
+      - name: Run the app's built-in checks on a low-memory emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_2
+          ram-size: 2048M
+          heap-size: 256M
+          disable-animations: true
+          script: |
+            set -eu
+            adb install -r ci-apk/app-debug.apk
+            adb shell am start -n com.devtunasoft.tuneros/.MainActivity
+            # The app runs the checks itself; CI only collects/asserts its private
+            # debug report. No human interaction, provider streams or credentials.
+            for attempt in $(seq 1 60); do
+              adb shell run-as com.devtunasoft.tuneros cat files/tuneros-selftest-report.txt > on-device-report.txt 2>/dev/null || true
+              if grep -Fq "$(printf 'PASS\tscratch-dvr-catalog\t')" on-device-report.txt; then
+                break
+              fi
+              sleep 2
+            done
+            for check in offline-m3u-parser offline-xmltv-parser offline-channel-filter offline-timeline offline-xmltv-dtd-block scratch-dvr-copy scratch-dvr-catalog android-keystore-roundtrip; do
+              if ! grep -Fq "$(printf 'PASS\t%s\t' "$check")" on-device-report.txt; then
+                echo "On-device QA assertion failed or never completed: $check"
+                cat on-device-report.txt
+                exit 1
+              fi
+            done
+            if grep -q '^FAIL[[:space:]]' on-device-report.txt; then
+              echo "Unexpected failure in the app's own self-test report"
+              cat on-device-report.txt
+              exit 1
+            fi
+            cat on-device-report.txt
+      - name: Publish autonomous Android test evidence
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: TunerOS-emulator-self-test-report
+          path: on-device-report.txt
+          if-no-files-found: warn
+          retention-days: 14
