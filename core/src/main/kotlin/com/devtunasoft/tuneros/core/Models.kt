@@ -17,16 +17,23 @@ data class GuideSnapshot(
 ) {
     private data class Schedule(val entries: List<GuideProgram>, val prefixMaxEnd: LongArray)
     private val byChannel: Map<String, Schedule> by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
-        programs.groupBy { it.channelId }.mapValues { (_, values) ->
-            val sorted = values.sortedWith(compareBy<GuideProgram> { it.startEpochSeconds }.thenBy { it.endEpochSeconds })
-            val prefix = LongArray(sorted.size)
+        // Group once and sort the same lists in place. Avoid allocating a second sorted
+        // copy of every channel's programme references during large XMLTV imports.
+        val groups = HashMap<String, MutableList<GuideProgram>>()
+        for (program in programs) groups.getOrPut(program.channelId) { ArrayList() }.add(program)
+        val indexed = HashMap<String, Schedule>(groups.size)
+        val ordering = compareBy<GuideProgram> { it.startEpochSeconds }.thenBy { it.endEpochSeconds }
+        for ((id, entries) in groups) {
+            entries.sortWith(ordering)
+            val prefix = LongArray(entries.size)
             var maximum = Long.MIN_VALUE
-            for (i in sorted.indices) {
-                maximum = maxOf(maximum, sorted[i].endEpochSeconds)
+            for (i in entries.indices) {
+                maximum = maxOf(maximum, entries[i].endEpochSeconds)
                 prefix[i] = maximum
             }
-            Schedule(sorted, prefix)
+            indexed[id] = Schedule(entries, prefix)
         }
+        indexed
     }
     /** Call on the import worker; never construct the index on the UI thread. */
     fun prepareIndex() { byChannel.size }
@@ -43,10 +50,17 @@ data class GuideSnapshot(
             if (entries[middle].startEpochSeconds < toEpochSeconds) low = middle + 1 else high = middle
         }
         val exclusiveEnd = low
-        var start = exclusiveEnd
-        while (start > 0 && schedule.prefixMaxEnd[start - 1] > fromEpochSeconds) start--
-        if (start == exclusiveEnd) return emptyList()
-        return entries.subList(start, exclusiveEnd).filter { it.endEpochSeconds > fromEpochSeconds }
+        // Prefix maxima are monotonic: binary search instead of walking backwards
+        // through potentially thousands of expired or overlapping programmes.
+        var from = 0
+        var until = exclusiveEnd
+        while (from < until) {
+            val middle = (from + until) ushr 1
+            if (schedule.prefixMaxEnd[middle] <= fromEpochSeconds) from = middle + 1
+            else until = middle
+        }
+        if (from == exclusiveEnd) return emptyList()
+        return entries.subList(from, exclusiveEnd).filter { it.endEpochSeconds > fromEpochSeconds }
     }
     /** Binary search with prefix maxima handles overlapping programmes correctly. */
     fun now(channelId: String, epochSeconds: Long): GuideProgram? {
@@ -67,6 +81,13 @@ data class GuideSnapshot(
         return null
     }
     /** Build a snapshot on a background worker; refresh when the clock changes. */
-    fun currentProgramsAt(epochSeconds: Long): Map<String, GuideProgram> =
-        byChannel.keys.mapNotNull { id -> now(id, epochSeconds)?.let { id to it } }.toMap()
+    fun currentProgramsAt(epochSeconds: Long): Map<String, GuideProgram> {
+        // Build only the result map; avoid intermediate Pair/List allocations per channel.
+        val current = HashMap<String, GuideProgram>()
+        for (id in byChannel.keys) {
+            val program = now(id, epochSeconds)
+            if (program != null) current[id] = program
+        }
+        return current
+    }
 }
