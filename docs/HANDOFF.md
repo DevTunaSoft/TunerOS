@@ -156,3 +156,11 @@ Current branch `perf/windowed-epg-retention` now contains a bounded DVR foundati
 - **PASS**: [GitHub Actions run 42972485921](https://github.com/DevTunaSoft/TunerOS/actions/runs/42972485921) on `main` commit `8445430`: `:core:test`, `:app:assembleDebug`, and debug APK artifact upload. Includes the short HLS byte-range regression.
 - **New change, CI PENDING**: Pure Kotlin `HlsContentRange.matches` validates 206 `Content-Range` offsets/end and reported length boundaries, guarding against a provider returning the correct byte count from the wrong offset. `DvrRecordingService` rejects mismatched or absent headers and disconnects the connection; focused JVM tests cover positive, missing, corrupt, overflow and wrong-range responses.
 - **UNVERIFIED**: Hardware provider compatibility with strict `Content-Range`, Android TV/network fault injection, USB/SD recording, and actual segment playback. Correctness takes priority over silently accepting malformed providers.
+
+
+## Final verified source checkpoint — 2026-11-11
+
+- **PASS (CI):** [GitHub Actions run 42972740969](https://github.com/DevTunaSoft/TunerOS/actions/runs/42972740969), exact code head `26953c0d2c5c09b6b849e6760836e2ebeb65b762`, completed `:core:test`, `:app:assembleDebug` and artifact upload. Artifact `TunerOS-debug-apk` was confirmed present (4,726,454-byte ZIP); no real-device validation was run.
+- The new core `HlsContentRange` tests cover correct ranges, wrong offsets, oversized responses, invalid reported totals, malformed headers and overflow. The Android recorder requires matching `206 Content-Range` headers before accepting requested byte ranges.
+- **NOT RUN**: Real streaming playback, Samsung/Android TV lifecycle/focus, timed 1 GiB/2 GiB memory profiling, long-running recordings, scheduled reboot jobs, SAF removable storage, Windows script and release signing. Treat the new DVR as experimental.
+- This Handoff remains the authoritative verification ledger. The roadmap defines separate non-overlapping workstreams; the current environment supports GitHub edits and CI but did not dispatch independent coding subagents. Avoid duplicate branches or PRs.

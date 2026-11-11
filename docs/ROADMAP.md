@@ -41,3 +41,16 @@ DVR is now active development rather than a later placeholder. The recorder is d
 4. Benchmark 1 GiB/2 GiB guide imports and long recording sessions before asserting measured memory savings. Keep XMLTV windowing off until future-only guide semantics and refresh policy are implemented.
 
 **2026-11-11 main integration:** PR #1 merged at `d618c91`. Main CI run 42972145588 passed tests and debug APK assembly. The next pure-core hardening slice validates HLS byte-range byte counts (CI pending). Prioritize real-device acceptance and bounded Stream Doctor diagnostics before expanding DVR formats or multiview.
+
+
+## Independent next workstreams (reconciled against main 26953c0)
+
+| Priority | Workstream / file scope | Acceptance | State |
+|---|---|---|---|
+| P0 | Android device QA, no code edits: Android TV navigation, focus, rotation, URL encryption/migration and live Media3 playback | Timestamped device logs, reproducible PASS/FAIL cases | BLOCKED: no target device/emulator accessible to this execution |
+| P0 | DVR hardware QA, no code edits: scheduled reboot, >200-job rearming, HLS/HTTP and SAF SD/USB fault injection | Verified recordings and recovery with no existing media loss | BLOCKED: no target hardware accessible |
+| P1 | Core performance: `core/` XMLTV bounded indexes and data retention | 1 GiB/2 GiB device benchmarks, preserve future-only EPG channels | UNVERIFIED until device data exists |
+| P1 | Stream Doctor: Android Media3 error classification and safe user diagnostics (separate new helper + tests, no DVR storage edits) | Actionable messages without URL/header credential leaks; regression coverage | READY FOR CODING |
+| P2 | Playback/multiview: Android player controller, decoder constraints and selectable audio | Real HLS/DASH/non-HLS switching, decoder/release stress, memory caps | BLOCKED pending device playback acceptance |
+
+The GitHub Actions suite passed at [run 42972740969](https://github.com/DevTunaSoft/TunerOS/actions/runs/42972740969) for source commit `26953c0`. Do not report this as production/device acceptance.
