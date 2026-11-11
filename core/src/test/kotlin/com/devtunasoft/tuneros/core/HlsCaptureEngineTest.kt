@@ -326,4 +326,36 @@ class HlsCaptureEngineTest {
         assertEquals(HlsCaptureEngine.StopReason.STALLED, result.stopReason)
         assertEquals(listOf(10_000L), delays)
     }
+
+    @Test fun incompleteByteRangeStopsAsPartialInsteadOfAcceptingCorruptMedia() {
+        val url = "https://example.test/live.m3u8"
+        val range = HlsByteRange(length = 5L, offset = 20L)
+        val source = FakeSource(
+            mapOf(
+                url to listOf(
+                    LoadedHlsPlaylist(
+                        url,
+                        HlsMediaPlaylist(
+                            mediaSequence = 7,
+                            targetDurationSeconds = 4,
+                            endList = true,
+                            segments = listOf(
+                                HlsSegment(7, "media.ts", 4.0, range, false, "NONE", null, null),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+            segmentBytes = mapOf("https://example.test/media.ts" to byteArrayOf(1, 2, 3)),
+        )
+        val output = ByteArrayOutputStream()
+        val result = HlsCaptureEngine().record(
+            url, output, 1_000, source, { false }, { 100 }, {},
+        )
+        assertEquals(HlsCaptureEngine.StopReason.GAP, result.stopReason)
+        assertEquals(null, result.lastSequence)
+        assertEquals(3L, result.bytesWritten)
+        assertEquals(3, output.size())
+        assertTrue(result.detail.orEmpty().contains("expected 5 bytes"))
+    }
 }

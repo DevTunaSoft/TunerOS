@@ -139,3 +139,14 @@ Current branch `perf/windowed-epg-retention` now contains a bounded DVR foundati
 - UI: collect the nine DVR actions in one horizontally scrollable toolbar so they do not crowd out the video/guide on shorter displays. TV focus/remote behavior remains **UNVERIFIED**.
 - Android guide import now uses `includeDescriptions = false`. Programme descriptions are not used by the current alpha UI, so omitting them avoids retaining strings; actual heap savings are **UNMEASURED**. Windowed retention remains disabled at the app call site to avoid hiding channels with only future schedules.
 - Integration gate: require successful CI unit tests and debug APK assembly for the final branch head before merging. Physical-device playback, SAF/USB recording, and reboot scheduling require subsequent acceptance; these are not implied by a green CI result.
+
+
+## 2026-11-11 verified main integration and next hardening
+
+- **PASS:** PR #1 merged into `main` at commit `d618c91d56f1118835c0e6b6b588d45a2a89e605`. GitHub Actions [run 42972145588](https://github.com/DevTunaSoft/TunerOS/actions/runs/42972145588) completed `:core:test`, `:app:assembleDebug`, and debug APK artifact upload.
+- **PASS (earlier PR):** [run 42971947481](https://github.com/DevTunaSoft/TunerOS/actions/runs/42971947481) at `7147746` completed the same CI targets before merge.
+- The broad merged feature set includes classic cable timeline and an **experimental** one-recorder DVR with persistent schedule/library, SAF recording destinations, and the bounded optimizations documented above. No on-device or long-running DVR certification is claimed.
+- Duplicate recording IDs now fail without replacing existing catalog rows; internal media output claims a fresh partial file and refuses to overwrite a prior completion. Cleanup refuses to delete files the current attempt did not create. `tryInsertStart` is the collision-safe catalog API.
+- **Next code change (pending CI at time of writing):** Detect short/oversized HTTP HLS byte-range segment responses in the pure core capture engine; mark capture as a partial/gap and add a focused JVM regression. This prevents silent acceptance of wrong byte counts, but does not yet validate HTTP `Content-Range` headers on Android.
+- **NOT RUN:** Android TV and phone acceptance, remote focus, actual HLS and SAF USB/SD capture, reboot after >200 scheduled jobs, memory profiling under 1/2 GiB, Windows helper, and release signing.
+- Next steps: 1) confirm CI on the newest `main` commit, 2) hardware acceptance/logs, 3) Android HTTP range header validation and recorder fault tests, 4) Stream Doctor actionable diagnostics without credential leakage, 5) memory benchmarks before enabling XMLTV window pruning.

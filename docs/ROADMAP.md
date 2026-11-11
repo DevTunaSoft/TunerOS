@@ -39,3 +39,5 @@ DVR is now active development rather than a later placeholder. The recorder is d
 2. Run Android TV/mobile manual acceptance: remote navigation and horizontal DVR actions, rotation restoration, stream switching, playback, saved sources.
 3. Run real DVR acceptance: HLS/raw capture, interrupted/partial files, exact-alarm reboot recovery with >200 jobs, SAF USB/SD removable storage, storage pressure and provider failure.
 4. Benchmark 1 GiB/2 GiB guide imports and long recording sessions before asserting measured memory savings. Keep XMLTV windowing off until future-only guide semantics and refresh policy are implemented.
+
+**2026-11-11 main integration:** PR #1 merged at `d618c91`. Main CI run 42972145588 passed tests and debug APK assembly. The next pure-core hardening slice validates HLS byte-range byte counts (CI pending). Prioritize real-device acceptance and bounded Stream Doctor diagnostics before expanding DVR formats or multiview.

@@ -195,6 +195,16 @@ class HlsCaptureEngine(
 
                         when (copy.stopReason) {
                             StreamRecorder.StopReason.END_OF_STREAM -> {
+                                val expectedBytes = segment.byteRange?.length
+                                if (expectedBytes != null && copy.bytesWritten != expectedBytes) {
+                                    return Result(
+                                        totalBytes,
+                                        lastSequence,
+                                        StopReason.GAP,
+                                        "HLS byte range incomplete: expected $expectedBytes bytes, " +
+                                            "received ${copy.bytesWritten}",
+                                    )
+                                }
                                 lastSequence = segment.sequence
                                 onProgress(totalBytes)
                             }

@@ -4,7 +4,7 @@ TunerOS is a television app being built for Android TV boxes and Android phones.
 
 ## What works in the early alpha source
 
-1. Open the application on a compatible Android device (after a successful APK build and install).
+1. Open the application on a compatible Android device (after a successful APK build and install). Use **Show sources** to reveal the playlist/EPG fields if they are hidden; **Hide sources** returns more screen space to the guide.
 2. Paste the URL of a playlist you are authorized to watch into **M3U playlist URL**.
 3. Choose **Load channels**. The channel list appears when import succeeds.
 4. Optionally paste an XMLTV program guide URL and choose **Load guide**.
@@ -47,3 +47,5 @@ The script downloads Gradle 8.9 to your user profile if it is missing, checks th
 ## TV remote and compact controls (source update 2026-11-11)
 
 The DVR buttons are in one horizontally scrollable action row, rather than occupying nine vertical rows above the guide. Move focus left/right to reach off-screen actions. The main guide uses recycled rows; selecting a channel attempts playback. Android TV remote/focus and portrait-screen checks are **NOT RUN**. The current guide UI does not display XMLTV programme descriptions, so imports now omit those strings; channel names, programme titles, start/end times and scheduled-program focus remain available. This is a code-level optimization, not a measured device memory claim.
+
+**Recording integrity:** For HLS byte-range streams, a short or oversized segment response is treated as a partial recording instead of silently accepting a damaged segment. This path is covered by JVM tests, but live provider/USB playback remains UNVERIFIED.
