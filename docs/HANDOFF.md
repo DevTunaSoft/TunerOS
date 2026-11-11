@@ -166,9 +166,9 @@ Current branch `perf/windowed-epg-retention` now contains a bounded DVR foundati
 - This Handoff remains the authoritative verification ledger. The roadmap defines separate non-overlapping workstreams; the current environment supports GitHub edits and CI but did not dispatch independent coding subagents. Avoid duplicate branches or PRs.
 
 
-## 2026-11-11 Stream Doctor first implementation (CI pending at authoring)
+## 2026-11-11 Stream Doctor first implementation (CI verified)
 
 - New `core/StreamDoctor.kt` classifies Media3 numeric playback errors into short static diagnostic text (network, timeouts, provider access/limits, media format, device decoder, DRM and fallback). The official code reference is https://developer.android.com/reference/androidx/media3/common/PlaybackException.
 - `MainActivity` now uses the same helper for live-channel and recording playback failure messages. It does **not** include exception messages, network URLs, user agents, referrers, tokens or provider headers.
 - `StreamDoctorTest.kt` exercises classification and bounds/privacy properties. The classifier creates no background work and retains no error history; it only allocates the returned brief message when a player error occurs.
-- **CI PENDING** for this new code; no device playback observed. Next: inspect the resulting main workflow and record PASS or FAIL without overstating real-device compatibility.
+- **PASS (CI):** [GitHub Actions run 42973394085](https://github.com/DevTunaSoft/TunerOS/actions/runs/42973394085), commit `2e9f612674fe814108e3dc3f6b39bfae5b6bb396`, completed core tests, debug APK compilation, and artifact upload. **NOT RUN:** live Android TV or phone troubleshooting, Media3 device playback, memory profiling. This is a static code-to-advice classifier, not an automatic recovery agent.
