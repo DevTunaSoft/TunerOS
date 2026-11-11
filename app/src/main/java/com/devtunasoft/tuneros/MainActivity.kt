@@ -424,8 +424,15 @@ class MainActivity : Activity() {
         val startedAtMs = SystemClock.elapsedRealtime()
         showStatus("Importing channels…")
         worker.execute {
-            val saved = secureSources.save("playlist", url)
-            val result = runCatching { downloader.open(url, 16L * 1024 * 1024).bufferedReader().use { PlaylistParser.parseReport(it) } }
+            val result = runCatching {
+                downloader.open(url, 16L * 1024 * 1024).bufferedReader().use {
+                    PlaylistParser.parseReport(it)
+                }
+            }
+            // A broken download must not replace the last usable encrypted URL.
+            val saved = result.isSuccess && runCatching {
+                secureSources.save("playlist", url)
+            }.getOrDefault(false)
             runOnUiThread {
                 if (epoch != playlistEpoch.get() || isFinishing || isDestroyed) return@runOnUiThread
                 result.onSuccess {
@@ -454,10 +461,14 @@ class MainActivity : Activity() {
         val startedAtMs = SystemClock.elapsedRealtime()
         showStatus("Importing guide…")
         worker.execute {
-            val saved = secureSources.save("guide", url)
             val result = runCatching {
-                downloader.open(url, 64L * 1024 * 1024).use { GuideParser.parse(it, includeDescriptions = false) }.also { it.prepareIndex() }
+                downloader.open(url, 64L * 1024 * 1024).use {
+                    GuideParser.parse(it, includeDescriptions = false)
+                }.also { it.prepareIndex() }
             }
+            val saved = result.isSuccess && runCatching {
+                secureSources.save("guide", url)
+            }.getOrDefault(false)
             runOnUiThread {
                 if (epoch != guideEpoch.get() || isFinishing || isDestroyed) return@runOnUiThread
                 result.onSuccess {
