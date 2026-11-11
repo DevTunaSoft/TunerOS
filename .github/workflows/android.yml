@@ -78,7 +78,7 @@ jobs:
               fi
               sleep 2
             done
-            for check in source-recovery-policy offline-m3u-parser offline-xmltv-parser offline-channel-filter offline-timeline offline-xmltv-dtd-block scratch-dvr-copy scratch-dvr-catalog android-keystore-roundtrip debug-large-guide-stress debug-ui-focus debug-empty-guide-dpad; do
+            for check in source-recovery-policy offline-m3u-parser offline-source-stall offline-xmltv-parser offline-channel-filter offline-timeline offline-xmltv-dtd-block scratch-dvr-copy scratch-dvr-catalog android-keystore-roundtrip debug-large-guide-stress debug-ui-focus debug-empty-guide-dpad; do
               if ! grep -Fq "$(printf 'PASS\t%s\t' "$check")" on-device-report.txt; then
                 echo "On-device QA assertion failed or never completed: $check"
                 cat on-device-report.txt
