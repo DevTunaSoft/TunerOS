@@ -248,13 +248,16 @@ class MainActivity : Activity() {
         worker.execute {
             val playlist = runCatching { secureSources.load("playlist") }.getOrNull()
             val epg = runCatching { secureSources.load("guide") }.getOrNull()
-            runCatching { RecordingScheduler.rearmPending(this) }
+            val hadPendingSchedules = runCatching {
+                RecordingScheduler.rearmPending(this)
+            }.getOrDefault(false)
             runOnUiThread {
                 if (!isFinishing && !isDestroyed) {
                     if (playlistUrl.text.isEmpty()) playlist?.let { playlistUrl.setText(it) }
                     if (guideUrl.text.isEmpty()) epg?.let { guideUrl.setText(it) }
-                    // Fold real alarm re-arm evidence into the next unattended report.
-                    scheduleSelfTests()
+                    // Avoid a second expensive parser/Keystore/SQLite QA pass on
+                    // the ordinary startup path with no scheduled DVR jobs.
+                    if (hadPendingSchedules) scheduleSelfTests()
                 }
             }
         }
