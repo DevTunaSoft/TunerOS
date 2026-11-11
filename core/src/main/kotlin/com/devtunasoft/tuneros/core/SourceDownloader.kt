@@ -18,6 +18,7 @@ class SourceDownloader(
         var current = checkedUrl(source)
         for (hop in 0..MAX_REDIRECTS) {
             val connection = connect(current)
+            var opened: InputStream? = null
             try {
                 connection.instanceFollowRedirects = false
                 connection.connectTimeout = 10_000
@@ -37,6 +38,7 @@ class SourceDownloader(
                 }
                 if (code != HttpURLConnection.HTTP_OK) throw IllegalArgumentException("Source returned HTTP $code")
                 val raw = PushbackInputStream(connection.inputStream, 2)
+                opened = raw
                 val first = raw.read()
                 val second = raw.read()
                 if (second != -1) raw.unread(second)
@@ -44,6 +46,7 @@ class SourceDownloader(
                 val gzip = first == 0x1f && second == 0x8b
                 val decoded = if (gzip || connection.contentEncoding.equals("gzip", true) ||
                     current.path.endsWith(".gz", true)) GZIPInputStream(raw) else raw
+                opened = decoded
                 return object : FilterInputStream(decoded) {
                     private var count = 0L
                     override fun read(): Int {
@@ -88,6 +91,10 @@ class SourceDownloader(
                     override fun close() { try { super.close() } finally { connection.disconnect() } }
                 }
             } catch (failure: Exception) {
+                // If sniffing or the gzip constructor throws before returning
+                // the owned wrapper, close the acquired stream, not just its
+                // connection. Never mask the original import failure.
+                try { opened?.close() } catch (_: Exception) { }
                 connection.disconnect()
                 throw failure
             }
