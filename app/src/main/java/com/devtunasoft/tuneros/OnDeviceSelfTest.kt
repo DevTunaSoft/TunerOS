@@ -191,7 +191,8 @@ internal object OnDeviceSelfTest {
                     val recovered = catalog.markInterruptedRecordings(200L) == 1
                     val found = catalog.recent(1).singleOrNull()
                     inserted && duplicateRejected && protected && recovered &&
-                        found?.id == "qa-only-id" && found.title == "Synthetic QA recording" &&
+                        found != null && found.id == "qa-only-id" &&
+                        found.title == "Synthetic QA recording" &&
                         found.state == "PARTIAL" && found.bytesWritten == 8192L &&
                         found.isProtected && found.stoppedEpochSeconds == 200L
                 }
