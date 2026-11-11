@@ -30,7 +30,9 @@ internal object OnDeviceSelfTest {
         PLAYLIST_IMPORTED, PLAYLIST_IMPORT_FAILED, PLAYLIST_IMPORT_MILLIS,
         GUIDE_IMPORTED, GUIDE_IMPORT_FAILED, GUIDE_IMPORT_MILLIS,
         PLAYBACK_REQUESTED, PLAYBACK_READY, PLAYBACK_STARTED, PLAYBACK_ERROR,
-        PLAYBACK_FIRST_FRAME, PLAYBACK_TIMEOUT
+        PLAYBACK_FIRST_FRAME, PLAYBACK_TIMEOUT,
+        RECORDING_STARTED, RECORDING_COMPLETED, RECORDING_PARTIAL,
+        RECORDING_FAILED, RECORDING_CANCELLED, RECORDING_RECOVERED
     }
 
     data class Check(val id: String, val state: State, val detail: String)
@@ -83,7 +85,7 @@ internal object OnDeviceSelfTest {
         val previousRunIncomplete = File(context.filesDir, RUN_MARKER).exists()
         val marker = File(context.filesDir, RUN_MARKER)
         marker.writeText(System.currentTimeMillis().toString())
-        val checks = ArrayList<Check>(16)
+        val checks = ArrayList<Check>(18)
         checks += Check(
             "previous-test-run",
             if (previousRunIncomplete) State.BLOCKED else State.PASS,
@@ -213,6 +215,16 @@ internal object OnDeviceSelfTest {
             if (hasEvent(context, Event.PLAYBACK_FIRST_FRAME))
                 "At least one video frame was rendered on this installation"
             else "No on-device video frame callback has been observed yet")
+        val completedRecording = hasEvent(context, Event.RECORDING_COMPLETED)
+        checks += Check("real-dvr-completion",
+            if (completedRecording) State.PASS else State.NOT_RUN,
+            if (completedRecording) "A real recording completed with nonzero media bytes"
+            else "No completed real recording has been observed")
+        val recoveredRecording = hasEvent(context, Event.RECORDING_RECOVERED)
+        checks += Check("dvr-interruption-recovery",
+            if (recoveredRecording) State.PASS else State.NOT_RUN,
+            if (recoveredRecording) "At least one interrupted catalog row recovered as partial"
+            else "No interruption recovery has been observed")
         checks += Check("reboot-usb-and-long-run",
             State.NOT_RUN, "Physical power cuts, USB removal and extended RAM stress cannot be simulated safely")
 
