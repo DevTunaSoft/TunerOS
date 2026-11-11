@@ -8,6 +8,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.BaseAdapter
 import android.widget.LinearLayout
+import android.widget.ListView
 import android.widget.TextView
 import com.devtunasoft.tuneros.core.Channel
 import com.devtunasoft.tuneros.core.GuideProgram
@@ -64,6 +65,22 @@ internal class CableGuideAdapter(
         this.toEpochSeconds = toEpochSeconds
         this.nowEpochSeconds = nowEpochSeconds
         notifyDataSetChanged()
+    }
+
+    /**
+     * Update only visible now-markers on a minute tick. A full
+     * notifyDataSetChanged() would requery/slice EPG programmes and rebuild
+     * every visible cable row, even though schedules and window are unchanged.
+     * Off-screen rows receive the latest timestamp when ListView recycles them.
+     */
+    fun refreshClock(list: ListView, now: Long) {
+        nowEpochSeconds = now
+        if (list.adapter !== this) return
+        for (position in 0 until list.childCount) {
+            val row = list.getChildAt(position) as? LinearLayout ?: continue
+            val holder = row.tag as? RowHolder ?: continue
+            holder.timelineView.refreshNow(now)
+        }
     }
 
     override fun getCount(): Int = channels.size
