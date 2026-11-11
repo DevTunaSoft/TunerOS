@@ -12,6 +12,8 @@ TunerOS aims to provide a classic-cable electronic program guide, reliable Media
 
 TunerOS now runs an unattended, bounded set of local self-tests on startup and after source imports. The TV/phone interface shows a PASS/FAIL/BLOCKED/NOT RUN summary, and the horizontally scrolling actions row provides a `Self-test report` with an explicitly shared export option. The first checks cover synthetic M3U/XMLTV and DTD rejection, encrypted source storage, scratch DVR copy, exact-alarm access and optional recording destination access. Real provider events are logged locally with numeric codes, uptime timestamps and process PSS snapshots—never source URLs or provider tokens. **This code has not yet been accepted on Android hardware.** See [on-device QA evidence and remaining gates](docs/ON_DEVICE_QA.md) and the [user manual](docs/USER_MANUAL.md).
 
+**Autonomous Android CI gate:** GitHub Actions now includes an Android 35 (2 GiB) emulator job. After the APK build, CI launches TunerOS and checks the app's own private synthetic QA report for parser, guide, SQLite catalog, recording-copy and Keystore assertions. No manual testing steps are needed. The new emulator job's actual result remains **UNVERIFIED** until its workflow run is inspected.
+
 ## Build prerequisites
 
 Android SDK (API 35), JDK 17, and Gradle 8.9. From project root, run `gradle :core:test :app:assembleDebug`. On Windows, optional `scripts/build.ps1` downloads Gradle 8.9 with a SHA-256 check (helper not yet device/Windows tested). APK output: `app/build/outputs/apk/debug/app-debug.apk`. GitHub Actions is intended to run this on commits.
