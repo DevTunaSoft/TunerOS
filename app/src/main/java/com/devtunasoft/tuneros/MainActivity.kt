@@ -239,6 +239,8 @@ class MainActivity : Activity() {
                     if (retained.guide == null) "" else " and guide",
             )
         }
+        // Run bounded offline QA before potentially slow DVR alarm re-arming.
+        scheduleSelfTests()
         worker.execute {
             val playlist = runCatching { secureSources.load("playlist") }.getOrNull()
             val epg = runCatching { secureSources.load("guide") }.getOrNull()
@@ -258,7 +260,6 @@ class MainActivity : Activity() {
             }
             override fun afterTextChanged(s: android.text.Editable?) = Unit
         })
-        scheduleSelfTests()
     }
 
     private fun scheduleSelfTests() {
