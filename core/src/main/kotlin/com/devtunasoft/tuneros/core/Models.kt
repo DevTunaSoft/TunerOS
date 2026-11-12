@@ -37,7 +37,9 @@ data class GuideSnapshot(
                 // Track whether a prior programme extends into this one's
                 // start. Most XMLTV schedules do not overlap; a single
                 // boolean skips per-query scans without an additional index.
-                if (maximum > entry.startEpochSeconds) hasOverlaps = true
+                if (maximum > entry.startEpochSeconds ||
+                    entry.endEpochSeconds <= entry.startEpochSeconds
+                ) hasOverlaps = true
                 maximum = maxOf(maximum, entry.endEpochSeconds)
                 prefix[i] = maximum
             }
