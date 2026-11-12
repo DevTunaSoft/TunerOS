@@ -722,6 +722,44 @@ https://example.com/live.m3u8
         assertTrue(ordinary.programsBetween("normal", 400, 500).isEmpty())
     }
 
+    @Test fun denseNonoverlapWindowsMatchNaiveWithoutMaterializingFilter() {
+        val programmes = List(12_000) { index ->
+            val start = index * 300L
+            GuideProgram("dense", "show-$index", start, start + 300L)
+        }
+        val guide = GuideSnapshot(programmes, emptyMap())
+        guide.prepareIndex()
+        val random = kotlin.random.Random(120011)
+        repeat(750) {
+            val start = random.nextLong(-600, 12_000L * 300L + 600)
+            val end = start + random.nextLong(1, 7200)
+            assertEquals(
+                programmes.filter { it.startEpochSeconds < end && it.endEpochSeconds > start },
+                guide.programsBetween("dense", start, end),
+            )
+        }
+    }
+
+    @Test fun invalidIntervalsAndOverlapsStillUseCorrectFiltering() {
+        val entries = listOf(
+            GuideProgram("c", "long", 0L, 10_000L),
+            GuideProgram("c", "invalid", 500L, 250L),
+            GuideProgram("c", "expired", 700L, 900L),
+            GuideProgram("c", "current", 1500L, 1800L),
+            GuideProgram("c", "later", 2100L, 2600L),
+        )
+        val guide = GuideSnapshot(entries, emptyMap())
+        guide.prepareIndex()
+        val sorted = entries.sortedWith(compareBy<GuideProgram> { it.startEpochSeconds }.thenBy { it.endEpochSeconds })
+        for (from in -200L..2800L step 100L) {
+            val end = from + 700L
+            assertEquals(
+                sorted.filter { it.startEpochSeconds < end && it.endEpochSeconds > from },
+                guide.programsBetween("c", from, end),
+            )
+        }
+    }
+
     @Test fun indexedGuideWindowMatchesNaiveRandomized() {
         val random = kotlin.random.Random(470932)
         repeat(500) { fixture ->
