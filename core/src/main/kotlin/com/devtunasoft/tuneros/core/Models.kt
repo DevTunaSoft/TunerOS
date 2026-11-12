@@ -17,8 +17,8 @@ data class GuideSnapshot(
 ) {
     private data class Schedule(
         val entries: List<GuideProgram>,
-        val prefixMaxEnd: LongArray,
-        val hasOverlaps: Boolean,
+        // Null for nonoverlapping schedules: those need no per-programme index.
+        val prefixMaxEnd: LongArray?,
     )
     private val byChannel: Map<String, Schedule> by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
         // Group once and sort the same lists in place. Avoid allocating a second sorted
@@ -29,21 +29,29 @@ data class GuideSnapshot(
         val ordering = compareBy<GuideProgram> { it.startEpochSeconds }.thenBy { it.endEpochSeconds }
         for ((id, entries) in groups) {
             entries.sortWith(ordering)
-            val prefix = LongArray(entries.size)
+            // For ordinary nonoverlapping XMLTV schedules, end times are
+            // already monotonic after sorting by start. Their own end fields
+            // are the binary-search index: allocating a LongArray would
+            // duplicate 8 bytes per programme without adding information.
             var maximum = Long.MIN_VALUE
-            var hasOverlaps = false
-            for (i in entries.indices) {
-                val entry = entries[i]
-                // Track whether a prior programme extends into this one's
-                // start. Most XMLTV schedules do not overlap; a single
-                // boolean skips per-query scans without an additional index.
+            var needsPrefix = false
+            for (entry in entries) {
                 if (maximum > entry.startEpochSeconds ||
                     entry.endEpochSeconds <= entry.startEpochSeconds
-                ) hasOverlaps = true
-                maximum = maxOf(maximum, entry.endEpochSeconds)
-                prefix[i] = maximum
+                ) {
+                    needsPrefix = true
+                    break
+                }
+                maximum = entry.endEpochSeconds
             }
-            indexed[id] = Schedule(entries, prefix, hasOverlaps)
+            val prefix = if (needsPrefix) LongArray(entries.size).also { values ->
+                maximum = Long.MIN_VALUE
+                for (index in entries.indices) {
+                    maximum = maxOf(maximum, entries[index].endEpochSeconds)
+                    values[index] = maximum
+                }
+            } else null
+            indexed[id] = Schedule(entries, prefix)
         }
         indexed
     }
@@ -68,14 +76,15 @@ data class GuideSnapshot(
         var until = exclusiveEnd
         while (from < until) {
             val middle = (from + until) ushr 1
-            if (schedule.prefixMaxEnd[middle] <= fromEpochSeconds) from = middle + 1
+            val end = schedule.prefixMaxEnd?.get(middle)
+                ?: entries[middle].endEpochSeconds
+            if (end <= fromEpochSeconds) from = middle + 1
             else until = middle
         }
         if (from == exclusiveEnd) return emptyList()
-        // Nonoverlapping schedules are guaranteed to have no expired entries
-        // inside this binary-searched range. This common path does no linear
-        // scan or filtered-list allocation, even for a dense short-show guide.
-        if (!schedule.hasOverlaps) return entries.subList(from, exclusiveEnd)
+        // The common case needs neither a prefix-max array nor a per-query
+        // scan. Overlapping/malformed schedules retain exact filtering.
+        if (schedule.prefixMaxEnd == null) return entries.subList(from, exclusiveEnd)
         // Overlapping schedules still require filtering of expired entries.
         for (index in from until exclusiveEnd) {
             if (entries[index].endEpochSeconds <= fromEpochSeconds) {
@@ -97,7 +106,14 @@ data class GuideSnapshot(
             if (entries[middle].startEpochSeconds <= epochSeconds) low = middle + 1 else high = middle
         }
         var index = low - 1
-        while (index >= 0 && schedule.prefixMaxEnd[index] > epochSeconds) {
+        val prefix = schedule.prefixMaxEnd
+        // For nonoverlapping schedules, only the latest start <= now can play.
+        // No scanning and no extra end-time array are needed.
+        if (prefix == null) {
+            val entry = entries.getOrNull(index)
+            return entry?.takeIf { it.endEpochSeconds > epochSeconds }
+        }
+        while (index >= 0 && prefix[index] > epochSeconds) {
             val entry = entries[index]
             if (entry.endEpochSeconds > epochSeconds) return entry
             index--
