@@ -63,3 +63,7 @@ Real playback and DVR events also record first video frame, playback errors and 
 ## 2026-11-11 XML nesting resource gate
 
 The XMLTV parser now rejects element depth above 64, avoiding unbounded deep-nesting behavior on malformed feeds. The Android 35 debug-only autonomous suite now requires `debug-xmltv-depth-limit` to return PASS using a synthetic, well-formed document with 65 nested levels; no network access, provider stream or user interaction is required. The runner already tests XMLTV DTD denial separately. Local isolated JVM SAX checks PASS; actual emulator execution of this newest gate is **UNVERIFIED**. Existing production self-tests are unchanged: the extra depth test runs only with the explicit debug QA launch extra.
+
+## 2026-11-12 indexed-guide regression coverage
+
+The pure Kotlin guide index now identifies non-overlapping channel schedules during the existing indexing pass. It bypasses overlap scanning for those schedules; overlapping or malformed time intervals still invoke the original filter. Two JVM core regression tests were committed for a 12,000-event guide and invalid-overlap fixtures. Local isolated Kotlin harness: **PASS, 20,750 deterministic queries against a sorted reference**. App startup already runs `offline-timeline`, and debug-only `debug-large-guide-stress` traverses 160 channels/11,520 programmes; no additional app startup stress or memory use was added. **Latest Android build/emulator/device results: UNVERIFIED.**
