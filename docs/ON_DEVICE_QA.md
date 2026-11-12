@@ -67,3 +67,7 @@ The XMLTV parser now rejects element depth above 64, avoiding unbounded deep-nes
 ## 2026-11-12 indexed-guide regression coverage
 
 The pure Kotlin guide index now identifies non-overlapping channel schedules during the existing indexing pass. It bypasses overlap scanning and avoids allocating any per-programme LongArray for those schedules. Overlapping or malformed intervals retain the prefix-max array and original filter. Two JVM core regression tests were committed for a 12,000-event guide and invalid-overlap fixtures. Local isolated Kotlin harness: **PASS, 20,750 deterministic queries against a sorted reference**. App startup already runs `offline-timeline`, and debug-only `debug-large-guide-stress` traverses 160 channels/11,520 programmes; no additional app startup stress or memory use was added. **Latest Android build/emulator/device results: UNVERIFIED.**
+
+## 2026-11-12 bounded CI failure logs
+
+The Android 35 emulator job still runs the app's 15 automatic assertions. To make unexpected failures diagnosable, the CI shell now captures at most 1,200 logcat lines on a failure before the emulator is torn down. The result is placed alongside `on-device-report.txt` in the existing 14-day artifact; successful runs avoid logcat storage. This is CI-only behavior, not a new background app logger. Documentation-only pushes skip costly builds, while PR and manually dispatched checks remain enabled. **Workflow configuration inspected; latest Android emulator execution UNVERIFIED.**
