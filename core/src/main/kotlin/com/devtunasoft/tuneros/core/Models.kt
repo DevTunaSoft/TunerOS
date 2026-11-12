@@ -15,7 +15,11 @@ data class GuideSnapshot(
     val programs: List<GuideProgram>, val channelNames: Map<String, String>,
     val warnings: List<String> = emptyList(),
 ) {
-    private data class Schedule(val entries: List<GuideProgram>, val prefixMaxEnd: LongArray)
+    private data class Schedule(
+        val entries: List<GuideProgram>,
+        val prefixMaxEnd: LongArray,
+        val hasOverlaps: Boolean,
+    )
     private val byChannel: Map<String, Schedule> by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
         // Group once and sort the same lists in place. Avoid allocating a second sorted
         // copy of every channel's programme references during large XMLTV imports.
@@ -27,11 +31,17 @@ data class GuideSnapshot(
             entries.sortWith(ordering)
             val prefix = LongArray(entries.size)
             var maximum = Long.MIN_VALUE
+            var hasOverlaps = false
             for (i in entries.indices) {
-                maximum = maxOf(maximum, entries[i].endEpochSeconds)
+                val entry = entries[i]
+                // Track whether a prior programme extends into this one's
+                // start. Most XMLTV schedules do not overlap; a single
+                // boolean skips per-query scans without an additional index.
+                if (maximum > entry.startEpochSeconds) hasOverlaps = true
+                maximum = maxOf(maximum, entry.endEpochSeconds)
                 prefix[i] = maximum
             }
-            indexed[id] = Schedule(entries, prefix)
+            indexed[id] = Schedule(entries, prefix, hasOverlaps)
         }
         indexed
     }
@@ -60,9 +70,11 @@ data class GuideSnapshot(
             else until = middle
         }
         if (from == exclusiveEnd) return emptyList()
-        // Ordinary XMLTV schedules do not overlap: return a cheap read-only
-        // window view rather than allocate a second List on each visible row
-        // and each clock refresh. Overlaps still need filtering for correctness.
+        // Nonoverlapping schedules are guaranteed to have no expired entries
+        // inside this binary-searched range. This common path does no linear
+        // scan or filtered-list allocation, even for a dense short-show guide.
+        if (!schedule.hasOverlaps) return entries.subList(from, exclusiveEnd)
+        // Overlapping schedules still require filtering of expired entries.
         for (index in from until exclusiveEnd) {
             if (entries[index].endEpochSeconds <= fromEpochSeconds) {
                 return entries.subList(from, exclusiveEnd).filter {
