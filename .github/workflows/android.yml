@@ -2,6 +2,11 @@ name: Android build and tests
 on:
   push:
     branches: [main]
+    # Documentation-only pushes should not download SDKs, build an APK, or
+    # boot an emulator. Keep PR checks and manual dispatch unchanged.
+    paths-ignore:
+      - 'docs/**'
+      - 'README.md'
   pull_request:
   workflow_dispatch:
 concurrency:
@@ -64,6 +69,15 @@ jobs:
           disable-animations: true
           script: |
             set -eu
+            # Capture a bounded crash/exception log while the emulator is
+            # still running. Successful runs generate no logcat artifact.
+            on_failure() {
+              status=$?
+              if [ "$status" -ne 0 ]; then
+                adb logcat -d -t 1200 -v brief > emulator-failure-logcat.txt 2>/dev/null || true
+              fi
+            }
+            trap on_failure EXIT
             adb install -r ci-apk/app-debug.apk
             adb shell am start -n com.devtunasoft.tuneros/.MainActivity --ez tuneros.debug.qa true
             # The app runs the checks itself; CI only collects/asserts its private
@@ -101,6 +115,8 @@ jobs:
         if: always()
         with:
           name: TunerOS-emulator-self-test-report
-          path: on-device-report.txt
+          path: |
+            on-device-report.txt
+            emulator-failure-logcat.txt
           if-no-files-found: warn
           retention-days: 14
