@@ -737,6 +737,12 @@ https://example.com/live.m3u8
                 programmes.filter { it.startEpochSeconds < end && it.endEpochSeconds > start },
                 guide.programsBetween("dense", start, end),
             )
+            assertEquals(
+                programmes.lastOrNull {
+                    it.startEpochSeconds <= start && it.endEpochSeconds > start
+                },
+                guide.now("dense", start),
+            )
         }
     }
 
@@ -756,6 +762,12 @@ https://example.com/live.m3u8
             assertEquals(
                 sorted.filter { it.startEpochSeconds < end && it.endEpochSeconds > from },
                 guide.programsBetween("c", from, end),
+            )
+            assertEquals(
+                sorted.lastOrNull {
+                    it.startEpochSeconds <= from && it.endEpochSeconds > from
+                },
+                guide.now("c", from),
             )
         }
     }
