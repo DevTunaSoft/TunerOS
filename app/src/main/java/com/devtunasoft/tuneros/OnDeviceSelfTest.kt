@@ -378,6 +378,18 @@ internal object OnDeviceSelfTest {
                 "debug-hls-dvr-sequence",
                 "HLS live-edge and repeated-history copy without duplicate segments",
             ) { debugHlsDvrSequence() }
+            checks += check(
+                "debug-saf-storage-guard",
+                "Synthetic removable-storage free-space and root matching fail closed",
+            ) {
+                RecordingPolicy.isDocumentOnRoot("primary:Movies", "primary:") &&
+                    !RecordingPolicy.isDocumentOnRoot("primary2:Movies", "primary") &&
+                    RecordingPolicy.isDocumentOnRoot("ABCD-1234:Shows", "ABCD-1234") &&
+                    !RecordingPolicy.isDocumentOnRoot("ABCD-12345:Shows", "ABCD-1234") &&
+                    RecordingPolicy.remainingFreeBytes(null, 16L * 1024 * 1024) == 0L &&
+                    RecordingPolicy.remainingFreeBytes(500L, 100L) == 400L &&
+                    RecordingPolicy.remainingFreeBytes(500L, 700L) == 0L
+            }
             checks += OnDeviceGuideStress.run()
             // Scan the bounded event log once for all debug UI probes.
             checks.addAll(recentUiChecks(context))

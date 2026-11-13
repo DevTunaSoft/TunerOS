@@ -3,6 +3,7 @@ package com.devtunasoft.tuneros
 import android.content.Context
 import android.net.Uri
 import android.provider.DocumentsContract
+import com.devtunasoft.tuneros.core.RecordingPolicy
 
 internal data class SafStorageInfo(
     val treeUri: Uri,
@@ -77,7 +78,7 @@ internal object SafStorageInspector {
             var bestAvailable: Long? = null
             while (cursor.moveToNext()) {
                 val rootDocumentId = cursor.getString(documentIdColumn) ?: continue
-                if (!treeDocumentId.startsWith(rootDocumentId) ||
+                if (!RecordingPolicy.isDocumentOnRoot(treeDocumentId, rootDocumentId) ||
                     rootDocumentId.length <= bestDocumentIdLength
                 ) {
                     continue

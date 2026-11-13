@@ -45,6 +45,32 @@ object RecordingPolicy {
     const val COPY_BUFFER_BYTES = 64 * 1024
     const val DEFAULT_MIN_FREE_BYTES = 512L * 1024 * 1024
 
+    /**
+     * A document belongs to a removable/shared-storage root only at a path
+     * boundary. A naïve startsWith(root) can select the wrong drive's capacity
+     * ("1234" must not match "12345"). No allocations or I/O.
+     */
+    fun isDocumentOnRoot(documentId: String, rootDocumentId: String): Boolean {
+        if (rootDocumentId.isEmpty()) return false
+        if (documentId == rootDocumentId) return true
+        return if (rootDocumentId.endsWith(':') || rootDocumentId.endsWith('/')) {
+            documentId.startsWith(rootDocumentId)
+        } else {
+            documentId.startsWith(rootDocumentId, 0) &&
+                documentId.length > rootDocumentId.length &&
+                (documentId[rootDocumentId.length] == ':' ||
+                    documentId[rootDocumentId.length] == '/')
+        }
+    }
+
+    /** Missing, invalid or exhausted provider capacity fails closed. */
+    fun remainingFreeBytes(reportedAvailable: Long?, writtenSinceReport: Long): Long {
+        require(writtenSinceReport >= 0)
+        if (reportedAvailable == null || reportedAvailable <= 0) return 0L
+        return if (writtenSinceReport >= reportedAvailable) 0L
+            else reportedAvailable - writtenSinceReport
+    }
+
     fun fromProgram(
         channel: Channel,
         program: GuideProgram,

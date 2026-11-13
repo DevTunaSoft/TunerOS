@@ -131,35 +131,27 @@ private class SafRecordingSink(
     override fun freeBytes(): Long {
         val written = bytesWritten
         if (written - writtenAtLastRefresh >= FREE_SPACE_REFRESH_BYTES) {
-            SafStorageInspector.inspect(context, treeUri)?.let { refreshed ->
-                lastReportedAvailable = refreshed.availableBytes
-                writtenAtLastRefresh = written
-            }
+            // If the removable drive disappears or stops reporting capacity,
+            // never keep recording against an old, potentially wrong value.
+            val refreshed = SafStorageInspector.inspect(context, treeUri) ?: return 0L
+            lastReportedAvailable = refreshed.availableBytes
+            writtenAtLastRefresh = written
         }
-        return (lastReportedAvailable - (written - writtenAtLastRefresh)).coerceAtLeast(0L)
+        return RecordingPolicy.remainingFreeBytes(
+            lastReportedAvailable, written - writtenAtLastRefresh,
+        )
     }
 
     override fun finalizeRecording(): String? {
         val renamed = runCatching {
             DocumentsContract.renameDocument(resolver, documentUri, finalDisplayName)
         }.getOrNull()
-        if (renamed != null) {
-            documentUri = renamed
-            return documentUri.toString()
-        }
-        return documentUri.toString().takeIf { documentStillExists() }
+        // An existing .partial file is not a successfully finalized recording.
+        // Let the catalog mark it PARTIAL rather than report false completion.
+        if (renamed == null) return null
+        documentUri = renamed
+        return documentUri.toString()
     }
-
-    private fun documentStillExists(): Boolean =
-        runCatching {
-            resolver.query(
-                documentUri,
-                arrayOf(DocumentsContract.Document.COLUMN_DOCUMENT_ID),
-                null,
-                null,
-                null,
-            )?.use { it.moveToFirst() } == true
-        }.getOrDefault(false)
 
     override fun delete(): Boolean = runCatching {
         DocumentsContract.deleteDocument(resolver, documentUri)
