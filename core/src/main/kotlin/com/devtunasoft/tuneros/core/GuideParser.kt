@@ -37,6 +37,16 @@ object GuideParser {
         require(maxPrograms in 1..MAX_PROGRAMS && maxChannels in 1..MAX_CHANNELS)
         val channels = LinkedHashMap<String, String>()
         val programs = ArrayList<GuideProgram>()
+        // XMLTV repeats channel="..." on every programme. Keep one shared
+        // reference per known guide ID instead of retaining a String per show.
+        // The pool is capped independently of the programme count.
+        val sharedIds = HashMap<String, String>()
+        fun sharedChannelId(value: String?): String? {
+            val id = value?.take(256) ?: return null
+            sharedIds[id]?.let { return it }
+            if (sharedIds.size < maxChannels) sharedIds[id] = id
+            return id
+        }
         var skippedPrograms = 0
         var skippedChannels = 0
         var assumedZone = 0
@@ -80,10 +90,10 @@ object GuideParser {
                 }
                 val name = localName?.takeIf { it.isNotEmpty() } ?: qName
                 when (name) {
-                    "channel" -> { channelId = attrs.getValue("id")?.take(256); programme = false }
+                    "channel" -> { channelId = sharedChannelId(attrs.getValue("id")); programme = false }
                     "programme" -> {
                         programme = true
-                        channelId = attrs.getValue("channel")?.take(256)
+                        channelId = sharedChannelId(attrs.getValue("channel"))
                         val from = parseTime(attrs.getValue("start"), fallbackZone)
                         val to = parseTime(attrs.getValue("stop"), fallbackZone)
                         start = from.first; stop = to.first

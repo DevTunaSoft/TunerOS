@@ -127,3 +127,5 @@ The Android search field now enforces a 256-character maximum, and saved activit
 - **Local shell trap behavior PASS; GitHub CI execution UNVERIFIED.** Next verify actual current `main` build and emulator outcomes and use captured diagnostics to correct any failures at their root cause.
 
 **2026-11-13 CI blocker:** Investigated failed Actions run 43305010954: APK build passed, emulator booted, but the runner split an inline Bash trap across separate `sh -c` invocations and failed before app tests. Move the complete QA harness into a single repository script, check Bash syntax in CI, and execute it as one emulator command. Preserve 2 GiB runner RAM and existing bounded diagnostics. Emulator acceptance remains pending an exact-commit passing run.
+
+**2026-11-13 further XMLTV heap pressure:** Reuse one canonical guide-ID String per distinct ID during SAX import, bounded by the existing maximum channel count. Repeated programme IDs now share references; out-of-order declarations and cap behavior are covered by JVM tests. No global String.intern(), unbounded deduplication or new worker. Profile actual Android heap after CI.
