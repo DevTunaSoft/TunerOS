@@ -341,15 +341,32 @@ class MainActivity : Activity() {
     private fun runDebugUiFocusProbe() {
         if (isFinishing || isDestroyed) return
         val original = currentFocus
-        val controls = arrayOf(sourcesButton, search, hideNoGuide)
-        val canFocus = controls.all { view -> view.requestFocus() && view.hasFocus() }
+        // Android phone emulators start in touch mode; a TV remote key would
+        // leave touch mode before moving focus. Model that transition here so
+        // the probe tests D-pad behavior rather than touchscreen focus rules.
+        var failed = 0L
+        val enteredDpadMode = if (sourcesButton.isInTouchMode) {
+            sourcesButton.requestFocusFromTouch()
+        } else {
+            sourcesButton.requestFocus()
+        }
+        if (!enteredDpadMode || !sourcesButton.hasFocus()) failed = failed or 1L
+        if (!search.requestFocus() || !search.hasFocus()) failed = failed or 2L
+        if (!hideNoGuide.requestFocus() || !hideNoGuide.hasFocus()) failed = failed or 4L
+        // Search downward from an actually focused field, not from a view that
+        // was previously focused and then replaced by the checkbox.
+        if (!search.requestFocus() || !search.hasFocus()) failed = failed or 8L
         val next = search.focusSearch(View.FOCUS_DOWN)
-        val canNavigate = next != null && next !== search &&
-            next.isFocusable && next.requestFocus() && next.hasFocus()
+        if (next == null || next === search || !next.isFocusable) {
+            failed = failed or 16L
+        } else if (!next.requestFocus() || !next.hasFocus()) {
+            failed = failed or 32L
+        }
         original?.requestFocus()
         observe(
-            if (canFocus && canNavigate) OnDeviceSelfTest.Event.UI_FOCUS_PROBE_PASS
+            if (failed == 0L) OnDeviceSelfTest.Event.UI_FOCUS_PROBE_PASS
             else OnDeviceSelfTest.Event.UI_FOCUS_PROBE_FAIL,
+            failed,
         )
         val emptyTimelineWorks = runCatching { debugEmptyTimelineNavigation() }.getOrDefault(false)
         observe(

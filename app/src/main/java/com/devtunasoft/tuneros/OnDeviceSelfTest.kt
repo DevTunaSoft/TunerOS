@@ -424,14 +424,22 @@ internal object OnDeviceSelfTest {
      */
     private fun recentUiChecks(context: Context): List<Check> = synchronized(eventLock) {
         var focus = State.NOT_RUN
+        var focusFailureMask = 0L
         var emptyGuide = State.NOT_RUN
         var marker = State.NOT_RUN
         val file = File(context.filesDir, EVENTS_FILE)
         if (file.exists() && file.length() <= MAX_EVENTS_BYTES) {
             file.forEachLine { line ->
                 when {
-                    line.contains("\tUI_FOCUS_PROBE_PASS\t") -> focus = State.PASS
-                    line.contains("\tUI_FOCUS_PROBE_FAIL\t") -> focus = State.FAIL
+                    line.contains("\tUI_FOCUS_PROBE_PASS\t") -> {
+                        focus = State.PASS
+                        focusFailureMask = 0L
+                    }
+                    line.contains("\tUI_FOCUS_PROBE_FAIL\t") -> {
+                        focus = State.FAIL
+                        focusFailureMask = line.substringAfter("\tUI_FOCUS_PROBE_FAIL\t")
+                            .substringBefore('\t').toLongOrNull() ?: -1L
+                    }
                     line.contains("\tUI_EMPTY_TIMELINE_PASS\t") -> emptyGuide = State.PASS
                     line.contains("\tUI_EMPTY_TIMELINE_FAIL\t") -> emptyGuide = State.FAIL
                     line.contains("\tUI_CLOCK_MARKER_PASS\t") -> marker = State.PASS
@@ -444,7 +452,9 @@ internal object OnDeviceSelfTest {
                 "debug-ui-focus", focus,
                 when (focus) {
                     State.PASS -> "Actual controls accepted focus traversal"
-                    State.FAIL -> "Visible control did not accept focus traversal"
+                    State.FAIL -> "D-pad focus probe failed (mask=$focusFailureMask; " +
+                        "1=source, 2=search, 4=filter, 8=search-return, " +
+                        "16=next-target, 32=next-focus)"
                     else -> "No control focus probe observed"
                 },
             ),
