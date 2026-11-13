@@ -53,3 +53,7 @@ TunerOS places limits on imported metadata to protect memory usage on Android TV
 ## Verified automated checks (November 13, 2026)
 
 The Android 35 emulator now completes the built-in synthetic self-tests automatically: [GitHub Actions run 43479669934](https://github.com/DevTunaSoft/TunerOS/actions/runs/43479669934) **PASS**. The app reports **18 PASS, 0 FAIL, 1 BLOCKED, 12 NOT RUN** because real provider playback, recordings, exact-alarm permission, USB/SD and physical-device scenarios have not all been exercised. The recorded synthetic guide test reached about 55.6 MiB process PSS in one emulator snapshot; this is not a guarantee of RAM usage during live viewing. You do not need to run these automated checks manually.
+
+## Automated HTTP transport testing
+
+[GitHub Actions run 43520436790](https://github.com/DevTunaSoft/TunerOS/actions/runs/43520436790) (attempt 2, November 13, 2026) passed the Android emulator checks: **19 PASS, 0 FAIL, 1 BLOCKED, 12 NOT RUN**. The app's debug QA tested its real HTTP client against a temporary localhost-only synthetic HLS feed, copying exactly two bytes without duplicating segments. It does **not** connect to actual IPTV providers, verify playback/codec compatibility or write a finished DVR media file. This does not run during normal viewing. An emulator snapshot recorded roughly 50 MiB process PSS; this is not a measured long-term RAM ceiling.
