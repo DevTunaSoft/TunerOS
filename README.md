@@ -23,3 +23,7 @@ Android SDK (API 35), JDK 17, and Gradle 8.9. From project root, run `gradle :co
 Compatible open-source code may be selectively adapted after license and provenance review. The Classic Cable timeline model incorporates concepts adapted from Egeniq's Apache-2.0 `android-tv-program-guide`; attribution and modifications are recorded in `docs/THIRD_PARTY_PROVENANCE.md`. Users must have the rights to access their streams; bundling any catalog requires separately verified redistribution permissions.
 
 Copyright (c) 2026 TunerOS contributors. Licensing decision is pending source and dependency review.
+
+## Latest verified Android QA — November 13, 2026
+
+[GitHub Actions 43472251052](https://github.com/DevTunaSoft/TunerOS/actions/runs/43472251052) **PASS** at `834a4cd`: Kotlin tests, APK build/artifact and Android 35 emulator QA. The app reported **17 synthetic/local PASS, 0 FAIL, 1 BLOCKED, 12 NOT RUN**, including HLS live-edge de-duplication. A low-allocation HLS capture change avoids per-poll filtered lists; debug-only QA verifies it with two synthetic output bytes. Real TV-box low-memory behavior, provider streams, hardware decoder and recording/USB/reboot acceptance are still open. See [the detailed QA ledger](docs/ON_DEVICE_QA.md).
