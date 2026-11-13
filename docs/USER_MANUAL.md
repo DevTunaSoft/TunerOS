@@ -49,3 +49,7 @@ While the guide is open, the current-time line moves as the clock advances. Tune
 ## Large provider feeds
 
 TunerOS places limits on imported metadata to protect memory usage on Android TV devices. Channel guide identifiers are stored at up to 256 characters and logo URLs over 2,048 characters are not retained. The supported channel ID format remains unchanged, and valid provider guide and playlist imports continue to run in the background. XMLTV with unusually deep nested elements (more than 64 levels) is rejected instead of risking excessive parser resource use. These are source-level protections; Android device acceptance remains pending.
+
+## Verified automated checks (November 13, 2026)
+
+The Android 35 emulator now completes the built-in synthetic self-tests automatically: [GitHub Actions run 43354840233](https://github.com/DevTunaSoft/TunerOS/actions/runs/43354840233) **PASS**. The app reports **16 PASS, 0 FAIL, 1 BLOCKED, 12 NOT RUN** because real provider playback, recordings, exact-alarm permission, USB/SD and physical-device scenarios have not all been exercised. The recorded synthetic guide test reached about 50 MiB process PSS in one emulator snapshot; this is not a guarantee of RAM usage during live viewing. You do not need to run these automated checks manually.
