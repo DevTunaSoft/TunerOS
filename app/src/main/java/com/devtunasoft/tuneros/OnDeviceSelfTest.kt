@@ -25,13 +25,19 @@ import java.io.OutputStream
 import java.io.InputStream
 import java.io.IOException
 import java.net.HttpURLConnection
+import java.net.InetAddress
+import java.net.InetSocketAddress
+import java.net.Proxy
+import java.net.ServerSocket
+import java.util.concurrent.atomic.AtomicReference
 import java.net.URL
 import java.io.File
 import java.io.FileOutputStream
 
 /**
  * In-app, unattended, read-only (except owned scratch data) Android acceptance probes.
- * Runs on MainActivity's existing serial worker; no threads, timers or network requests.
+ * Runs on MainActivity's existing serial worker. Only the explicit debug QA path
+ * starts a short-lived localhost fixture thread; production makes no QA network calls.
  * All test fixtures are synthetic. Real provider, USB removal and power-cut scenarios
  * must never be reported as passed by these smoke tests.
  */
@@ -375,6 +381,10 @@ internal object OnDeviceSelfTest {
                 "Offline HLS parse + Android segment copy preserve live-edge deduplication",
             ) { debugHlsDvrSequence() }
             checks += check(
+                "debug-loopback-hls-transport",
+                "Android HTTP loopback fetch + fixed-buffer HLS copying",
+            ) { debugLoopbackHlsTransport() }
+            checks += check(
                 "debug-saf-storage-guard",
                 "Synthetic removable-storage free-space and root matching fail closed",
             ) {
@@ -511,6 +521,120 @@ internal object OnDeviceSelfTest {
             copiedSegments == 2 &&
             manifestLoads == 2 &&
             output.toByteArray().contentEquals(byteArrayOf(1, 2))
+    }
+
+    /**
+     * Debug-only Android HTTP integration test using a bounded loopback fixture.
+     * It creates exactly four tiny HTTP replies on 127.0.0.1 and copies 2 bytes.
+     * No user/provider requests, media files, permission prompts or new services.
+     * Only the debug-enabled worker runs this; the serving thread always exits.
+     */
+    private fun debugLoopbackHlsTransport(): Boolean {
+        val loopback = InetAddress.getByName("127.0.0.1")
+        val server = ServerSocket().apply {
+            reuseAddress = false
+            bind(InetSocketAddress(loopback, 0), 1)
+            soTimeout = 4_000
+        }
+        server.use {
+            val sourceUrl = "http://127.0.0.1:${server.localPort}/live.m3u8"
+            val first = """#EXTM3U
+                #EXT-X-MEDIA-SEQUENCE:7
+                #EXT-X-TARGETDURATION:2
+                #EXTINF:2,
+                7.ts
+                #EXTINF:2,
+                8.ts
+            """.trimIndent().toByteArray(Charsets.UTF_8)
+            val second = """#EXTM3U
+                #EXT-X-MEDIA-SEQUENCE:7
+                #EXT-X-TARGETDURATION:2
+                #EXTINF:2,
+                7.ts
+                #EXTINF:2,
+                8.ts
+                #EXTINF:2,
+                9.ts
+                #EXT-X-ENDLIST
+            """.trimIndent().toByteArray(Charsets.UTF_8)
+            val error = AtomicReference<Throwable?>(null)
+            var served = 0
+            var manifests = 0
+            val fixture = Thread({
+                try {
+                    repeat(4) {
+                        server.accept().use { socket ->
+                            socket.soTimeout = 4_000
+                            val input = socket.getInputStream().bufferedReader(Charsets.US_ASCII)
+                            val request = input.readLine() ?: error("Missing HTTP request")
+                            // Do not leave unread HTTP headers on the socket.
+                            while (true) {
+                                val line = input.readLine() ?: error("Truncated HTTP headers")
+                                if (line.isEmpty()) break
+                            }
+                            val path = request.substringAfter(' ').substringBefore(' ')
+                            val bytes = when (path) {
+                                "/live.m3u8" -> {
+                                    manifests++
+                                    check(manifests <= 2)
+                                    if (manifests == 1) first else second
+                                }
+                                "/8.ts" -> byteArrayOf(1)
+                                "/9.ts" -> byteArrayOf(2)
+                                else -> error("Unexpected loopback path")
+                            }
+                            val response = "HTTP/1.1 200 OK\r\n" +
+                                "Content-Type: application/octet-stream\r\n" +
+                                "Content-Length: ${bytes.size}\r\n" +
+                                "Connection: close\r\n\r\n"
+                            val output = socket.getOutputStream()
+                            output.write(response.toByteArray(Charsets.US_ASCII))
+                            output.write(bytes)
+                            output.flush()
+                            served++
+                        }
+                    }
+                } catch (failure: Exception) {
+                    error.set(failure)
+                }
+            }, "tuneros-debug-http-fixture").apply {
+                isDaemon = true
+                start()
+            }
+            var copiedCorrectly = false
+            try {
+                val source = AndroidHlsCaptureSource(
+                    openConnection = { url, range ->
+                        check(range == null)
+                        (URL(url).openConnection(Proxy.NO_PROXY) as HttpURLConnection).apply {
+                            connectTimeout = 4_000
+                            readTimeout = 4_000
+                            instanceFollowRedirects = false
+                        }
+                    },
+                    freeBytes = { Long.MAX_VALUE },
+                )
+                val output = ByteArrayOutputStream(2)
+                val result = HlsCaptureEngine().record(
+                    initialUrl = sourceUrl,
+                    output = output,
+                    endEpochSeconds = 1_000L,
+                    source = source,
+                    cancelled = { false },
+                    nowEpochSeconds = { 100L },
+                    sleepMillis = {},
+                )
+                copiedCorrectly = result.stopReason == HlsCaptureEngine.StopReason.END_LIST &&
+                    result.lastSequence == 9L && result.bytesWritten == 2L &&
+                    output.toByteArray().contentEquals(byteArrayOf(1, 2))
+            } finally {
+                // Closing the server unblocks a stalled accept; no thread persists.
+                server.close()
+                fixture.join(5_000L)
+            }
+            return copiedCorrectly && !fixture.isAlive &&
+                error.get() == null && served == 4 && manifests == 2
+        }
     }
 
     private fun hasEvent(context: Context, event: Event): Boolean = synchronized(eventLock) {
