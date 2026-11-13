@@ -10,6 +10,12 @@ import com.devtunasoft.tuneros.core.ChannelVisibility
 import com.devtunasoft.tuneros.core.GuideProgram
 import com.devtunasoft.tuneros.core.GuideParser
 import com.devtunasoft.tuneros.core.GuideSnapshot
+import com.devtunasoft.tuneros.core.HlsByteRange
+import com.devtunasoft.tuneros.core.HlsCaptureEngine
+import com.devtunasoft.tuneros.core.HlsCaptureSource
+import com.devtunasoft.tuneros.core.HlsMediaPlaylist
+import com.devtunasoft.tuneros.core.HlsSegment
+import com.devtunasoft.tuneros.core.LoadedHlsPlaylist
 import com.devtunasoft.tuneros.core.PlaylistParser
 import com.devtunasoft.tuneros.core.RecordingPolicy
 import com.devtunasoft.tuneros.core.SourceDownloader
@@ -18,6 +24,8 @@ import com.devtunasoft.tuneros.core.StreamRecorder
 import com.devtunasoft.tuneros.core.TimelineFocusPolicy
 import com.devtunasoft.tuneros.core.TimelineLayout
 import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
+import java.io.OutputStream
 import java.io.InputStream
 import java.io.IOException
 import java.net.HttpURLConnection
@@ -366,6 +374,10 @@ internal object OnDeviceSelfTest {
                     GuideParser.parse(ByteArrayInputStream(deep.toByteArray(Charsets.UTF_8)))
                 }.exceptionOrNull() is org.xml.sax.SAXException
             }
+            checks += check(
+                "debug-hls-dvr-sequence",
+                "HLS live-edge and repeated-history copy without duplicate segments",
+            ) { debugHlsDvrSequence() }
             checks += OnDeviceGuideStress.run()
             // Scan the bounded event log once for all debug UI probes.
             checks.addAll(recentUiChecks(context))
@@ -410,6 +422,72 @@ internal object OnDeviceSelfTest {
             }
             file.appendText(line)
         }
+    }
+
+    /**
+     * Two-byte debug-only recording pipeline smoke test. Never opens a provider,
+     * creates a recording file, schedules an alarm, or allocates media buffers.
+     */
+    private fun debugHlsDvrSequence(): Boolean {
+        val manifestUrl = "https://example.invalid/live.m3u8"
+        fun segment(sequence: Long) = HlsSegment(
+            sequence, "$sequence.ts", 2.0, null, false, "NONE", null, null,
+        )
+        var playlistLoads = 0
+        var copiedSegments = 0
+        val source = object : HlsCaptureSource {
+            override fun loadPlaylist(
+                url: String, afterSequenceExclusive: Long?,
+            ): LoadedHlsPlaylist {
+                require(url == manifestUrl)
+                playlistLoads++
+                val isFirstPoll = playlistLoads == 1
+                return LoadedHlsPlaylist(
+                    manifestUrl,
+                    HlsMediaPlaylist(
+                        mediaSequence = 7L,
+                        targetDurationSeconds = 2L,
+                        endList = !isFirstPoll,
+                        // Return complete history even if the caller requests
+                        // only later sequences. This detects duplicate writes.
+                        segments = if (isFirstPoll) listOf(segment(7), segment(8))
+                            else listOf(segment(7), segment(8), segment(9)),
+                    ),
+                )
+            }
+
+            override fun copySegment(
+                url: String,
+                byteRange: HlsByteRange?,
+                output: OutputStream,
+                cancelled: () -> Boolean,
+                onProgress: (Long) -> Unit,
+            ): StreamRecorder.Result {
+                check(!cancelled() && byteRange == null)
+                val expected = if (copiedSegments == 0) "8.ts" else "9.ts"
+                check(url == "https://example.invalid/$expected")
+                copiedSegments++
+                output.write(copiedSegments)
+                onProgress(1L)
+                return StreamRecorder.Result(1L, StreamRecorder.StopReason.END_OF_STREAM)
+            }
+        }
+        val output = ByteArrayOutputStream(2)
+        val result = HlsCaptureEngine().record(
+            initialUrl = manifestUrl,
+            output = output,
+            endEpochSeconds = 1_000L,
+            source = source,
+            cancelled = { false },
+            nowEpochSeconds = { 100L },
+            sleepMillis = {},
+        )
+        return result.stopReason == HlsCaptureEngine.StopReason.END_LIST &&
+            result.lastSequence == 9L &&
+            result.bytesWritten == 2L &&
+            copiedSegments == 2 &&
+            playlistLoads == 2 &&
+            output.toByteArray().contentEquals(byteArrayOf(1, 2))
     }
 
     private fun hasEvent(context: Context, event: Event): Boolean = synchronized(eventLock) {
