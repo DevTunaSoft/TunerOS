@@ -10,12 +10,8 @@ import com.devtunasoft.tuneros.core.ChannelVisibility
 import com.devtunasoft.tuneros.core.GuideProgram
 import com.devtunasoft.tuneros.core.GuideParser
 import com.devtunasoft.tuneros.core.GuideSnapshot
-import com.devtunasoft.tuneros.core.HlsByteRange
 import com.devtunasoft.tuneros.core.HlsCaptureEngine
 import com.devtunasoft.tuneros.core.HlsCaptureSource
-import com.devtunasoft.tuneros.core.HlsMediaPlaylist
-import com.devtunasoft.tuneros.core.HlsSegment
-import com.devtunasoft.tuneros.core.LoadedHlsPlaylist
 import com.devtunasoft.tuneros.core.PlaylistParser
 import com.devtunasoft.tuneros.core.RecordingPolicy
 import com.devtunasoft.tuneros.core.SourceDownloader
@@ -376,7 +372,7 @@ internal object OnDeviceSelfTest {
             }
             checks += check(
                 "debug-hls-dvr-sequence",
-                "HLS live-edge and repeated-history copy without duplicate segments",
+                "Offline HLS parse + Android segment copy preserve live-edge deduplication",
             ) { debugHlsDvrSequence() }
             checks += check(
                 "debug-saf-storage-guard",
@@ -440,50 +436,65 @@ internal object OnDeviceSelfTest {
      * Two-byte debug-only recording pipeline smoke test. Never opens a provider,
      * creates a recording file, schedules an alarm, or allocates media buffers.
      */
+    /**
+     * Debug-only end-to-end HLS parser + Android segment copier + capture engine.
+     * One fixed 64 KiB recorder buffer; synthetic one-byte TS payloads only.
+     * The connection objects never access network or user recording storage.
+     */
     private fun debugHlsDvrSequence(): Boolean {
         val manifestUrl = "https://example.invalid/live.m3u8"
-        fun segment(sequence: Long) = HlsSegment(
-            sequence, "$sequence.ts", 2.0, null, false, "NONE", null, null,
-        )
-        var playlistLoads = 0
+        val firstManifest = """#EXTM3U
+            #EXT-X-MEDIA-SEQUENCE:7
+            #EXT-X-TARGETDURATION:2
+            #EXTINF:2,
+            7.ts
+            #EXTINF:2,
+            8.ts
+        """.trimIndent()
+        val secondManifest = """#EXTM3U
+            #EXT-X-MEDIA-SEQUENCE:7
+            #EXT-X-TARGETDURATION:2
+            #EXTINF:2,
+            7.ts
+            #EXTINF:2,
+            8.ts
+            #EXTINF:2,
+            9.ts
+            #EXT-X-ENDLIST
+        """.trimIndent()
+        var manifestLoads = 0
         var copiedSegments = 0
-        val source = object : HlsCaptureSource {
-            override fun loadPlaylist(
-                url: String, afterSequenceExclusive: Long?,
-            ): LoadedHlsPlaylist {
-                require(url == manifestUrl)
-                playlistLoads++
-                val isFirstPoll = playlistLoads == 1
-                return LoadedHlsPlaylist(
-                    manifestUrl,
-                    HlsMediaPlaylist(
-                        mediaSequence = 7L,
-                        targetDurationSeconds = 2L,
-                        endList = !isFirstPoll,
-                        // Return complete history even if the caller requests
-                        // only later sequences. This detects duplicate writes.
-                        segments = if (isFirstPoll) listOf(segment(7), segment(8))
-                            else listOf(segment(7), segment(8), segment(9)),
-                    ),
-                )
-            }
-
-            override fun copySegment(
-                url: String,
-                byteRange: HlsByteRange?,
-                output: OutputStream,
-                cancelled: () -> Boolean,
-                onProgress: (Long) -> Unit,
-            ): StreamRecorder.Result {
-                check(!cancelled() && byteRange == null)
-                val expected = if (copiedSegments == 0) "8.ts" else "9.ts"
-                check(url == "https://example.invalid/$expected")
-                copiedSegments++
-                output.write(copiedSegments)
-                onProgress(1L)
-                return StreamRecorder.Result(1L, StreamRecorder.StopReason.END_OF_STREAM)
-            }
-        }
+        val source = AndroidHlsCaptureSource(
+            openConnection = { url, range ->
+                check(range == null)
+                val payload = when (url) {
+                    manifestUrl -> {
+                        manifestLoads++
+                        check(manifestLoads <= 2)
+                        if (manifestLoads == 1) firstManifest.toByteArray(Charsets.UTF_8)
+                            else secondManifest.toByteArray(Charsets.UTF_8)
+                    }
+                    "https://example.invalid/8.ts" -> {
+                        check(copiedSegments == 0)
+                        copiedSegments++
+                        byteArrayOf(1)
+                    }
+                    "https://example.invalid/9.ts" -> {
+                        check(copiedSegments == 1)
+                        copiedSegments++
+                        byteArrayOf(2)
+                    }
+                    else -> error("Unexpected offline HLS test resource")
+                }
+                object : HttpURLConnection(URL(url)) {
+                    override fun connect() {}
+                    override fun disconnect() {}
+                    override fun usingProxy() = false
+                    override fun getInputStream(): InputStream = ByteArrayInputStream(payload)
+                }
+            },
+            freeBytes = { Long.MAX_VALUE },
+        )
         val output = ByteArrayOutputStream(2)
         val result = HlsCaptureEngine().record(
             initialUrl = manifestUrl,
@@ -498,7 +509,7 @@ internal object OnDeviceSelfTest {
             result.lastSequence == 9L &&
             result.bytesWritten == 2L &&
             copiedSegments == 2 &&
-            playlistLoads == 2 &&
+            manifestLoads == 2 &&
             output.toByteArray().contentEquals(byteArrayOf(1, 2))
     }
 
