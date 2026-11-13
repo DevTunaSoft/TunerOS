@@ -557,7 +557,7 @@ internal object OnDeviceSelfTest {
                 9.ts
                 #EXT-X-ENDLIST
             """.trimIndent().toByteArray(Charsets.UTF_8)
-            val error = AtomicReference<Throwable?>(null)
+            val serverFailure = AtomicReference<Throwable?>(null)
             var served = 0
             var manifests = 0
             val fixture = Thread({
@@ -595,7 +595,7 @@ internal object OnDeviceSelfTest {
                         }
                     }
                 } catch (failure: Exception) {
-                    error.set(failure)
+                    serverFailure.set(failure)
                 }
             }, "tuneros-debug-http-fixture").apply {
                 isDaemon = true
@@ -633,7 +633,7 @@ internal object OnDeviceSelfTest {
                 fixture.join(5_000L)
             }
             return copiedCorrectly && !fixture.isAlive &&
-                error.get() == null && served == 4 && manifests == 2
+                serverFailure.get() == null && served == 4 && manifests == 2
         }
     }
 
