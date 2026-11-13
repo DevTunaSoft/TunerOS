@@ -133,14 +133,20 @@ class HlsCaptureEngine(
                         }
                     }
 
-                    val candidates = when {
-                        lastSequence == null && !playlist.endList ->
-                            available.lastOrNull()?.let(::listOf).orEmpty()
-                        lastSequence == null -> available
-                        else -> available.filter { it.sequence > lastSequence }
+                    // Parsed HLS sequences are ordered. Select the first relevant
+                    // index directly rather than allocating a filtered list on
+                    // every playlist refresh throughout a long DVR recording.
+                    var firstCandidate = when {
+                        lastSequence == null && !playlist.endList -> available.lastIndex
+                        else -> 0
+                    }
+                    if (lastSequence != null) {
+                        while (firstCandidate < available.size &&
+                            available[firstCandidate].sequence <= lastSequence
+                        ) firstCandidate++
                     }
 
-                    if (candidates.isEmpty()) {
+                    if (firstCandidate !in available.indices) {
                         if (playlist.endList) {
                             return Result(totalBytes, lastSequence, StopReason.END_LIST)
                         }
@@ -158,7 +164,8 @@ class HlsCaptureEngine(
                     }
                     stalledPolls = 0
 
-                    for (segment in candidates) {
+                    for (index in firstCandidate until available.size) {
+                        val segment = available[index]
                         if (cancelled()) {
                             return Result(totalBytes, lastSequence, StopReason.CANCELLED)
                         }
@@ -231,7 +238,9 @@ class HlsCaptureEngine(
     private fun resolveHttp(base: String, relative: String): String {
         val baseUri = URI(base)
         val resolved = baseUri.resolve(relative)
-        require(resolved.scheme?.lowercase() in setOf("http", "https") && !resolved.host.isNullOrBlank()) {
+        require((resolved.scheme.equals("http", ignoreCase = true) ||
+            resolved.scheme.equals("https", ignoreCase = true)) &&
+            !resolved.host.isNullOrBlank()) {
             "HLS resource must use HTTP or HTTPS"
         }
         require(!(baseUri.scheme.equals("https", ignoreCase = true) &&

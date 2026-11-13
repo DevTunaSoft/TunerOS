@@ -358,4 +358,56 @@ class HlsCaptureEngineTest {
         assertEquals(3, output.size())
         assertTrue(result.detail.orEmpty().contains("expected 5 bytes"))
     }
+
+    @Test fun completedVodPlaylistCopiesEverySegmentWithoutFilteringHistory() {
+        val url = "https://example.test/archive.m3u8"
+        val stream = LoadedHlsPlaylist(
+            url, HlsMediaPlaylist(
+                mediaSequence = 30, targetDurationSeconds = 4, endList = true,
+                segments = (30L..34L).map { sequence ->
+                    HlsSegment(sequence, "$sequence.ts", 4.0, null, false, "NONE", null, null)
+                },
+            ),
+        )
+        val source = FakeSource(
+            mapOf(url to listOf(stream)),
+            (30L..34L).associate { sequence ->
+                "https://example.test/$sequence.ts" to byteArrayOf(sequence.toByte())
+            },
+        )
+        val output = ByteArrayOutputStream()
+        val result = HlsCaptureEngine().record(
+            url, output, 1_000, source, { false }, { 100 }, {},
+        )
+        assertEquals(HlsCaptureEngine.StopReason.END_LIST, result.stopReason)
+        assertEquals(34L, result.lastSequence)
+        assertEquals(5, source.copied.size)
+        assertEquals(listOf(30, 31, 32, 33, 34), output.toByteArray().map { it.toInt() })
+    }
+
+    @Test fun repeatedFullHistoryPollsDoNotDuplicateSegments() {
+        val url = "https://example.test/live.m3u8"
+        fun live(vararg sequences: Long) = LoadedHlsPlaylist(
+            url, HlsMediaPlaylist(
+                mediaSequence = 10, targetDurationSeconds = 2, endList = false,
+                segments = sequences.map { sequence ->
+                    HlsSegment(sequence, "$sequence.ts", 2.0, null, false, "NONE", null, null)
+                },
+            ),
+        )
+        val source = FakeSource(mapOf(url to listOf(
+            live(10, 11), live(10, 11), live(10, 11, 12), live(10, 11, 12),
+        )))
+        val result = HlsCaptureEngine(maxStalledPolls = 2).record(
+            url, ByteArrayOutputStream(), 1_000,
+            source, { false }, { 100 }, {},
+        )
+        assertEquals(HlsCaptureEngine.StopReason.STALLED, result.stopReason)
+        assertEquals(12L, result.lastSequence)
+        assertEquals(
+            listOf("https://example.test/11.ts", "https://example.test/12.ts"),
+            source.copied.map { it.first },
+        )
+        assertEquals(listOf(null, 11L, 11L, 12L, 12L), source.requestedAfter)
+    }
 }
