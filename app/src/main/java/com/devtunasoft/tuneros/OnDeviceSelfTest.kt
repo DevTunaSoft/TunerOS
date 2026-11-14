@@ -924,11 +924,19 @@ internal object OnDeviceSelfTest {
                 PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
             )
             alarm.setExactAndAllowWhileIdle(
-                AlarmManager.RTC_WAKEUP, System.currentTimeMillis() + 3_000, pending,
+                AlarmManager.RTC_WAKEUP, System.currentTimeMillis() + 20_000, pending,
             )
-            waitUntil(30_000) { RecordingAlarmReceiver.qaDeliveredIds.contains(id) }
+            // The CI script forces Doze after this marker; the alarm must still arrive.
+            report.appendText("SCHEDULED\t" + id + "\n")
+            waitUntil(90_000) { RecordingAlarmReceiver.qaDeliveries.containsKey(id) }
+            RecordingAlarmReceiver.qaDeliveries[id]?.let { "delivered idle=" + it } ?: "not delivered"
         }
-        report.appendText(result.state.name + "\t" + result.id + "\t" + result.detail + "\n")
+        // The check passes on delivery; the idle flag is reported so the gate can require Doze.
+        val delivered = RecordingAlarmReceiver.qaDeliveries[id]
+        val finalState = if (delivered != null) OnDeviceSelfTest.State.PASS else OnDeviceSelfTest.State.FAIL
+        val detail = if (delivered != null) "Exact alarm delivered, idle=" + delivered
+            else "Exact alarm not delivered within the wait"
+        report.appendText(finalState.name + "\t" + result.id + "\t" + detail + "\n")
     }
 
     /**

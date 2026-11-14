@@ -65,9 +65,20 @@ if ! grep -Fq "$(printf 'PASS\tdebug-service-stop-cancels\t')" service-stop-repo
   adb logcat -d -v brief 2>/dev/null | grep -E "FATAL|AndroidRuntime|DvrRecording|ActivityManager.*(died|crash|ANR)|ForegroundService|tuneros" | tail -120 || true
   exit 1
 fi
-# Isolated launch for exact-alarm delivery: a real AlarmManager alarm must reach the receiver.
+# Isolated launch for exact-alarm delivery. The alarm is scheduled first; only after it is
+# armed does this script force the device into deep Doze and sleep the screen. The alarm
+# must still be delivered while idle.
 adb shell am force-stop com.devtunasoft.tuneros
 adb shell am start -n com.devtunasoft.tuneros/.MainActivity --ez tuneros.debug.alarm true
+for attempt in $(seq 1 60); do
+  adb shell run-as com.devtunasoft.tuneros cat files/tuneros-alarm-report.txt > alarm-report.txt 2>/dev/null || true
+  if grep -Fq "SCHEDULED" alarm-report.txt; then
+    break
+  fi
+  sleep 2
+done
+adb shell dumpsys deviceidle force-idle || true
+adb shell input keyevent 223 || true
 for attempt in $(seq 1 60); do
   adb shell run-as com.devtunasoft.tuneros cat files/tuneros-alarm-report.txt > alarm-report.txt 2>/dev/null || true
   if grep -Fq "$(printf 'PASS\tqa-alarm-delivery\t')" alarm-report.txt; then
@@ -75,11 +86,13 @@ for attempt in $(seq 1 60); do
   fi
   sleep 2
 done
-if ! grep -Fq "$(printf 'PASS\tqa-alarm-delivery\t')" alarm-report.txt; then
-  echo "Exact alarm delivery check failed or never completed"
+if ! grep -Fq "$(printf 'PASS\tqa-alarm-delivery\tExact alarm delivered, idle=true')" alarm-report.txt; then
+  echo "Exact alarm delivery during Doze failed or never completed"
   cat alarm-report.txt 2>/dev/null || echo "(no report file)"
+  adb shell dumpsys deviceidle unforce || true
   exit 1
 fi
+adb shell dumpsys deviceidle unforce || true
 if grep -q '^FAIL[[:space:]]' on-device-report.txt; then
   echo "Unexpected failure in the app's own self-test report"
   cat on-device-report.txt

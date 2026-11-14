@@ -191,14 +191,16 @@ class RecordingAlarmReceiver : BroadcastReceiver() {
         const val EXTRA_SCHEDULE_ID = "schedule_id"
         /** Only the debug QA alarm uses this prefix; it never reaches the schedule database. */
         const val QA_ALARM_PREFIX = "qa-alarm-"
-        val qaDeliveredIds: MutableSet<String> = java.util.concurrent.ConcurrentHashMap.newKeySet()
+        /** QA alarm id -> whether the device was in deep idle (Doze) when it was delivered. */
+        val qaDeliveries: MutableMap<String, Boolean> = java.util.concurrent.ConcurrentHashMap()
     }
 
     override fun onReceive(context: Context, intent: Intent?) {
         if (intent?.action != ACTION_START_SCHEDULED) return
         val id = intent.getStringExtra(EXTRA_SCHEDULE_ID)?.takeIf { it.isNotBlank() } ?: return
         if (id.startsWith(QA_ALARM_PREFIX)) {
-            qaDeliveredIds.add(id)
+            val idle = context.getSystemService(android.os.PowerManager::class.java).isDeviceIdleMode
+            qaDeliveries[id] = idle
             return
         }
         val pending = goAsync()
