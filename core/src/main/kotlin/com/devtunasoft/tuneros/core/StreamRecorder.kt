@@ -48,6 +48,14 @@ class StreamRecorder(
                 continue
             }
             emptyReads = 0
+            // A slow network read can outlive a STOP request or a storage change.
+            // Recheck immediately before writing; never consume the reserved bytes
+            // just because there was enough space before the read began.
+            if (cancelled()) return Result(total, StopReason.CANCELLED)
+            val remaining = freeBytes()
+            if (remaining < minFreeBytes || remaining - minFreeBytes < count.toLong()) {
+                return Result(total, StopReason.LOW_STORAGE)
+            }
             output.write(buffer, 0, count)
             total += count
             onProgress(total)
