@@ -17,8 +17,10 @@ internal data class RecordingScheduleEntry(
     val lastError: String?,
 )
 
-internal class RecordingScheduleStore(context: Context) :
-    SQLiteOpenHelper(context.applicationContext, "recording_schedules.db", null, 1) {
+internal class RecordingScheduleStore(
+    context: Context,
+    databaseName: String = "recording_schedules.db",
+) : SQLiteOpenHelper(context.applicationContext, databaseName, null, 1) {
 
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL(
@@ -40,7 +42,11 @@ internal class RecordingScheduleStore(context: Context) :
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) = Unit
 
-    fun upsert(entry: RecordingScheduleEntry) {
+    /**
+     * Reserve a schedule ID once; never overwrite a previously scheduled or
+     * started recording or its encrypted source key.
+     */
+    fun insertIfAbsent(entry: RecordingScheduleEntry): Boolean {
         require(entry.endEpochSeconds > entry.startEpochSeconds)
         val values = ContentValues().apply {
             put("id", entry.id)
@@ -53,7 +59,21 @@ internal class RecordingScheduleStore(context: Context) :
             put("exact_alarm", if (entry.exactAlarm) 1 else 0)
             if (entry.lastError == null) putNull("last_error") else put("last_error", entry.lastError)
         }
-        writableDatabase.insertWithOnConflict("schedules", null, values, SQLiteDatabase.CONFLICT_REPLACE)
+        return writableDatabase.insertWithOnConflict(
+            "schedules", null, values, SQLiteDatabase.CONFLICT_IGNORE,
+        ) != -1L
+    }
+
+    /** The alarm cannot be armed until its secure source is fully written. */
+    fun markScheduledIfPreparing(id: String): Boolean {
+        val values = ContentValues().apply {
+            put("state", "SCHEDULED")
+            putNull("last_error")
+        }
+        return writableDatabase.update(
+            "schedules", values, "id=? AND state=?",
+            arrayOf(id, "PREPARING"),
+        ) == 1
     }
 
     fun get(id: String): RecordingScheduleEntry? =
@@ -111,8 +131,8 @@ internal class RecordingScheduleStore(context: Context) :
         readableDatabase.query(
             "schedules",
             COLUMNS,
-            "state=? AND id<>? AND start_epoch<? AND end_epoch>?",
-            arrayOf("SCHEDULED", id, endEpochSeconds.toString(), startEpochSeconds.toString()),
+            "state IN ('PREPARING','SCHEDULED') AND id<>? AND start_epoch<? AND end_epoch>?",
+            arrayOf(id, endEpochSeconds.toString(), startEpochSeconds.toString()),
             null, null,
             "start_epoch ASC",
             "1",

@@ -831,19 +831,6 @@ class MainActivity : Activity() {
                 }
                 return@execute
             }
-            if (!ScheduledRecordingSecrets.save(
-                    secureSources,
-                    sourceKey,
-                    ScheduledRecordingSource(channel.streamUrl, channel.userAgent, channel.referer),
-                )
-            ) {
-                runOnUiThread {
-                    if (!isFinishing && !isDestroyed) {
-                        showStatus("Could not securely save the recording source")
-                    }
-                }
-                return@execute
-            }
             val entry = RecordingScheduleEntry(
                 id = id,
                 title = program.title,
@@ -851,19 +838,64 @@ class MainActivity : Activity() {
                 secureSourceKey = sourceKey,
                 startEpochSeconds = program.startEpochSeconds,
                 endEpochSeconds = program.endEpochSeconds,
-                state = "SCHEDULED",
+                // A process death here must never rearm an unencrypted source.
+                state = "PREPARING",
                 exactAlarm = false,
                 lastError = null,
             )
+            val reservation = runCatching {
+                RecordingScheduleStore(this).use { it.insertIfAbsent(entry) }
+            }
+            if (!reservation.getOrDefault(false)) {
+                runOnUiThread {
+                    if (!isFinishing && !isDestroyed) {
+                        showStatus(if (reservation.isFailure) "Could not reserve DVR schedule"
+                            else "Recording already scheduled")
+                    }
+                }
+                return@execute
+            }
+
+            // Only the owner of the new row may write the deterministic source
+            // key. A second scheduling request cannot overwrite its credentials.
+            val saved = runCatching {
+                ScheduledRecordingSecrets.save(
+                    secureSources, sourceKey,
+                    ScheduledRecordingSource(
+                        channel.streamUrl, channel.userAgent, channel.referer,
+                    ),
+                )
+            }.getOrDefault(false)
+            if (!saved) {
+                runCatching {
+                    RecordingScheduleStore(this).use {
+                        it.markFailed(id, "Unable to securely save recording source")
+                    }
+                    ScheduledRecordingSecrets.delete(secureSources, sourceKey)
+                }
+                runOnUiThread {
+                    if (!isFinishing && !isDestroyed) {
+                        showStatus("Could not securely save the recording source")
+                    }
+                }
+                return@execute
+            }
+
             val result = runCatching {
-                RecordingScheduleStore(this).use { it.upsert(entry) }
-                RecordingScheduler.schedule(this, entry)
+                check(RecordingScheduleStore(this).use {
+                    it.markScheduledIfPreparing(id)
+                }) { "DVR schedule reservation no longer available" }
+                RecordingScheduler.schedule(this, entry.copy(state = "SCHEDULED"))
             }
             if (result.isFailure) {
-                RecordingScheduleStore(this).use {
-                    it.markFailed(id, result.exceptionOrNull()?.javaClass?.simpleName ?: "Schedule failure")
+                runCatching {
+                    RecordingScheduleStore(this).use {
+                        it.markFailed(id,
+                            result.exceptionOrNull()?.javaClass?.simpleName ?: "Schedule failure",
+                        )
+                    }
+                    ScheduledRecordingSecrets.delete(secureSources, sourceKey)
                 }
-                ScheduledRecordingSecrets.delete(secureSources, sourceKey)
             }
             runOnUiThread {
                 if (isFinishing || isDestroyed) return@runOnUiThread

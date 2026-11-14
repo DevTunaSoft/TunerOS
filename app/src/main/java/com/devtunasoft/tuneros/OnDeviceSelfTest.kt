@@ -293,6 +293,63 @@ internal object OnDeviceSelfTest {
             }
         }
 
+        checks += check(
+            "scratch-dvr-schedule-reservation",
+            "Isolated SQLite: immutable ID, PREPARING gate, overlap and bounded paging",
+        ) {
+            val name = "tuneros-selftest-schedules.db"
+            context.deleteDatabase(name) // Owned, disposable DB only; not user schedules.
+            try {
+                RecordingScheduleStore(context, name).use { store ->
+                    val first = RecordingScheduleEntry(
+                        "qa-scheduled-one", "Original title", "qa-channel",
+                        "qa-only-source-key", 100L, 200L, "PREPARING", false, null,
+                    )
+                    val second = RecordingScheduleEntry(
+                        "qa-scheduled-two", "Other title", "qa-channel-two",
+                        "qa-other-source-key", 220L, 300L, "PREPARING", false, null,
+                    )
+                    val created = store.insertIfAbsent(first)
+                    val duplicateRejected = !store.insertIfAbsent(first.copy(
+                        title = "Overwritten title",
+                        secureSourceKey = "wrong-source-key",
+                        state = "SCHEDULED",
+                    ))
+                    val original = store.get(first.id)
+                    val preserved = original?.title == first.title &&
+                        original.secureSourceKey == first.secureSourceKey &&
+                        original.state == "PREPARING"
+                    val preventsPrematureAlarm = store.pendingAfter(50L).isEmpty()
+                    val preparingConflicts = store.findOverlap(
+                        "qa-different-id", 110L, 190L,
+                    )?.id == first.id
+                    val activated = store.markScheduledIfPreparing(first.id) &&
+                        !store.markScheduledIfPreparing(first.id)
+                    val createdSecond = store.insertIfAbsent(second) &&
+                        store.markScheduledIfPreparing(second.id)
+                    val firstPage = store.pendingAfter(50L, limit = 1)
+                    val secondPage = firstPage.singleOrNull()?.let {
+                        store.pendingAfter(50L, limit = 1, after = it)
+                    }
+                    val pagination = firstPage.singleOrNull()?.id == first.id &&
+                        secondPage?.singleOrNull()?.id == second.id
+                    store.markStarted(first.id)
+                    val startedImmutable = !store.insertIfAbsent(first) &&
+                        store.get(first.id)?.state == "STARTED"
+                    val nextPending = store.pendingAfter(50L, limit = 1)
+                        .singleOrNull()?.id == second.id
+                    created && duplicateRejected && preserved &&
+                        preventsPrematureAlarm && preparingConflicts &&
+                        activated && createdSecond && pagination &&
+                        startedImmutable && nextPending
+                }
+            } finally {
+                kotlin.check(context.deleteDatabase(name)) {
+                    "Could not remove isolated QA schedule database"
+                }
+            }
+        }
+
         checks += check("android-keystore-roundtrip", "Dedicated encrypted canary saved/read/removed") {
             val store = SecureSourceStore(context)
             try {
