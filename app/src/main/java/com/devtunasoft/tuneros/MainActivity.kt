@@ -341,7 +341,14 @@ class MainActivity : Activity() {
         if (isServiceStopLaunch()) {
             worker.execute { OnDeviceSelfTest.runServiceStopOnly(applicationContext) }
         }
+        if (isAlarmLaunch()) {
+            worker.execute { OnDeviceSelfTest.runAlarmOnly(applicationContext) }
+        }
     }
+
+    private fun isAlarmLaunch(): Boolean =
+        (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0 &&
+            intent?.getBooleanExtra("tuneros.debug.alarm", false) == true
 
     private fun isServiceStopLaunch(): Boolean =
         (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0 &&
@@ -495,7 +502,7 @@ class MainActivity : Activity() {
         // Only one probe pass at once; use the app's existing serial worker.
         if (worker.isShutdown) return
         // The isolated service-stop launch must not share the process with the main pass.
-        if (isServiceStopLaunch()) return
+        if (isServiceStopLaunch() || isAlarmLaunch()) return
         if (selfTestsQueued) {
             // An import completed while a previous pass was running: do not lose its results.
             selfTestsDirty = true

@@ -189,11 +189,18 @@ class RecordingAlarmReceiver : BroadcastReceiver() {
     companion object {
         const val ACTION_START_SCHEDULED = "com.devtunasoft.tuneros.dvr.START_SCHEDULED"
         const val EXTRA_SCHEDULE_ID = "schedule_id"
+        /** Only the debug QA alarm uses this prefix; it never reaches the schedule database. */
+        const val QA_ALARM_PREFIX = "qa-alarm-"
+        val qaDeliveredIds: MutableSet<String> = java.util.concurrent.ConcurrentHashMap.newKeySet()
     }
 
     override fun onReceive(context: Context, intent: Intent?) {
         if (intent?.action != ACTION_START_SCHEDULED) return
         val id = intent.getStringExtra(EXTRA_SCHEDULE_ID)?.takeIf { it.isNotBlank() } ?: return
+        if (id.startsWith(QA_ALARM_PREFIX)) {
+            qaDeliveredIds.add(id)
+            return
+        }
         val pending = goAsync()
         Thread({
             try {

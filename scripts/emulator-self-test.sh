@@ -65,6 +65,21 @@ if ! grep -Fq "$(printf 'PASS\tdebug-service-stop-cancels\t')" service-stop-repo
   adb logcat -d -v brief 2>/dev/null | grep -E "FATAL|AndroidRuntime|DvrRecording|ActivityManager.*(died|crash|ANR)|ForegroundService|tuneros" | tail -120 || true
   exit 1
 fi
+# Isolated launch for exact-alarm delivery: a real AlarmManager alarm must reach the receiver.
+adb shell am force-stop com.devtunasoft.tuneros
+adb shell am start -n com.devtunasoft.tuneros/.MainActivity --ez tuneros.debug.alarm true
+for attempt in $(seq 1 60); do
+  adb shell run-as com.devtunasoft.tuneros cat files/tuneros-alarm-report.txt > alarm-report.txt 2>/dev/null || true
+  if grep -Fq "$(printf 'PASS\tscheduled-dvr-alarm-delivery\t')" alarm-report.txt; then
+    break
+  fi
+  sleep 2
+done
+if ! grep -Fq "$(printf 'PASS\tscheduled-dvr-alarm-delivery\t')" alarm-report.txt; then
+  echo "Exact alarm delivery check failed or never completed"
+  cat alarm-report.txt 2>/dev/null || echo "(no report file)"
+  exit 1
+fi
 if grep -q '^FAIL[[:space:]]' on-device-report.txt; then
   echo "Unexpected failure in the app's own self-test report"
   cat on-device-report.txt

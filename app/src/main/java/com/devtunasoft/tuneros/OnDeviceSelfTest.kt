@@ -1,6 +1,7 @@
 package com.devtunasoft.tuneros
 
 import android.app.AlarmManager
+import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.os.Build
@@ -102,6 +103,7 @@ internal object OnDeviceSelfTest {
     private const val EVENTS_FILE = "tuneros-selftest-events.tsv"
     private const val MAX_EVENTS_BYTES = 32 * 1024
     const val SERVICE_STOP_REPORT = "tuneros-service-stop-report.txt"
+    const val ALARM_REPORT = "tuneros-alarm-report.txt"
     private const val MAX_SHARE_EVENTS = 8 * 1024
     private const val CANARY_KEY = "tuneros_selftest_canary_v1"
     private const val RUN_MARKER = "tuneros-selftest-in-progress"
@@ -897,6 +899,36 @@ internal object OnDeviceSelfTest {
                 connection.disconnect()
             }
         }
+    }
+
+    /**
+     * Isolated debug launch only: schedules a real exact alarm 3 seconds ahead through the
+     * system AlarmManager and requires the receiver to be delivered. Uses a QA-only id, so the
+     * schedule database and user recordings are never touched.
+     */
+    fun runAlarmOnly(context: Context) {
+        val report = File(context.filesDir, ALARM_REPORT)
+        report.writeText("RUNNING\n")
+        val id = RecordingAlarmReceiver.QA_ALARM_PREFIX + System.currentTimeMillis()
+        val result = check(
+            "scheduled-dvr-alarm-delivery",
+            "Exact alarm is delivered to RecordingAlarmReceiver (QA-only id, no recording)",
+        ) {
+            val alarm = context.getSystemService(AlarmManager::class.java)
+            if (!alarm.canScheduleExactAlarms()) return@check false
+            val intent = Intent(context, RecordingAlarmReceiver::class.java)
+                .setAction(RecordingAlarmReceiver.ACTION_START_SCHEDULED)
+                .putExtra(RecordingAlarmReceiver.EXTRA_SCHEDULE_ID, id)
+            val pending = PendingIntent.getBroadcast(
+                context, id.hashCode(), intent,
+                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+            )
+            alarm.setExactAndAllowWhileIdle(
+                AlarmManager.RTC_WAKEUP, System.currentTimeMillis() + 3_000, pending,
+            )
+            waitUntil(30_000) { RecordingAlarmReceiver.qaDeliveredIds.contains(id) }
+        }
+        report.appendText(result.state.name + "\t" + result.id + "\t" + result.detail + "\n")
     }
 
     /**
