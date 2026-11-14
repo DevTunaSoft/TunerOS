@@ -559,6 +559,65 @@ https://example.com/live.m3u8
         assertEquals(result.bytesWritten.toInt(), output.size())
     }
 
+    @Test fun streamRecorderPreservesStorageReserveAfterSlowRead() {
+        var freeSpace = 20_000L
+        val input = object : InputStream() {
+            private var delivered = false
+            override fun read(): Int = if (delivered) -1 else 1.also { delivered = true }
+            override fun read(bytes: ByteArray, offset: Int, length: Int): Int {
+                if (delivered) return -1
+                delivered = true
+                // The drive fills while a network read is waiting.
+                freeSpace = 10_100L
+                bytes[offset] = 7
+                bytes[offset + 1] = 8
+                return 2
+            }
+        }
+        val out = ByteArrayOutputStream()
+        val result = StreamRecorder(bufferBytes = 4 * 1024, minFreeBytes = 10_000)
+            .copy(input, out, freeBytes = { freeSpace })
+        assertEquals(StreamRecorder.StopReason.END_OF_STREAM, result.stopReason)
+        assertEquals(2L, result.bytesWritten)
+        assertEquals(2, out.size())
+    }
+
+    @Test fun streamRecorderDoesNotWriteAChunkThatWouldConsumeStorageReserve() {
+        var freeSpace = 20_000L
+        val input = object : InputStream() {
+            override fun read(): Int = -1
+            override fun read(bytes: ByteArray, offset: Int, length: Int): Int {
+                freeSpace = 10_001L
+                bytes.fill(9, offset, offset + 4)
+                return 4
+            }
+        }
+        val out = ByteArrayOutputStream()
+        val result = StreamRecorder(bufferBytes = 4 * 1024, minFreeBytes = 10_000)
+            .copy(input, out, freeBytes = { freeSpace })
+        assertEquals(StreamRecorder.StopReason.LOW_STORAGE, result.stopReason)
+        assertEquals(0L, result.bytesWritten)
+        assertEquals(0, out.size())
+    }
+
+    @Test fun streamRecorderHonorsCancellationThatArrivesDuringRead() {
+        var stopped = false
+        val input = object : InputStream() {
+            override fun read(): Int = -1
+            override fun read(bytes: ByteArray, offset: Int, length: Int): Int {
+                stopped = true
+                bytes[offset] = 42
+                return 1
+            }
+        }
+        val out = ByteArrayOutputStream()
+        val result = StreamRecorder(bufferBytes = 4 * 1024, minFreeBytes = 0)
+            .copy(input, out, freeBytes = { Long.MAX_VALUE }, cancelled = { stopped })
+        assertEquals(StreamRecorder.StopReason.CANCELLED, result.stopReason)
+        assertEquals(0L, result.bytesWritten)
+        assertEquals(0, out.size())
+    }
+
     @Test fun streamRecorderCanReuseCallerOwnedBuffer() {
         val provided = ByteArray(4 * 1024)
         var sawProvidedBuffer = false
