@@ -12,7 +12,7 @@ trap on_failure EXIT
 adb install -r ci-apk/app-debug.apk
 # Autonomous test setup: grant exact-alarm access to the debug build so the alarm
 # check runs for real instead of reporting BLOCKED. No human interaction.
-APP_UID=$(adb shell dumpsys package com.devtunasoft.tuneros 2>/dev/null | tr -d '\r' | grep -m1 -o 'appId=[0-9]*' | cut -d= -f2)
+APP_UID=$(adb shell dumpsys package com.devtunasoft.tuneros 2>/dev/null > uid-dump.txt; tr -d '\r' < uid-dump.txt | grep -o 'appId=[0-9]*' | head -1 | cut -d= -f2 || true)
 echo "app uid: ${APP_UID:-unknown}"
 adb shell cmd appops set --uid "$APP_UID" SCHEDULE_EXACT_ALARM allow; echo "set-by-uid rc=$?"
 adb shell cmd appops set com.devtunasoft.tuneros SCHEDULE_EXACT_ALARM allow; echo "set-by-pkg rc=$?"
