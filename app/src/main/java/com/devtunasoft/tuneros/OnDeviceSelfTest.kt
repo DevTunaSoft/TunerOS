@@ -905,12 +905,18 @@ internal object OnDeviceSelfTest {
      * interfered with the Keystore canary and UI probes.
      */
     fun runServiceStopOnly(context: Context) {
-        val result = check(
+        val stop = check(
             "debug-service-stop-cancels",
             "Foreground recorder: Stop during a blocked connect ends CANCELLED in a scratch catalog",
-        ) { debugServiceStopCancels(context) }
+        ) { debugServiceStopCancels(context, viaDestroy = false) }
+        val destroy = check(
+            "debug-service-destroy-cancels",
+            "Foreground recorder: stopService during a blocked connect ends CANCELLED",
+        ) { debugServiceStopCancels(context, viaDestroy = true) }
         File(context.filesDir, SERVICE_STOP_REPORT).writeText(
-            result.state.name + "\t" + result.id + "\t" + result.detail + "\n",
+            listOf(stop, destroy).joinToString("") {
+                it.state.name + "\t" + it.id + "\t" + it.detail + "\n"
+            },
         )
     }
 
@@ -919,7 +925,7 @@ internal object OnDeviceSelfTest {
      * request is in flight, then sends Stop. The scratch catalog row must end CANCELLED.
      * Uses a disposable database; recordings.db and real media are never touched.
      */
-    private fun debugServiceStopCancels(context: Context): Boolean {
+    private fun debugServiceStopCancels(context: Context, viaDestroy: Boolean): Boolean {
         val database = "tuneros-selftest-service.db"
         val id = "qa-service-" + System.currentTimeMillis()
         context.deleteDatabase(database)
@@ -943,10 +949,15 @@ internal object OnDeviceSelfTest {
                     .putExtra(DvrRecordingService.EXTRA_END_EPOCH_SECONDS, end)
                 context.startForegroundService(start)
                 if (!waitUntil(15_000) { accepted.get() != null }) return false
-                context.startService(
-                    Intent(context, DvrRecordingService::class.java)
-                        .setAction(DvrRecordingService.ACTION_STOP),
-                )
+                if (viaDestroy) {
+                    // No Stop action: tearing the service down must still cancel and finalize.
+                    context.stopService(Intent(context, DvrRecordingService::class.java))
+                } else {
+                    context.startService(
+                        Intent(context, DvrRecordingService::class.java)
+                            .setAction(DvrRecordingService.ACTION_STOP),
+                    )
+                }
                 val entry = waitUntilValue(20_000) {
                     RecordingCatalog(context, database).use { catalog ->
                         catalog.recent(10).firstOrNull { it.id == id }
