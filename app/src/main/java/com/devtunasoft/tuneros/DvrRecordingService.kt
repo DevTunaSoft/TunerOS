@@ -6,6 +6,7 @@ import android.app.Service
 import android.content.Intent
 import android.os.Build
 import android.os.IBinder
+import com.devtunasoft.tuneros.core.AbortableSlot
 import com.devtunasoft.tuneros.core.HlsByteRange
 import com.devtunasoft.tuneros.core.HlsCaptureEngine
 import com.devtunasoft.tuneros.core.HlsContentRange
@@ -53,7 +54,7 @@ class DvrRecordingService : Service() {
     private val worker = Executors.newSingleThreadExecutor()
     private val cancelled = AtomicBoolean(false)
     private val activeRecordingId = AtomicReference<String?>(null)
-    @Volatile private var activeConnection: HttpURLConnection? = null
+    private val connections = AbortableSlot<HttpURLConnection> { it.disconnect() }
     private val catalogLazy = lazy { RecordingCatalog(this) }
     private val catalog: RecordingCatalog get() = catalogLazy.value
 
@@ -75,7 +76,7 @@ class DvrRecordingService : Service() {
         when (intent?.action) {
             ACTION_STOP -> {
                 cancelled.set(true)
-                activeConnection?.disconnect()
+                connections.abortCurrent()
                 if (activeRecordingId.get() == null) stopSelf(startId)
                 return START_NOT_STICKY
             }
@@ -118,6 +119,7 @@ class DvrRecordingService : Service() {
 
         val endEpochSeconds = intent.getLongExtra(EXTRA_END_EPOCH_SECONDS, Long.MAX_VALUE)
         cancelled.set(false)
+        connections.reset()
         if (!catalog.tryInsertStart(id, title, channelId, nowSeconds())) {
             if (scheduleKey != null) {
                 failScheduledDispatch(id, scheduleKey, "Recording ID already exists")
@@ -184,7 +186,6 @@ class DvrRecordingService : Service() {
                 capture(id, url, endEpochSeconds, userAgent, referer)
             } finally {
                 activeRecordingId.set(null)
-                activeConnection = null
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf(startId)
             }
@@ -273,8 +274,7 @@ class DvrRecordingService : Service() {
             observeOutcome(state, bytes)
         } finally {
             initialConnection?.disconnect()
-            activeConnection?.disconnect()
-            activeConnection = null
+            connections.abortCurrent()
         }
     }
 
@@ -444,7 +444,7 @@ class DvrRecordingService : Service() {
         var current = URL(value)
         repeat(6) {
             val connection = current.openConnection() as HttpURLConnection
-            activeConnection = connection
+            if (!connections.register(connection)) error("Recording cancelled")
             connection.instanceFollowRedirects = false
             connection.connectTimeout = 12_000
             connection.readTimeout = 30_000
@@ -468,19 +468,19 @@ class DvrRecordingService : Service() {
                     error("HTTPS downgrade blocked")
                 }
                 connection.disconnect()
-                if (activeConnection === connection) activeConnection = null
+                connections.release(connection)
                 current = next
                 return@repeat
             }
 
             if (code !in 200..299) {
                 connection.disconnect()
-                if (activeConnection === connection) activeConnection = null
+                connections.release(connection)
                 error("HTTP status " + code)
             }
             if (byteRange != null && code != HttpURLConnection.HTTP_PARTIAL) {
                 connection.disconnect()
-                if (activeConnection === connection) activeConnection = null
+                connections.release(connection)
                 error("Server ignored HLS byte range")
             }
             if (byteRange != null && !HlsContentRange.matches(
@@ -488,7 +488,7 @@ class DvrRecordingService : Service() {
                 )
             ) {
                 connection.disconnect()
-                if (activeConnection === connection) activeConnection = null
+                connections.release(connection)
                 error("HLS Content-Range did not match requested bytes")
             }
             return connection
@@ -573,7 +573,7 @@ class DvrRecordingService : Service() {
 
     override fun onDestroy() {
         cancelled.set(true)
-        activeConnection?.disconnect()
+        connections.abortCurrent()
         // A cancelled recording may still be unwinding its stream and persisting
         // PARTIAL/FAILED. Closing SQLite here races that final catalog update.
         // Enqueue the close *after* the sole recording worker, without blocking
