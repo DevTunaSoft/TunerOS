@@ -982,7 +982,7 @@ internal object OnDeviceSelfTest {
                 val cancelled = entry != null && entry.state == "CANCELLED" &&
                     entry.bytesWritten == 0L && entry.stoppedEpochSeconds != null
                 // The foreground service must also end, not just the row (regression guard).
-                cancelled && waitUntil(10_000) { !serviceRunning(context) }
+                return cancelled && waitUntil(10_000) { !serviceRunning(context) }
             } finally {
                 DvrRecordingService.qaCatalogDatabaseName = null
                 accepted.get()?.close()
