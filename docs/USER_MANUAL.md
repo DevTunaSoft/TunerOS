@@ -61,3 +61,7 @@ The Android 35 emulator now completes the built-in synthetic self-tests automati
 ## Verified file-backed recording self-tests (November 14, 2026)
 
 [GitHub Actions run 43538188194](https://github.com/DevTunaSoft/TunerOS/actions/runs/43538188194) **PASS** with **20 synthetic/local checks passed, 0 failed, 1 blocked, and 12 not run**. The app's explicit debug-only checks now write a tiny synthetic HLS capture to a private cache file, confirm its contents and remove it, and exercise internal DVR file counting, duplicate filename protection and finalization. These checks never open your IPTV provider or overwrite your recordings; they do not run during normal viewing. The exact-alarm permission remains blocked in the emulator, and real long-running DVR, streaming playback, USB/SD disconnection and physical-device power/memory/battery acceptance are outstanding.
+
+## HTTP recording integrity (verified November 14, 2026)
+
+[GitHub Actions run 43540275329](https://github.com/DevTunaSoft/TunerOS/actions/runs/43540275329) **PASS** (21 synthetic/local checks passed, 0 failed, 1 blocked and 12 not run). The recorder now rejects ordinary HLS segment responses when the actual copied bytes disagree with a known identity HTTP `Content-Length`. Written bytes remain partial instead of being treated as complete. The check runs automatically in Android debug/emulator QA and does not require user testing. It does not demonstrate actual provider recordings, scheduled alarms or sustained TV-box memory.
