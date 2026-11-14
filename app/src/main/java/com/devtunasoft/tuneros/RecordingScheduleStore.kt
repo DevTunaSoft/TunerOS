@@ -131,7 +131,7 @@ internal class RecordingScheduleStore(
         readableDatabase.query(
             "schedules",
             COLUMNS,
-            "state IN ('PREPARING','SCHEDULED') AND id<>? AND start_epoch<? AND end_epoch>?",
+            "state IN ('PREPARING','SCHEDULED','STARTED') AND id<>? AND start_epoch<? AND end_epoch>?",
             arrayOf(id, endEpochSeconds.toString(), startEpochSeconds.toString()),
             null, null,
             "start_epoch ASC",

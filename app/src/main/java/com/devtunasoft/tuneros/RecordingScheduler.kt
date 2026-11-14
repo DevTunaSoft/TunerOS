@@ -147,17 +147,15 @@ class RecordingAlarmReceiver : BroadcastReceiver() {
         if (entry.state != "SCHEDULED") return
 
         val now = System.currentTimeMillis() / 1000
+        val secrets = SecureSourceStore(context)
         if (entry.endEpochSeconds <= now) {
-            RecordingScheduleStore(context).use { it.markFailed(id, "Scheduled recording window already ended") }
-            ScheduledRecordingSecrets.delete(SecureSourceStore(context), entry.secureSourceKey)
+            failPending(context, entry, secrets, "Scheduled recording window already ended")
             return
         }
 
-        val secrets = SecureSourceStore(context)
         val source = ScheduledRecordingSecrets.load(secrets, entry.secureSourceKey)
         if (source == null) {
-            RecordingScheduleStore(context).use { it.markFailed(id, "Secure recording source unavailable") }
-            ScheduledRecordingSecrets.delete(secrets, entry.secureSourceKey)
+            failPending(context, entry, secrets, "Secure recording source unavailable")
             return
         }
 
@@ -185,9 +183,27 @@ class RecordingAlarmReceiver : BroadcastReceiver() {
             // Dispatch is not acceptance: the foreground recorder acknowledges
             // STARTED and deletes source secrets after it actually starts.
         }.onFailure { error ->
+            failPending(context, entry, secrets, error.javaClass.simpleName)
+        }
+    }
+
+    /**
+     * A late failed alarm must not alter a newer/cancelled schedule or delete
+     * another schedule's encrypted provider source. Exactly one matching
+     * SCHEDULED row may transition to FAILED.
+     */
+    private fun failPending(
+        context: Context,
+        entry: RecordingScheduleEntry,
+        secrets: SecureSourceStore,
+        reason: String,
+    ) {
+        val updated = runCatching {
             RecordingScheduleStore(context).use {
-                it.markFailed(id, error.javaClass.simpleName)
+                it.markFailedIfScheduled(entry.id, entry.secureSourceKey, reason)
             }
+        }.getOrDefault(false)
+        if (updated) runCatching {
             ScheduledRecordingSecrets.delete(secrets, entry.secureSourceKey)
         }
     }

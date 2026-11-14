@@ -342,6 +342,9 @@ internal object OnDeviceSelfTest {
                     ) && !store.markStartedIfScheduled(first.id, first.secureSourceKey)
                     val startedImmutable = !store.insertIfAbsent(first) &&
                         store.get(first.id)?.state == "STARTED"
+                    val startedOverlap = store.findOverlap(
+                        "qa-different-id", 110L, 190L,
+                    )?.id == first.id
                     val nextPending = store.pendingAfter(50L, limit = 1)
                         .singleOrNull()?.id == second.id
                     val wrongFailureBlocked = !store.markFailedIfScheduled(
@@ -357,7 +360,7 @@ internal object OnDeviceSelfTest {
                         preventsPrematureAlarm && preparingConflicts &&
                         activated && createdSecond && pagination &&
                         wrongSourceBlocked && acknowledged &&
-                        startedImmutable && nextPending &&
+                        startedImmutable && startedOverlap && nextPending &&
                         wrongFailureBlocked && failedExactlyOnce
                 }
             } finally {
