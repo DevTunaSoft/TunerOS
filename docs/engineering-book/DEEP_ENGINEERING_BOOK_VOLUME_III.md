@@ -397,6 +397,7 @@ Synthetic HTTP fixtures prove byte caps, redirect rejection, gzip handling and c
 **FI-06-05 — Two operations race on the same identifier.** Expected: Enforce one owner or transactionally reject the second; no overwrite. Test setup: use a deterministic fixture and an injected boundary (read, write, callback, or lifecycle); record the operation ID, monotonic timestamp, state before/after and actual assertion. Do not mark PASS until the test executes.
 
 **FI-06-06 — Network or document provider stops making progress.** Expected: Bound waiting and memory; report a specific error without busy spinning. Test setup: use a deterministic fixture and an injected boundary (read, write, callback, or lifecycle); record the operation ID, monotonic timestamp, state before/after and actual assertion. Do not mark PASS until the test executes.
+
 **FI-06-07 — Device has little free storage or heap.** Expected: Fail safely before corrupting media or exhausting process memory. Test setup: use a deterministic fixture and an injected boundary (read, write, callback, or lifecycle); record the operation ID, monotonic timestamp, state before/after and actual assertion. Do not mark PASS until the test executes.
 
 **FI-06-08 — Sensitive values appear in an exception.** Expected: Replace with numeric category; verify export redaction. Test setup: use a deterministic fixture and an injected boundary (read, write, callback, or lifecycle); record the operation ID, monotonic timestamp, state before/after and actual assertion. Do not mark PASS until the test executes.
@@ -796,6 +797,7 @@ State-machine transition tests, reboot rig observations, delivered-alarm evidenc
 **FI-12-04 — Android process or service is destroyed.** Expected: Recover from durable state without relying on in-memory flags. Test setup: use a deterministic fixture and an injected boundary (read, write, callback, or lifecycle); record the operation ID, monotonic timestamp, state before/after and actual assertion. Do not mark PASS until the test executes.
 
 **FI-12-05 — Two operations race on the same identifier.** Expected: Enforce one owner or transactionally reject the second; no overwrite. Test setup: use a deterministic fixture and an injected boundary (read, write, callback, or lifecycle); record the operation ID, monotonic timestamp, state before/after and actual assertion. Do not mark PASS until the test executes.
+
 **FI-12-06 — Network or document provider stops making progress.** Expected: Bound waiting and memory; report a specific error without busy spinning. Test setup: use a deterministic fixture and an injected boundary (read, write, callback, or lifecycle); record the operation ID, monotonic timestamp, state before/after and actual assertion. Do not mark PASS until the test executes.
 
 **FI-12-07 — Device has little free storage or heap.** Expected: Fail safely before corrupting media or exhausting process memory. Test setup: use a deterministic fixture and an injected boundary (read, write, callback, or lifecycle); record the operation ID, monotonic timestamp, state before/after and actual assertion. Do not mark PASS until the test executes.
@@ -1195,6 +1197,7 @@ Median/p95 and peak measurements with device/build/fixture metadata; no regressi
 **FI-18-03 — Operation is cancelled immediately after a durable write.** Expected: Make retry idempotent; avoid duplicate records, files or notifications. Test setup: use a deterministic fixture and an injected boundary (read, write, callback, or lifecycle); record the operation ID, monotonic timestamp, state before/after and actual assertion. Do not mark PASS until the test executes.
 
 **FI-18-04 — Android process or service is destroyed.** Expected: Recover from durable state without relying on in-memory flags. Test setup: use a deterministic fixture and an injected boundary (read, write, callback, or lifecycle); record the operation ID, monotonic timestamp, state before/after and actual assertion. Do not mark PASS until the test executes.
+
 **FI-18-05 — Two operations race on the same identifier.** Expected: Enforce one owner or transactionally reject the second; no overwrite. Test setup: use a deterministic fixture and an injected boundary (read, write, callback, or lifecycle); record the operation ID, monotonic timestamp, state before/after and actual assertion. Do not mark PASS until the test executes.
 
 **FI-18-06 — Network or document provider stops making progress.** Expected: Bound waiting and memory; report a specific error without busy spinning. Test setup: use a deterministic fixture and an injected boundary (read, write, callback, or lifecycle); record the operation ID, monotonic timestamp, state before/after and actual assertion. Do not mark PASS until the test executes.
@@ -1594,6 +1597,7 @@ Recovery invariants, bounded disk growth and sustained playback/seek tests; curr
 **FI-24-02 — Operation is cancelled immediately before a durable write.** Expected: Do not publish success; close handles and leave a recoverable partial state. Test setup: use a deterministic fixture and an injected boundary (read, write, callback, or lifecycle); record the operation ID, monotonic timestamp, state before/after and actual assertion. Do not mark PASS until the test executes.
 
 **FI-24-03 — Operation is cancelled immediately after a durable write.** Expected: Make retry idempotent; avoid duplicate records, files or notifications. Test setup: use a deterministic fixture and an injected boundary (read, write, callback, or lifecycle); record the operation ID, monotonic timestamp, state before/after and actual assertion. Do not mark PASS until the test executes.
+
 **FI-24-04 — Android process or service is destroyed.** Expected: Recover from durable state without relying on in-memory flags. Test setup: use a deterministic fixture and an injected boundary (read, write, callback, or lifecycle); record the operation ID, monotonic timestamp, state before/after and actual assertion. Do not mark PASS until the test executes.
 
 **FI-24-05 — Two operations race on the same identifier.** Expected: Enforce one owner or transactionally reject the second; no overwrite. Test setup: use a deterministic fixture and an injected boundary (read, write, callback, or lifecycle); record the operation ID, monotonic timestamp, state before/after and actual assertion. Do not mark PASS until the test executes.
@@ -1906,3 +1910,4 @@ Scan exported diagnostics for URL-like strings, tokens and auth headers; test XM
 
 ## Handoff integrity warning
 This is an evidence-aware engineering book, not a claim that every proposed contract has been implemented. All new test cases are specifications until run. The source repository and exact CI artifacts outrank prose when they conflict.
+
