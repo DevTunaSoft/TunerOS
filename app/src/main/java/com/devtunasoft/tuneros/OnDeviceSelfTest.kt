@@ -101,6 +101,7 @@ internal object OnDeviceSelfTest {
     private const val REPORT_FILE = "tuneros-selftest-report.txt"
     private const val EVENTS_FILE = "tuneros-selftest-events.tsv"
     private const val MAX_EVENTS_BYTES = 32 * 1024
+    const val SERVICE_STOP_REPORT = "tuneros-service-stop-report.txt"
     private const val MAX_SHARE_EVENTS = 8 * 1024
     private const val CANARY_KEY = "tuneros_selftest_canary_v1"
     private const val RUN_MARKER = "tuneros-selftest-in-progress"
@@ -896,6 +897,21 @@ internal object OnDeviceSelfTest {
                 connection.disconnect()
             }
         }
+    }
+
+    /**
+     * Isolated debug launch only: runs the service stop check by itself, away from the main
+     * QA pass, and publishes its own result file. Sharing the process with the main pass
+     * interfered with the Keystore canary and UI probes.
+     */
+    fun runServiceStopOnly(context: Context) {
+        val result = check(
+            "debug-service-stop-cancels",
+            "Foreground recorder: Stop during a blocked connect ends CANCELLED in a scratch catalog",
+        ) { debugServiceStopCancels(context) }
+        File(context.filesDir, SERVICE_STOP_REPORT).writeText(
+            result.state.name + "\t" + result.id + "\t" + result.detail + "\n",
+        )
     }
 
     /**

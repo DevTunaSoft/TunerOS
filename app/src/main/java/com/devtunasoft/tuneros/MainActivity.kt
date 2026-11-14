@@ -338,7 +338,14 @@ class MainActivity : Activity() {
         // Only debug APKs explicitly launched for automated CI perform focus
         // probes. Normal users never have their focus moved by testing.
         if (isDebugQaEnabled()) root.post { runDebugUiFocusProbe() }
+        if (isServiceStopLaunch()) {
+            worker.execute { OnDeviceSelfTest.runServiceStopOnly(applicationContext) }
+        }
     }
+
+    private fun isServiceStopLaunch(): Boolean =
+        (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0 &&
+            intent?.getBooleanExtra("tuneros.debug.service_stop", false) == true
 
     private fun isDebugQaEnabled(): Boolean =
         (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0 &&
@@ -487,6 +494,8 @@ class MainActivity : Activity() {
     private fun scheduleSelfTests() {
         // Only one probe pass at once; use the app's existing serial worker.
         if (worker.isShutdown) return
+        // The isolated service-stop launch must not share the process with the main pass.
+        if (isServiceStopLaunch()) return
         if (selfTestsQueued) {
             // An import completed while a previous pass was running: do not lose its results.
             selfTestsDirty = true

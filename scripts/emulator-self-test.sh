@@ -35,6 +35,22 @@ if adb shell run-as com.devtunasoft.tuneros ls files/tuneros-selftest-in-progres
   echo "The self-test has not committed its report and cleared its run marker"
   exit 1
 fi
+# Isolated launch for the foreground-service stop check. It runs separately so it
+# cannot disturb the main QA pass, and its own result file is required.
+adb shell am force-stop com.devtunasoft.tuneros
+adb shell am start -n com.devtunasoft.tuneros/.MainActivity --ez tuneros.debug.service_stop true
+for attempt in $(seq 1 60); do
+  adb shell run-as com.devtunasoft.tuneros cat files/tuneros-service-stop-report.txt > service-stop-report.txt 2>/dev/null || true
+  if grep -Fq "$(printf 'PASS\tdebug-service-stop-cancels\t')" service-stop-report.txt; then
+    break
+  fi
+  sleep 2
+done
+if ! grep -Fq "$(printf 'PASS\tdebug-service-stop-cancels\t')" service-stop-report.txt; then
+  echo "Foreground service stop check failed or never completed"
+  cat service-stop-report.txt 2>/dev/null || true
+  exit 1
+fi
 if grep -q '^FAIL[[:space:]]' on-device-report.txt; then
   echo "Unexpected failure in the app's own self-test report"
   cat on-device-report.txt
