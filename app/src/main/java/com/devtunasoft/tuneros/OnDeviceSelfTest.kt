@@ -933,6 +933,8 @@ internal object OnDeviceSelfTest {
      * Uses a disposable database; recordings.db and real media are never touched.
      */
     private fun debugServiceStopCancels(context: Context, viaDestroy: Boolean): Boolean {
+        fun phase(name: String) = File(context.filesDir, SERVICE_STOP_REPORT).appendText("PHASE\t" + name + "\n")
+        phase("begin")
         val database = "tuneros-selftest-service.db"
         val id = "qa-service-" + System.currentTimeMillis()
         context.deleteDatabase(database)
@@ -954,8 +956,12 @@ internal object OnDeviceSelfTest {
                         "http://127.0.0.1:" + server.localPort + "/silent.ts",
                     )
                     .putExtra(DvrRecordingService.EXTRA_END_EPOCH_SECONDS, end)
+                phase("starting")
                 context.startForegroundService(start)
-                if (!waitUntil(15_000) { accepted.get() != null }) return false
+                phase("started")
+                if (!waitUntil(15_000) { accepted.get() != null }) { phase("no-connection"); return false }
+                phase("connected")
+                phase("tearing-down")
                 if (viaDestroy) {
                     // No Stop action: tearing the service down must still cancel and finalize.
                     context.stopService(Intent(context, DvrRecordingService::class.java))
