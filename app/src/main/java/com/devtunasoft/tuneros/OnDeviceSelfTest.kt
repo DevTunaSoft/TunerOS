@@ -371,7 +371,9 @@ internal object OnDeviceSelfTest {
             }
         }
 
-        checks += check(
+        // The 40-row SQLite fault-injection probe must never run during
+        // ordinary app startup. The Android emulator opts into stress QA.
+        if (includeStress) checks += check(
             "scratch-dvr-preparation-recovery",
             "Isolated SQLite startup cleanup: bounded pages, retry and no active schedule loss",
         ) {
