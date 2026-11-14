@@ -5,6 +5,7 @@ import android.content.Context
 import android.os.Build
 import android.os.Debug
 import android.os.SystemClock
+import com.devtunasoft.tuneros.core.AbortableSlot
 import com.devtunasoft.tuneros.core.Channel
 import com.devtunasoft.tuneros.core.ChannelVisibility
 import com.devtunasoft.tuneros.core.GuideProgram
@@ -524,6 +525,10 @@ internal object OnDeviceSelfTest {
                 "Android HTTP loopback fetch + bounded file-backed HLS capture and cleanup",
             ) { debugLoopbackHlsTransport(context) }
             checks += check(
+                "debug-connection-abort",
+                "Stop aborts a blocked Android HTTP connect/read promptly",
+            ) { debugConnectionAbort() }
+            checks += check(
                 "debug-internal-dvr-finalize",
                 "Owned file writes, collision protection, finalization and cleanup",
             ) { debugInternalSinkFinalization(context) }
@@ -850,6 +855,47 @@ internal object OnDeviceSelfTest {
      * a unique app-private cache name and never touches the recordings folder.
      * One tiny write, two collision checks, a rename and final cleanup.
      */
+    /**
+     * A local server accepts but never answers. The app's connection is registered, blocks in
+     * responseCode, and is aborted through the same slot the recorder uses on Stop/destroy.
+     * The blocked call must throw within a bounded time. No external network is used.
+     */
+    private fun debugConnectionAbort(): Boolean {
+        ServerSocket(0, 1, InetAddress.getByName("127.0.0.1")).use { server ->
+            val accepted = AtomicReference<java.net.Socket?>(null)
+            val acceptor = Thread { runCatching { accepted.set(server.accept()) } }
+            acceptor.isDaemon = true
+            acceptor.start()
+            val connection = URL("http://127.0.0.1:" + server.localPort + "/")
+                .openConnection() as HttpURLConnection
+            connection.connectTimeout = 10_000
+            connection.readTimeout = 10_000
+            val slot = AbortableSlot<HttpURLConnection> { it.disconnect() }
+            val thrown = AtomicReference<Throwable?>(null)
+            val reader = Thread {
+                if (slot.register(connection)) {
+                    try {
+                        connection.responseCode
+                    } catch (error: Exception) {
+                        thrown.set(error)
+                    }
+                }
+            }
+            reader.isDaemon = true
+            reader.start()
+            try {
+                acceptor.join(5_000)
+                if (accepted.get() == null) return false
+                slot.abortCurrent()
+                reader.join(5_000)
+                return !reader.isAlive && thrown.get() != null
+            } finally {
+                accepted.get()?.close()
+                connection.disconnect()
+            }
+        }
+    }
+
     private fun debugInternalSinkFinalization(context: Context): Boolean {
         val id = "qa-dvr-${SystemClock.elapsedRealtimeNanos()}-${Thread.currentThread().id}"
         val partial = File(context.cacheDir, "$id.partial")
