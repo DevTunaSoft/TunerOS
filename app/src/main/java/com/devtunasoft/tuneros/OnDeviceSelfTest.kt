@@ -382,8 +382,8 @@ internal object OnDeviceSelfTest {
             ) { debugHlsDvrSequence() }
             checks += check(
                 "debug-loopback-hls-transport",
-                "Android HTTP loopback fetch + fixed-buffer HLS copying",
-            ) { debugLoopbackHlsTransport() }
+                "Android HTTP loopback fetch + bounded file-backed HLS capture and cleanup",
+            ) { debugLoopbackHlsTransport(context) }
             checks += check(
                 "debug-saf-storage-guard",
                 "Synthetic removable-storage free-space and root matching fail closed",
@@ -525,11 +525,12 @@ internal object OnDeviceSelfTest {
 
     /**
      * Debug-only Android HTTP integration test using a bounded loopback fixture.
-     * It creates exactly four tiny HTTP replies on 127.0.0.1 and copies 2 bytes.
-     * No user/provider requests, media files, permission prompts or new services.
+     * It serves four tiny replies on 127.0.0.1 and writes two bytes into
+     * a private scratch file, verifying the bytes and deleting it afterward.
+     * No user/provider requests, recordings, permission prompts or services.
      * Only the debug-enabled worker runs this; the serving thread always exits.
      */
-    private fun debugLoopbackHlsTransport(): Boolean {
+    private fun debugLoopbackHlsTransport(context: Context): Boolean {
         val loopback = InetAddress.getByName("127.0.0.1")
         val server = ServerSocket().apply {
             reuseAddress = false
@@ -614,19 +615,33 @@ internal object OnDeviceSelfTest {
                     },
                     freeBytes = { Long.MAX_VALUE },
                 )
-                val output = ByteArrayOutputStream(2)
-                val result = HlsCaptureEngine().record(
-                    initialUrl = sourceUrl,
-                    output = output,
-                    endEpochSeconds = 1_000L,
-                    source = source,
-                    cancelled = { false },
-                    nowEpochSeconds = { 100L },
-                    sleepMillis = {},
-                )
-                copiedCorrectly = result.stopReason == HlsCaptureEngine.StopReason.END_LIST &&
-                    result.lastSequence == 9L && result.bytesWritten == 2L &&
-                    output.toByteArray().contentEquals(byteArrayOf(1, 2))
+                // Use actual filesystem I/O, not a ByteArrayOutputStream.
+                // Random, app-private scratch name prevents touching user media.
+                val scratch = File.createTempFile("tuneros-hls-qa-", ".partial", context.cacheDir)
+                try {
+                    val result = FileOutputStream(scratch).use { output ->
+                        HlsCaptureEngine().record(
+                            initialUrl = sourceUrl,
+                            output = output,
+                            endEpochSeconds = 1_000L,
+                            source = source,
+                            cancelled = { false },
+                            nowEpochSeconds = { 100L },
+                            sleepMillis = {},
+                        )
+                    }
+                    // Read only the expected two bytes; never buffer a recording
+                    // into memory for verification.
+                    val fileMatches = scratch.length() == 2L &&
+                        scratch.inputStream().use { input ->
+                            input.read() == 1 && input.read() == 2 && input.read() == -1
+                        }
+                    copiedCorrectly = result.stopReason == HlsCaptureEngine.StopReason.END_LIST &&
+                        result.lastSequence == 9L && result.bytesWritten == 2L &&
+                        fileMatches
+                } finally {
+                    check(scratch.delete()) { "Could not clean up HLS QA scratch file" }
+                }
             } finally {
                 // Closing the server unblocks a stalled accept; no thread persists.
                 server.close()

@@ -410,4 +410,39 @@ class HlsCaptureEngineTest {
         )
         assertEquals(listOf(null, 11L, 11L, 12L, 12L), source.requestedAfter)
     }
+    @Test fun cancellingAfterFirstSegmentPreservesPartialBytesAndLastCompletedSequence() {
+        val url = "https://example.test/partial.m3u8"
+        val source = FakeSource(
+            mapOf(
+                url to listOf(
+                    LoadedHlsPlaylist(
+                        url, HlsMediaPlaylist(
+                            mediaSequence = 40L, targetDurationSeconds = 4L, endList = true,
+                            segments = listOf(
+                                HlsSegment(40L, "40.ts", 4.0, null, false, "NONE", null, null),
+                                HlsSegment(41L, "41.ts", 4.0, null, false, "NONE", null, null),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+            mapOf(
+                "https://example.test/40.ts" to byteArrayOf(0x2a),
+                "https://example.test/41.ts" to byteArrayOf(0x2b),
+            ),
+        )
+        val output = ByteArrayOutputStream()
+        val result = HlsCaptureEngine().record(
+            url, output, 1_000, source,
+            cancelled = { output.size() > 0 },
+            nowEpochSeconds = { 100 },
+            sleepMillis = {},
+        )
+        assertEquals(HlsCaptureEngine.StopReason.CANCELLED, result.stopReason)
+        assertEquals(40L, result.lastSequence)
+        assertEquals(1L, result.bytesWritten)
+        assertEquals(listOf(0x2a), output.toByteArray().map { it.toInt() })
+        assertEquals(listOf("https://example.test/40.ts"), source.copied.map { it.first })
+    }
+
 }
