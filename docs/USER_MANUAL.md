@@ -57,3 +57,7 @@ The Android 35 emulator now completes the built-in synthetic self-tests automati
 ## Automated HTTP transport testing
 
 [GitHub Actions run 43520436790](https://github.com/DevTunaSoft/TunerOS/actions/runs/43520436790) (attempt 2, November 13, 2026) passed the Android emulator checks: **19 PASS, 0 FAIL, 1 BLOCKED, 12 NOT RUN**. The app's debug QA tested its real HTTP client against a temporary localhost-only synthetic HLS feed, copying exactly two bytes without duplicating segments. It does **not** connect to actual IPTV providers, verify playback/codec compatibility or write a finished DVR media file. This does not run during normal viewing. An emulator snapshot recorded roughly 50 MiB process PSS; this is not a measured long-term RAM ceiling.
+
+## Verified file-backed recording self-tests (November 14, 2026)
+
+[GitHub Actions run 43538188194](https://github.com/DevTunaSoft/TunerOS/actions/runs/43538188194) **PASS** with **20 synthetic/local checks passed, 0 failed, 1 blocked, and 12 not run**. The app's explicit debug-only checks now write a tiny synthetic HLS capture to a private cache file, confirm its contents and remove it, and exercise internal DVR file counting, duplicate filename protection and finalization. These checks never open your IPTV provider or overwrite your recordings; they do not run during normal viewing. The exact-alarm permission remains blocked in the emulator, and real long-running DVR, streaming playback, USB/SD disconnection and physical-device power/memory/battery acceptance are outstanding.
