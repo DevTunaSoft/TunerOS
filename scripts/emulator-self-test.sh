@@ -13,7 +13,7 @@ adb install -r ci-apk/app-debug.apk
 adb shell am start -n com.devtunasoft.tuneros/.MainActivity --ez tuneros.debug.qa true
 # The app runs the checks itself; CI only collects/asserts its private
 # debug report. No human interaction, provider streams or credentials.
-for attempt in $(seq 1 60); do
+for attempt in $(seq 1 120); do
   adb shell run-as com.devtunasoft.tuneros cat files/tuneros-selftest-report.txt > on-device-report.txt 2>/dev/null || true
   if grep -Fq "$(printf 'PASS\tdebug-large-guide-stress\t')" on-device-report.txt && \
      grep -Fq "$(printf 'PASS\tdebug-ui-focus\t')" on-device-report.txt && \

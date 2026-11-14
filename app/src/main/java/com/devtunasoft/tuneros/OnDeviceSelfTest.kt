@@ -530,10 +530,6 @@ internal object OnDeviceSelfTest {
                 "Stop aborts a blocked Android HTTP connect/read promptly",
             ) { debugConnectionAbort() }
             checks += check(
-                "debug-service-stop-cancels",
-                "Foreground recorder: Stop during a blocked connect ends CANCELLED in a scratch catalog",
-            ) { debugServiceStopCancels(context) }
-            checks += check(
                 "debug-internal-dvr-finalize",
                 "Owned file writes, collision protection, finalization and cleanup",
             ) { debugInternalSinkFinalization(context) }
@@ -552,6 +548,10 @@ internal object OnDeviceSelfTest {
             checks += OnDeviceGuideStress.run()
             // Scan the bounded event log once for all debug UI probes.
             checks.addAll(recentUiChecks(context))
+            checks += check(
+                "debug-service-stop-cancels",
+                "Foreground recorder: Stop during a blocked connect ends CANCELLED in a scratch catalog",
+            ) { debugServiceStopCancels(context) }
         }
         val deliveredAlarm = hasEvent(context, Event.DVR_ALARM_DELIVERED)
         checks += Check("scheduled-dvr-alarm-delivery",
