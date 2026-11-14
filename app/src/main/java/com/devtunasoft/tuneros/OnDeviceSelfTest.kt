@@ -979,8 +979,10 @@ internal object OnDeviceSelfTest {
                         catalog.recent(10).firstOrNull { it.id == id }
                     }?.takeIf { it.state != "RECORDING" }
                 }
-                return entry != null && entry.state == "CANCELLED" &&
+                val cancelled = entry != null && entry.state == "CANCELLED" &&
                     entry.bytesWritten == 0L && entry.stoppedEpochSeconds != null
+                // The foreground service must also end, not just the row (regression guard).
+                cancelled && waitUntil(10_000) { !serviceRunning(context) }
             } finally {
                 DvrRecordingService.qaCatalogDatabaseName = null
                 accepted.get()?.close()
