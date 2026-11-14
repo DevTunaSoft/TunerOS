@@ -58,7 +58,7 @@ private class CountingOutputStream(delegate: OutputStream) : FilterOutputStream(
     }
 }
 
-private class InternalRecordingSink(
+internal class InternalRecordingSink(
     private val directory: File,
     safeId: String,
     extension: String,

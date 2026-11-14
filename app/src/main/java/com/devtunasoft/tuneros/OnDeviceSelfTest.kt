@@ -385,6 +385,10 @@ internal object OnDeviceSelfTest {
                 "Android HTTP loopback fetch + bounded file-backed HLS capture and cleanup",
             ) { debugLoopbackHlsTransport(context) }
             checks += check(
+                "debug-internal-dvr-finalize",
+                "Owned file writes, collision protection, finalization and cleanup",
+            ) { debugInternalSinkFinalization(context) }
+            checks += check(
                 "debug-saf-storage-guard",
                 "Synthetic removable-storage free-space and root matching fail closed",
             ) {
@@ -649,6 +653,41 @@ internal object OnDeviceSelfTest {
             }
             return copiedCorrectly && !fixture.isAlive &&
                 serverFailure.get() == null && served == 4 && manifests == 2
+        }
+    }
+
+    /**
+     * Debug-only acceptance of the production internal recording sink. Uses
+     * a unique app-private cache name and never touches the recordings folder.
+     * One tiny write, two collision checks, a rename and final cleanup.
+     */
+    private fun debugInternalSinkFinalization(context: Context): Boolean {
+        val id = "qa-dvr-${SystemClock.elapsedRealtimeNanos()}-${Thread.currentThread().id}"
+        val partial = File(context.cacheDir, "$id.partial")
+        val complete = File(context.cacheDir, "$id.ts")
+        val sink = InternalRecordingSink(context.cacheDir, id, ".ts")
+        try {
+            sink.openOutput().use { it.write(byteArrayOf(4, 5, 6)) }
+            val partialCollisionBlocked = runCatching {
+                InternalRecordingSink(context.cacheDir, id, ".ts").openOutput().use { }
+            }.isFailure
+            val counted = sink.bytesWritten == 3L && partial.length() == 3L
+            val location = sink.finalizeRecording()
+            val completedCollisionBlocked = runCatching {
+                InternalRecordingSink(context.cacheDir, id, ".ts").openOutput().use { }
+            }.isFailure
+            val completeBytes = complete.length() == 3L &&
+                complete.inputStream().use { input ->
+                    input.read() == 4 && input.read() == 5 &&
+                        input.read() == 6 && input.read() == -1
+                }
+            return partialCollisionBlocked && counted && completedCollisionBlocked &&
+                location == complete.absolutePath && !partial.exists() && completeBytes
+        } finally {
+            // Verify the sink deletes only the file it owns, whether the
+            // scenario succeeded or threw partway through finalization.
+            check(sink.delete()) { "Could not remove owned DVR QA file" }
+            check(!partial.exists() && !complete.exists()) { "DVR QA file remains" }
         }
     }
 
