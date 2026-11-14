@@ -73,3 +73,7 @@ The Android 35 emulator now completes the built-in synthetic self-tests automati
 ## Verified recovery of interrupted schedule preparation (November 14, 2026)
 
 [GitHub Actions run 43553730625](https://github.com/DevTunaSoft/TunerOS/actions/runs/43553730625) **PASS** with 23 synthetic/local checks passing, no failures, one blocked exact-alarm permission and 12 untested real-provider/hardware scenarios. After Android terminates TunerOS during the initial preparation of a future recording, the app can now reclaim an abandoned reservation when its process next launches, freeing it for rebooking. It does so in bounded batches without touching active scheduled recordings. The heavier 40-entry fault-injection test runs in debug emulator QA only, not during normal app use. Actual scheduled wakeups and complete recording on a physical device remain unverified.
+
+## Recording-service shutdown safeguards (November 14, 2026)
+
+[GitHub Actions run 43555173671](https://github.com/DevTunaSoft/TunerOS/actions/runs/43555173671) passed Kotlin and autonomous Android emulator checks with 23 synthetic/local PASS and zero FAIL. TunerOS now requests recording cancellation on service destruction and closes the recording database only after the existing worker has finished its outstanding writes. This reduces the chance of losing partial-recording metadata when the service ends. It is not proof of recording recovery after power loss or forced Android process termination; those acceptance scenarios remain outstanding.
