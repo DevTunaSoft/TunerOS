@@ -12,8 +12,10 @@ trap on_failure EXIT
 adb install -r ci-apk/app-debug.apk
 # Autonomous test setup: grant exact-alarm access to the debug build so the alarm
 # check runs for real instead of reporting BLOCKED. No human interaction.
-adb shell cmd appops set com.devtunasoft.tuneros SCHEDULE_EXACT_ALARM allow
-echo "exact-alarm appop: $(adb shell cmd appops get com.devtunasoft.tuneros SCHEDULE_EXACT_ALARM 2>&1)"
+echo "appops set (cmd): $(adb shell cmd appops set com.devtunasoft.tuneros SCHEDULE_EXACT_ALARM allow 2>&1)"
+echo "appops set (appops): $(adb shell appops set com.devtunasoft.tuneros SCHEDULE_EXACT_ALARM allow 2>&1)"
+echo "exact-alarm appop: $(adb shell appops get com.devtunasoft.tuneros SCHEDULE_EXACT_ALARM 2>&1)"
+echo "app uid: $(adb shell dumpsys package com.devtunasoft.tuneros 2>/dev/null | grep -m1 userId= || true)"
 adb shell am start -n com.devtunasoft.tuneros/.MainActivity --ez tuneros.debug.qa true
 # The app runs the checks itself; CI only collects/asserts its private
 # debug report. No human interaction, provider streams or credentials.
