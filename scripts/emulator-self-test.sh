@@ -12,10 +12,12 @@ trap on_failure EXIT
 adb install -r ci-apk/app-debug.apk
 # Autonomous test setup: grant exact-alarm access to the debug build so the alarm
 # check runs for real instead of reporting BLOCKED. No human interaction.
-echo "appops set (cmd): $(adb shell cmd appops set com.devtunasoft.tuneros SCHEDULE_EXACT_ALARM allow 2>&1)"
-echo "appops set (appops): $(adb shell appops set com.devtunasoft.tuneros SCHEDULE_EXACT_ALARM allow 2>&1)"
-echo "exact-alarm appop: $(adb shell appops get com.devtunasoft.tuneros SCHEDULE_EXACT_ALARM 2>&1)"
-echo "app uid: $(adb shell dumpsys package com.devtunasoft.tuneros 2>/dev/null | grep -m1 userId= || true)"
+APP_UID=$(adb shell dumpsys package com.devtunasoft.tuneros 2>/dev/null | tr -d '\r' | grep -m1 -o 'appId=[0-9]*' | cut -d= -f2)
+echo "app uid: ${APP_UID:-unknown}"
+adb shell cmd appops set --uid "$APP_UID" SCHEDULE_EXACT_ALARM allow; echo "set-by-uid rc=$?"
+adb shell cmd appops set com.devtunasoft.tuneros SCHEDULE_EXACT_ALARM allow; echo "set-by-pkg rc=$?"
+echo "get: $(adb shell cmd appops get com.devtunasoft.tuneros SCHEDULE_EXACT_ALARM 2>&1 | tr -d '\r')"
+echo "uid-get: $(adb shell cmd appops get --uid "$APP_UID" SCHEDULE_EXACT_ALARM 2>&1 | tr -d '\r')"
 adb shell dumpsys appops com.devtunasoft.tuneros 2>&1 | grep -iE "EXACT|uid|mode" | head -20 || true
 adb shell dumpsys package com.devtunasoft.tuneros 2>&1 | grep -iE "userId|appId|SCHEDULE_EXACT" | head -10 || true
 adb shell am start -n com.devtunasoft.tuneros/.MainActivity --ez tuneros.debug.qa true
