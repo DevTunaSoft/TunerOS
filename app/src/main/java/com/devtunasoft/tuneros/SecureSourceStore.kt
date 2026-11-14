@@ -39,6 +39,14 @@ internal class SecureSourceStore(context: Context) {
     fun delete(name: String): Boolean =
         prefs.edit().remove("$name.secure").remove(name).commit()
 
+    /** Atomically remove three encrypted + legacy source fields in one disk commit. */
+    fun deleteThree(first: String, second: String, third: String): Boolean =
+        prefs.edit()
+            .remove("$first.secure").remove(first)
+            .remove("$second.secure").remove(second)
+            .remove("$third.secure").remove(third)
+            .commit()
+
     fun save(name: String, value: String): Boolean = runCatching {
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
         cipher.init(Cipher.ENCRYPT_MODE, key())

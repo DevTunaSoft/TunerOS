@@ -7,9 +7,77 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
+import java.util.concurrent.atomic.AtomicBoolean
 
 internal object RecordingScheduler {
     enum class Mode { EXACT, PERMISSION_REQUIRED }
+
+    // The recovery must run once on a fresh app process before the Activity
+    // can queue a new preparation on its existing serial worker.
+    private val startupRecoveryClaimed = AtomicBoolean(false)
+    private const val PREPARATION_RECOVERY_LIMIT = 256
+    private const val PREPARATION_PAGE_SIZE = 32
+
+    /**
+     * Called only from MainActivity's existing worker at process startup.
+     * A process death cannot leave a PREPARING reservation blocking rebooking
+     * forever. Never scan an unbounded schedule history or add a timer.
+     */
+    fun recoverAbandonedPreparations(context: Context): Int {
+        if (!startupRecoveryClaimed.compareAndSet(false, true)) return 0
+        return runCatching {
+            val secrets = SecureSourceStore(context.applicationContext)
+            val recovered = RecordingScheduleStore(context).use { store ->
+                reclaimAbandonedPreparations(store,
+                    deleteSecrets = { key -> ScheduledRecordingSecrets.delete(secrets, key) },
+                )
+            }
+            if (recovered > 0) runCatching {
+                OnDeviceSelfTest.observe(
+                    context.applicationContext,
+                    OnDeviceSelfTest.Event.DVR_PREPARATIONS_RECOVERED,
+                    recovered.toLong(),
+                )
+            }
+            recovered
+        }.getOrDefault(0)
+    }
+
+    /**
+     * Bounded, fault-injectable core of startup recovery. A failed secret
+     * deletion leaves a RECOVERING row reserved; retry on next process start.
+     * The same code is exercised with an isolated SQLite DB in Android QA.
+     */
+    internal fun reclaimAbandonedPreparations(
+        store: RecordingScheduleStore,
+        deleteSecrets: (String) -> Boolean,
+        maxEntries: Int = PREPARATION_RECOVERY_LIMIT,
+    ): Int {
+        require(maxEntries in 1..PREPARATION_RECOVERY_LIMIT)
+        var scanned = 0
+        var recovered = 0
+        var afterId: String? = null
+        while (scanned < maxEntries) {
+            val batch = store.orphanedPreparationsAfter(
+                afterId, minOf(PREPARATION_PAGE_SIZE, maxEntries - scanned),
+            )
+            if (batch.isEmpty()) break
+            for (entry in batch) {
+                afterId = entry.id
+                scanned++
+                val claimed = runCatching {
+                    store.markRecoveringIfOrphaned(entry.id, entry.secureSourceKey)
+                }.getOrDefault(false)
+                if (!claimed) continue
+                val cleared = runCatching { deleteSecrets(entry.secureSourceKey) }
+                    .getOrDefault(false)
+                if (cleared && runCatching {
+                    store.deleteRecovered(entry.id, entry.secureSourceKey)
+                }.getOrDefault(false)) recovered++
+            }
+        }
+        return recovered
+    }
 
     fun schedule(context: Context, entry: RecordingScheduleEntry): Mode =
         RecordingScheduleStore(context).use { store -> schedule(context, entry, store) }

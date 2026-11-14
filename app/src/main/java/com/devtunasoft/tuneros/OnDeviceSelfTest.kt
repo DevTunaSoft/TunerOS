@@ -54,6 +54,7 @@ internal object OnDeviceSelfTest {
         RECORDING_PLAYBACK_STARTED, RECORDING_PLAYBACK_FIRST_FRAME,
         RECORDING_PLAYBACK_ERROR, RECORDING_PLAYBACK_TIMEOUT,
         DVR_REARM_EXACT_COUNT, DVR_REARM_BLOCKED_COUNT, DVR_REARM_FAILURE_COUNT,
+        DVR_PREPARATIONS_RECOVERED,
         DVR_ALARM_DELIVERED, DVR_SCHEDULED_SERVICE_REQUESTED,
         DVR_SCHEDULED_SERVICE_ACCEPTED,
         UI_FOCUS_PROBE_PASS, UI_FOCUS_PROBE_FAIL,
@@ -366,6 +367,61 @@ internal object OnDeviceSelfTest {
             } finally {
                 kotlin.check(context.deleteDatabase(name)) {
                     "Could not remove isolated QA schedule database"
+                }
+            }
+        }
+
+        checks += check(
+            "scratch-dvr-preparation-recovery",
+            "Isolated SQLite startup cleanup: bounded pages, retry and no active schedule loss",
+        ) {
+            val name = "tuneros-selftest-preparation-recovery.db"
+            context.deleteDatabase(name)
+            try {
+                RecordingScheduleStore(context, name).use { store ->
+                    val template = RecordingScheduleEntry(
+                        "qa-orphan-000", "Synthetic orphan", "qa-channel",
+                        "qa-orphan-secret", 100L, 200L,
+                        "PREPARING", false, null,
+                    )
+                    var seeded = true
+                    for (i in 0 until 40) {
+                        val id = "qa-orphan-" + i.toString().padStart(3, '0')
+                        seeded = seeded && store.insertIfAbsent(
+                            template.copy(id = id, secureSourceKey = "secret-$id"),
+                        )
+                    }
+                    val active = template.copy(
+                        id = "qa-real-scheduled", secureSourceKey = "qa-active-secret",
+                        state = "SCHEDULED",
+                    )
+                    seeded = seeded && store.insertIfAbsent(active)
+                    val colliding = store.findOverlap("qa-new", 110L, 190L) != null
+
+                    val blockedKey = "secret-qa-orphan-000"
+                    val firstPass = RecordingScheduler.reclaimAbandonedPreparations(
+                        store,
+                        deleteSecrets = { it != blockedKey },
+                        maxEntries = 40,
+                    )
+                    val failedReserved = store.get("qa-orphan-000")?.state == "RECOVERING" &&
+                        !store.insertIfAbsent(template) &&
+                        !store.markScheduledIfPreparing("qa-orphan-000")
+                    val successfulGone = store.get("qa-orphan-039") == null
+                    val activePreserved = store.get(active.id)?.state == "SCHEDULED" &&
+                        store.get(active.id)?.secureSourceKey == active.secureSourceKey
+                    val secondPass = RecordingScheduler.reclaimAbandonedPreparations(
+                        store, deleteSecrets = { true }, maxEntries = 40,
+                    )
+                    val canRebook = store.insertIfAbsent(template) &&
+                        store.markScheduledIfPreparing(template.id)
+                    seeded && colliding && firstPass == 39 && failedReserved &&
+                        successfulGone && activePreserved && secondPass == 1 &&
+                        canRebook && store.get(active.id)?.state == "SCHEDULED"
+                }
+            } finally {
+                check(context.deleteDatabase(name)) {
+                    "Could not remove isolated preparation recovery database"
                 }
             }
         }

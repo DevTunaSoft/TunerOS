@@ -48,9 +48,7 @@ internal object ScheduledRecordingSecrets {
         )
     }
 
-    fun delete(store: SecureSourceStore, key: String) {
-        store.delete(key)
-        store.delete(key + USER_AGENT_SUFFIX)
-        store.delete(key + REFERER_SUFFIX)
-    }
+    /** One durable preferences commit, with success reported for crash recovery. */
+    fun delete(store: SecureSourceStore, key: String): Boolean =
+        store.deleteThree(key, key + USER_AGENT_SUFFIX, key + REFERER_SUFFIX)
 }

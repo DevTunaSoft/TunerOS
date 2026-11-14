@@ -17,6 +17,8 @@ internal data class RecordingScheduleEntry(
     val lastError: String?,
 )
 
+internal data class OrphanedPreparation(val id: String, val secureSourceKey: String)
+
 internal class RecordingScheduleStore(
     context: Context,
     databaseName: String = "recording_schedules.db",
@@ -123,6 +125,48 @@ internal class RecordingScheduleStore(
         return result
     }
 
+    /**
+     * Only unfinished setup states are eligible. Keyset paging avoids loading
+     * potentially many schedule rows at once or rescanning deleted offsets.
+     */
+    fun orphanedPreparationsAfter(afterId: String?, limit: Int = 32): List<OrphanedPreparation> {
+        require(limit in 1..128)
+        val result = ArrayList<OrphanedPreparation>(minOf(limit, 32))
+        readableDatabase.query(
+            "schedules",
+            arrayOf("id", "secure_source_key"),
+            if (afterId == null) "state IN ('PREPARING','RECOVERING')"
+                else "state IN ('PREPARING','RECOVERING') AND id>?",
+            if (afterId == null) null else arrayOf(afterId),
+            null, null, "id ASC", limit.toString(),
+        ).use { cursor ->
+            while (cursor.moveToNext()) {
+                result += OrphanedPreparation(cursor.getString(0), cursor.getString(1))
+            }
+        }
+        return result
+    }
+
+    /**
+     * Claim only the same inert reservation. RECOVERING stays collision-proof
+     * until all three encrypted source fields are cleared durably.
+     */
+    fun markRecoveringIfOrphaned(id: String, secureSourceKey: String): Boolean {
+        val values = ContentValues().apply { put("state", "RECOVERING") }
+        return writableDatabase.update(
+            "schedules", values,
+            "id=? AND secure_source_key=? AND state IN ('PREPARING','RECOVERING')",
+            arrayOf(id, secureSourceKey),
+        ) == 1
+    }
+
+    fun deleteRecovered(id: String, secureSourceKey: String): Boolean =
+        writableDatabase.delete(
+            "schedules",
+            "id=? AND secure_source_key=? AND state='RECOVERING'",
+            arrayOf(id, secureSourceKey),
+        ) == 1
+
     fun findOverlap(
         id: String,
         startEpochSeconds: Long,
@@ -131,7 +175,7 @@ internal class RecordingScheduleStore(
         readableDatabase.query(
             "schedules",
             COLUMNS,
-            "state IN ('PREPARING','SCHEDULED','STARTED') AND id<>? AND start_epoch<? AND end_epoch>?",
+            "state IN ('PREPARING','RECOVERING','SCHEDULED','STARTED') AND id<>? AND start_epoch<? AND end_epoch>?",
             arrayOf(id, endEpochSeconds.toString(), startEpochSeconds.toString()),
             null, null,
             "start_epoch ASC",

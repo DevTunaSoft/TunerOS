@@ -280,6 +280,12 @@ class MainActivity : Activity() {
                     if (retained.guide == null) "" else " and guide",
             )
         }
+        // Reclaim only reservations abandoned by an earlier app process.
+        // This is queued first on the existing serial worker, before any
+        // user-initiated booking can begin. Never run Keystore/SQLite on UI.
+        worker.execute {
+            RecordingScheduler.recoverAbandonedPreparations(applicationContext)
+        }
         // Run bounded offline QA before potentially slow DVR alarm re-arming.
         scheduleSelfTests()
         worker.execute {
