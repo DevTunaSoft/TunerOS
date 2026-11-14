@@ -28,6 +28,8 @@ import java.util.concurrent.atomic.AtomicReference
  */
 class DvrRecordingService : Service() {
     companion object {
+        /** Set only by the debug QA harness so its catalog never touches recordings.db. */
+        @Volatile internal var qaCatalogDatabaseName: String? = null
         const val ACTION_START = "com.devtunasoft.tuneros.dvr.START"
         const val ACTION_STOP = "com.devtunasoft.tuneros.dvr.STOP"
         const val EXTRA_ID = "recording_id"
@@ -55,7 +57,7 @@ class DvrRecordingService : Service() {
     private val cancelled = AtomicBoolean(false)
     private val activeRecordingId = AtomicReference<String?>(null)
     private val connections = AbortableSlot<HttpURLConnection> { it.disconnect() }
-    private val catalogLazy = lazy { RecordingCatalog(this) }
+    private val catalogLazy = lazy { RecordingCatalog(this, qaCatalogDatabaseName ?: "recordings.db") }
     private val catalog: RecordingCatalog get() = catalogLazy.value
 
     override fun onCreate() {

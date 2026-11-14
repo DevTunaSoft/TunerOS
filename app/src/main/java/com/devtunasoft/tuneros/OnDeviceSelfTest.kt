@@ -529,6 +529,10 @@ internal object OnDeviceSelfTest {
                 "Stop aborts a blocked Android HTTP connect/read promptly",
             ) { debugConnectionAbort() }
             checks += check(
+                "debug-service-stop-cancels",
+                "Foreground recorder: Stop during a blocked connect ends CANCELLED in a scratch catalog",
+            ) { debugServiceStopCancels(context) }
+            checks += check(
                 "debug-internal-dvr-finalize",
                 "Owned file writes, collision protection, finalization and cleanup",
             ) { debugInternalSinkFinalization(context) }
@@ -894,6 +898,66 @@ internal object OnDeviceSelfTest {
                 connection.disconnect()
             }
         }
+    }
+
+    /**
+     * Starts the real DvrRecordingService against a silent loopback fixture, waits until the
+     * request is in flight, then sends Stop. The scratch catalog row must end CANCELLED.
+     * Uses a disposable database; recordings.db and real media are never touched.
+     */
+    private fun debugServiceStopCancels(context: Context): Boolean {
+        val database = "tuneros-selftest-service.db"
+        val id = "qa-service-" + System.currentTimeMillis()
+        context.deleteDatabase(database)
+        ServerSocket(0, 1, InetAddress.getByName("127.0.0.1")).use { server ->
+            val accepted = AtomicReference<java.net.Socket?>(null)
+            val acceptor = Thread { runCatching { accepted.set(server.accept()) } }
+            acceptor.isDaemon = true
+            acceptor.start()
+            DvrRecordingService.qaCatalogDatabaseName = database
+            try {
+                val end = System.currentTimeMillis() / 1000L + 600L
+                val start = Intent(context, DvrRecordingService::class.java)
+                    .setAction(DvrRecordingService.ACTION_START)
+                    .putExtra(DvrRecordingService.EXTRA_ID, id)
+                    .putExtra(DvrRecordingService.EXTRA_TITLE, "Synthetic QA stop")
+                    .putExtra(DvrRecordingService.EXTRA_CHANNEL_ID, "qa-channel")
+                    .putExtra(
+                        DvrRecordingService.EXTRA_URL,
+                        "http://127.0.0.1:" + server.localPort + "/silent.ts",
+                    )
+                    .putExtra(DvrRecordingService.EXTRA_END_EPOCH_SECONDS, end)
+                context.startForegroundService(start)
+                if (!waitUntil(15_000) { accepted.get() != null }) return false
+                context.startService(
+                    Intent(context, DvrRecordingService::class.java)
+                        .setAction(DvrRecordingService.ACTION_STOP),
+                )
+                val entry = waitUntilValue(20_000) {
+                    RecordingCatalog(context, database).use { catalog ->
+                        catalog.recent(10).firstOrNull { it.id == id }
+                    }?.takeIf { it.state != "RECORDING" }
+                }
+                return entry != null && entry.state == "CANCELLED" &&
+                    entry.bytesWritten == 0L && entry.stoppedEpochSeconds != null
+            } finally {
+                DvrRecordingService.qaCatalogDatabaseName = null
+                accepted.get()?.close()
+                context.deleteDatabase(database)
+            }
+        }
+    }
+
+    private fun waitUntil(timeoutMillis: Long, condition: () -> Boolean): Boolean =
+        waitUntilValue(timeoutMillis) { if (condition()) true else null } == true
+
+    private fun <T : Any> waitUntilValue(timeoutMillis: Long, read: () -> T?): T? {
+        val deadline = System.currentTimeMillis() + timeoutMillis
+        while (System.currentTimeMillis() < deadline) {
+            read()?.let { return it }
+            Thread.sleep(200)
+        }
+        return null
     }
 
     private fun debugInternalSinkFinalization(context: Context): Boolean {
