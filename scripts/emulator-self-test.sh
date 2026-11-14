@@ -16,6 +16,8 @@ echo "appops set (cmd): $(adb shell cmd appops set com.devtunasoft.tuneros SCHED
 echo "appops set (appops): $(adb shell appops set com.devtunasoft.tuneros SCHEDULE_EXACT_ALARM allow 2>&1)"
 echo "exact-alarm appop: $(adb shell appops get com.devtunasoft.tuneros SCHEDULE_EXACT_ALARM 2>&1)"
 echo "app uid: $(adb shell dumpsys package com.devtunasoft.tuneros 2>/dev/null | grep -m1 userId= || true)"
+adb shell dumpsys appops com.devtunasoft.tuneros 2>&1 | grep -iE "EXACT|uid|mode" | head -20 || true
+adb shell dumpsys package com.devtunasoft.tuneros 2>&1 | grep -iE "userId|appId|SCHEDULE_EXACT" | head -10 || true
 adb shell am start -n com.devtunasoft.tuneros/.MainActivity --ez tuneros.debug.qa true
 # The app runs the checks itself; CI only collects/asserts its private
 # debug report. No human interaction, provider streams or credentials.
