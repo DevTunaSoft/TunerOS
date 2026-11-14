@@ -911,7 +911,7 @@ internal object OnDeviceSelfTest {
         report.writeText("RUNNING\n")
         val id = RecordingAlarmReceiver.QA_ALARM_PREFIX + System.currentTimeMillis()
         val result = check(
-            "scheduled-dvr-alarm-delivery",
+            "qa-alarm-delivery",
             "Exact alarm is delivered to RecordingAlarmReceiver (QA-only id, no recording)",
         ) {
             val alarm = context.getSystemService(AlarmManager::class.java)

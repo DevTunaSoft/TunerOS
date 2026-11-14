@@ -70,12 +70,12 @@ adb shell am force-stop com.devtunasoft.tuneros
 adb shell am start -n com.devtunasoft.tuneros/.MainActivity --ez tuneros.debug.alarm true
 for attempt in $(seq 1 60); do
   adb shell run-as com.devtunasoft.tuneros cat files/tuneros-alarm-report.txt > alarm-report.txt 2>/dev/null || true
-  if grep -Fq "$(printf 'PASS\tscheduled-dvr-alarm-delivery\t')" alarm-report.txt; then
+  if grep -Fq "$(printf 'PASS\tqa-alarm-delivery\t')" alarm-report.txt; then
     break
   fi
   sleep 2
 done
-if ! grep -Fq "$(printf 'PASS\tscheduled-dvr-alarm-delivery\t')" alarm-report.txt; then
+if ! grep -Fq "$(printf 'PASS\tqa-alarm-delivery\t')" alarm-report.txt; then
   echo "Exact alarm delivery check failed or never completed"
   cat alarm-report.txt 2>/dev/null || echo "(no report file)"
   exit 1
