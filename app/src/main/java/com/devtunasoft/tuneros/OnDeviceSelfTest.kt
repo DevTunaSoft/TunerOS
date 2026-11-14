@@ -55,6 +55,7 @@ internal object OnDeviceSelfTest {
         RECORDING_PLAYBACK_ERROR, RECORDING_PLAYBACK_TIMEOUT,
         DVR_REARM_EXACT_COUNT, DVR_REARM_BLOCKED_COUNT, DVR_REARM_FAILURE_COUNT,
         DVR_ALARM_DELIVERED, DVR_SCHEDULED_SERVICE_REQUESTED,
+        DVR_SCHEDULED_SERVICE_ACCEPTED,
         UI_FOCUS_PROBE_PASS, UI_FOCUS_PROBE_FAIL,
         UI_EMPTY_TIMELINE_PASS, UI_EMPTY_TIMELINE_FAIL,
         UI_CLOCK_MARKER_PASS, UI_CLOCK_MARKER_FAIL
@@ -333,15 +334,31 @@ internal object OnDeviceSelfTest {
                     }
                     val pagination = firstPage.singleOrNull()?.id == first.id &&
                         secondPage?.singleOrNull()?.id == second.id
-                    store.markStarted(first.id)
+                    val wrongSourceBlocked = !store.markStartedIfScheduled(
+                        first.id, "wrong-source-key",
+                    )
+                    val acknowledged = store.markStartedIfScheduled(
+                        first.id, first.secureSourceKey,
+                    ) && !store.markStartedIfScheduled(first.id, first.secureSourceKey)
                     val startedImmutable = !store.insertIfAbsent(first) &&
                         store.get(first.id)?.state == "STARTED"
                     val nextPending = store.pendingAfter(50L, limit = 1)
                         .singleOrNull()?.id == second.id
+                    val wrongFailureBlocked = !store.markFailedIfScheduled(
+                        second.id, "wrong-source-key", "Recorder busy",
+                    )
+                    val failedExactlyOnce = store.markFailedIfScheduled(
+                        second.id, second.secureSourceKey, "Recorder busy",
+                    ) && !store.markFailedIfScheduled(
+                        second.id, second.secureSourceKey, "Recorder busy",
+                    ) && store.get(second.id)?.state == "FAILED" &&
+                        store.pendingAfter(50L).isEmpty()
                     created && duplicateRejected && preserved &&
                         preventsPrematureAlarm && preparingConflicts &&
                         activated && createdSecond && pagination &&
-                        startedImmutable && nextPending
+                        wrongSourceBlocked && acknowledged &&
+                        startedImmutable && nextPending &&
+                        wrongFailureBlocked && failedExactlyOnce
                 }
             } finally {
                 kotlin.check(context.deleteDatabase(name)) {

@@ -29,6 +29,7 @@ class DvrRecordingService : Service() {
         const val ACTION_START = "com.devtunasoft.tuneros.dvr.START"
         const val ACTION_STOP = "com.devtunasoft.tuneros.dvr.STOP"
         const val EXTRA_ID = "recording_id"
+        const val EXTRA_SCHEDULE_KEY = "recording_schedule_key"
         const val EXTRA_TITLE = "recording_title"
         const val EXTRA_CHANNEL_ID = "recording_channel_id"
         const val EXTRA_URL = "recording_url"
@@ -92,11 +93,23 @@ class DvrRecordingService : Service() {
             ?: return rejectInvalidStart(startId)
         val userAgent = intent.getStringExtra(EXTRA_USER_AGENT)?.takeIf { it.isNotBlank() }?.take(512)
         val referer = intent.getStringExtra(EXTRA_REFERER)?.takeIf(::isHttpUrl)?.take(2048)
+        val scheduleKey = intent.getStringExtra(EXTRA_SCHEDULE_KEY)?.takeIf { it.isNotBlank() }
+        if (scheduleKey != null) {
+            val scheduled = runCatching {
+                RecordingScheduleStore(this).use { it.get(id) }
+            }.getOrNull()
+            if (scheduled?.state != "SCHEDULED" || scheduled.secureSourceKey != scheduleKey) {
+                return rejectInvalidStart(startId)
+            }
+        }
 
         if (!activeRecordingId.compareAndSet(null, id)) {
             if (activeRecordingId.get() != id) {
                 if (catalog.tryInsertStart(id, title, channelId, nowSeconds())) {
                     catalog.finish(id, "FAILED", nowSeconds(), 0, null, "Recorder busy")
+                }
+                if (scheduleKey != null) {
+                    failScheduledDispatch(id, scheduleKey, "Recorder busy")
                 }
             }
             return
@@ -105,20 +118,60 @@ class DvrRecordingService : Service() {
         val endEpochSeconds = intent.getLongExtra(EXTRA_END_EPOCH_SECONDS, Long.MAX_VALUE)
         cancelled.set(false)
         if (!catalog.tryInsertStart(id, title, channelId, nowSeconds())) {
+            if (scheduleKey != null) {
+                failScheduledDispatch(id, scheduleKey, "Recording ID already exists")
+            }
             activeRecordingId.compareAndSet(id, null)
             stopSelf(startId)
             return
         }
-        startForeground(
-            NOTIFICATION_ID,
-            android.app.Notification.Builder(this, CHANNEL_ID)
-                .setSmallIcon(R.drawable.tuneros_icon)
-                .setContentTitle("Recording")
-                .setContentText(title)
-                .setOngoing(true)
-                .setOnlyAlertOnce(true)
-                .build(),
-        )
+        val foregroundAccepted = runCatching {
+            startForeground(
+                NOTIFICATION_ID,
+                android.app.Notification.Builder(this, CHANNEL_ID)
+                    .setSmallIcon(R.drawable.tuneros_icon)
+                    .setContentTitle("Recording")
+                    .setContentText(title)
+                    .setOngoing(true)
+                    .setOnlyAlertOnce(true)
+                    .build(),
+            )
+        }.isSuccess
+        if (!foregroundAccepted) {
+            catalog.finish(id, "FAILED", nowSeconds(), 0, null, "Foreground start failed")
+            if (scheduleKey != null) {
+                failScheduledDispatch(id, scheduleKey, "Foreground start failed")
+            }
+            activeRecordingId.compareAndSet(id, null)
+            stopSelf(startId)
+            return
+        }
+
+        if (scheduleKey != null) {
+            val accepted = runCatching {
+                RecordingScheduleStore(this).use {
+                    it.markStartedIfScheduled(id, scheduleKey)
+                }
+            }.getOrDefault(false)
+            if (!accepted) {
+                // Schedule could have been cancelled between alarm delivery and
+                // service startup; do not record or delete another schedule's key.
+                catalog.finish(id, "FAILED", nowSeconds(), 0, null, "Schedule cancelled before start")
+                activeRecordingId.compareAndSet(id, null)
+                stopForeground(STOP_FOREGROUND_REMOVE)
+                stopSelf(startId)
+                return
+            }
+            // Failure to clean up encrypted metadata must never interrupt capture.
+            runCatching {
+                ScheduledRecordingSecrets.delete(SecureSourceStore(this), scheduleKey)
+            }
+            runCatching {
+                OnDeviceSelfTest.observe(
+                    applicationContext, OnDeviceSelfTest.Event.DVR_SCHEDULED_SERVICE_ACCEPTED,
+                )
+            }
+        }
 
         worker.execute {
             try {
@@ -134,6 +187,21 @@ class DvrRecordingService : Service() {
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf(startId)
             }
+        }
+    }
+
+    /**
+     * On a rejected scheduled dispatch, fail only the matching pending row.
+     * A stale alarm must not overwrite a newer reservation or erase its key.
+     */
+    private fun failScheduledDispatch(id: String, sourceKey: String, reason: String) {
+        val failed = runCatching {
+            RecordingScheduleStore(this).use {
+                it.markFailedIfScheduled(id, sourceKey, reason)
+            }
+        }.getOrDefault(false)
+        if (failed) runCatching {
+            ScheduledRecordingSecrets.delete(SecureSourceStore(this), sourceKey)
         }
     }
 

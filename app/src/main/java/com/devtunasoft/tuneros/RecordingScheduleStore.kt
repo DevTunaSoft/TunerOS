@@ -148,12 +148,35 @@ internal class RecordingScheduleStore(
         writableDatabase.update("schedules", values, "id=?", arrayOf(id))
     }
 
-    fun markStarted(id: String) {
+    /**
+     * A launch request is not proof of recording. Only the service that has
+     * successfully entered foreground mode may acknowledge an existing,
+     * matching SCHEDULED reservation.
+     */
+    fun markStartedIfScheduled(id: String, secureSourceKey: String): Boolean {
         val values = ContentValues().apply {
             put("state", "STARTED")
             putNull("last_error")
         }
-        writableDatabase.update("schedules", values, "id=?", arrayOf(id))
+        return writableDatabase.update(
+            "schedules", values, "id=? AND state=? AND secure_source_key=?",
+            arrayOf(id, "SCHEDULED", secureSourceKey),
+        ) == 1
+    }
+
+    fun markFailedIfScheduled(
+        id: String,
+        secureSourceKey: String,
+        reason: String,
+    ): Boolean {
+        val values = ContentValues().apply {
+            put("state", "FAILED")
+            put("last_error", reason.take(200))
+        }
+        return writableDatabase.update(
+            "schedules", values, "id=? AND state=? AND secure_source_key=?",
+            arrayOf(id, "SCHEDULED", secureSourceKey),
+        ) == 1
     }
 
     fun markFailed(id: String, reason: String) {

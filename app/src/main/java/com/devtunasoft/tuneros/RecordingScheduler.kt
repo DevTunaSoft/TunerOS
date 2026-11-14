@@ -164,6 +164,7 @@ class RecordingAlarmReceiver : BroadcastReceiver() {
         val serviceIntent = Intent(context, DvrRecordingService::class.java).apply {
             action = DvrRecordingService.ACTION_START
             putExtra(DvrRecordingService.EXTRA_ID, entry.id)
+            putExtra(DvrRecordingService.EXTRA_SCHEDULE_KEY, entry.secureSourceKey)
             putExtra(DvrRecordingService.EXTRA_TITLE, entry.title)
             putExtra(DvrRecordingService.EXTRA_CHANNEL_ID, entry.channelId)
             putExtra(DvrRecordingService.EXTRA_URL, source.url)
@@ -181,8 +182,8 @@ class RecordingAlarmReceiver : BroadcastReceiver() {
                     OnDeviceSelfTest.Event.DVR_SCHEDULED_SERVICE_REQUESTED,
                 )
             }
-            RecordingScheduleStore(context).use { it.markStarted(id) }
-            ScheduledRecordingSecrets.delete(secrets, entry.secureSourceKey)
+            // Dispatch is not acceptance: the foreground recorder acknowledges
+            // STARTED and deletes source secrets after it actually starts.
         }.onFailure { error ->
             RecordingScheduleStore(context).use {
                 it.markFailed(id, error.javaClass.simpleName)
