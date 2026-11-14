@@ -573,8 +573,15 @@ class DvrRecordingService : Service() {
     override fun onDestroy() {
         cancelled.set(true)
         activeConnection?.disconnect()
-        worker.shutdownNow()
-        if (catalogLazy.isInitialized()) catalog.close()
+        // A cancelled recording may still be unwinding its stream and persisting
+        // PARTIAL/FAILED. Closing SQLite here races that final catalog update.
+        // Enqueue the close *after* the sole recording worker, without blocking
+        // the main thread or starting another worker. Disconnect wakes reads;
+        // cancellation is checked before each subsequent copy/poll.
+        worker.execute {
+            if (catalogLazy.isInitialized()) catalog.close()
+        }
+        worker.shutdown()
         super.onDestroy()
     }
 
