@@ -912,10 +912,18 @@ internal object OnDeviceSelfTest {
             "Foreground recorder: Stop during a blocked connect ends CANCELLED in a scratch catalog",
         ) { debugServiceStopCancels(context, viaDestroy = false) }
         report.appendText(stop.state.name + "\t" + stop.id + "\t" + stop.detail + "\n")
-        val destroy = check(
-            "debug-service-destroy-cancels",
-            "Foreground recorder: stopService during a blocked connect ends CANCELLED",
-        ) { debugServiceStopCancels(context, viaDestroy = true) }
+        val destroy = try {
+            check(
+                "debug-service-destroy-cancels",
+                "Foreground recorder: stopService during a blocked connect ends CANCELLED",
+            ) { debugServiceStopCancels(context, viaDestroy = true) }
+        } catch (error: Throwable) {
+            Check(
+                "debug-service-destroy-cancels",
+                State.FAIL,
+                "Throwable: " + error.javaClass.simpleName,
+            )
+        }
         report.appendText(destroy.state.name + "\t" + destroy.id + "\t" + destroy.detail + "\n")
     }
 
