@@ -935,9 +935,12 @@ internal object OnDeviceSelfTest {
     private fun debugServiceStopCancels(context: Context, viaDestroy: Boolean): Boolean {
         fun phase(name: String) = File(context.filesDir, SERVICE_STOP_REPORT).appendText("PHASE\t" + name + "\n")
         phase("begin")
-        val database = "tuneros-selftest-service.db"
-        val id = "qa-service-" + System.currentTimeMillis()
-        context.deleteDatabase(database)
+        // The previous scenario's service may still hold its catalog open. Wait until it is gone,
+        // and never delete a database file a live connection still references.
+        if (!waitUntil(15_000) { !serviceRunning(context) }) { phase("previous-service-alive"); return false }
+        val now = System.currentTimeMillis()
+        val database = "tuneros-selftest-service-" + (if (viaDestroy) "destroy" else "stop") + "-" + now + ".db"
+        val id = "qa-service-" + now
         ServerSocket(0, 1, InetAddress.getByName("127.0.0.1")).use { server ->
             val accepted = AtomicReference<java.net.Socket?>(null)
             val acceptor = Thread { runCatching { accepted.set(server.accept()) } }
@@ -981,8 +984,16 @@ internal object OnDeviceSelfTest {
             } finally {
                 DvrRecordingService.qaCatalogDatabaseName = null
                 accepted.get()?.close()
-                context.deleteDatabase(database)
             }
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun serviceRunning(context: Context): Boolean {
+        val manager = context.getSystemService(android.content.Context.ACTIVITY_SERVICE)
+            as android.app.ActivityManager
+        return manager.getRunningServices(50).any {
+            it.service.className == DvrRecordingService::class.java.name
         }
     }
 
