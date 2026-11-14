@@ -381,6 +381,10 @@ internal object OnDeviceSelfTest {
                 "Offline HLS parse + Android segment copy preserve live-edge deduplication",
             ) { debugHlsDvrSequence() }
             checks += check(
+                "debug-hls-response-length",
+                "Declared HTTP segment lengths must match copied bytes",
+            ) { debugHlsResponseLength() }
+            checks += check(
                 "debug-loopback-hls-transport",
                 "Android HTTP loopback fetch + bounded file-backed HLS capture and cleanup",
             ) { debugLoopbackHlsTransport(context) }
@@ -534,6 +538,56 @@ internal object OnDeviceSelfTest {
      * No user/provider requests, recordings, permission prompts or services.
      * Only the debug-enabled worker runs this; the serving thread always exits.
      */
+    /**
+     * Checks the production HTTP segment copier with two fake media bytes.
+     * Fail closed for undersized/oversized identity bodies, retain valid and
+     * unknown-length sources. No sockets, media files or production workers.
+     */
+    private fun debugHlsResponseLength(): Boolean {
+        val payload = byteArrayOf(17, 23)
+        val source = AndroidHlsCaptureSource(
+            openConnection = { url, range ->
+                check(range == null)
+                object : HttpURLConnection(URL(url)) {
+                    override fun connect() {}
+                    override fun disconnect() {}
+                    override fun usingProxy() = false
+                    override fun getInputStream(): InputStream = ByteArrayInputStream(payload)
+                    override fun getHeaderField(name: String?): String? {
+                        if (!"Content-Length".equals(name, ignoreCase = true)) return null
+                        return when (url.substringAfterLast('/')) {
+                            "too-short.ts" -> "4"
+                            "too-long.ts" -> "1"
+                            "complete.ts" -> "2"
+                            "unknown.ts" -> null
+                            else -> error("Unexpected length probe URL")
+                        }
+                    }
+                }
+            },
+            freeBytes = { Long.MAX_VALUE },
+        )
+        fun copied(segment: String, shouldFail: Boolean): Boolean {
+            val bytes = ByteArrayOutputStream(2)
+            val outcome = runCatching {
+                source.copySegment(
+                    "https://example.invalid/$segment",
+                    null, bytes, { false }, {},
+                )
+            }
+            return bytes.toByteArray().contentEquals(payload) &&
+                if (shouldFail) outcome.exceptionOrNull() is IOException
+                else outcome.getOrNull()?.let {
+                    it.stopReason == StreamRecorder.StopReason.END_OF_STREAM &&
+                        it.bytesWritten == 2L
+                } == true
+        }
+        return copied("too-short.ts", true) &&
+            copied("too-long.ts", true) &&
+            copied("complete.ts", false) &&
+            copied("unknown.ts", false)
+    }
+
     private fun debugLoopbackHlsTransport(context: Context): Boolean {
         val loopback = InetAddress.getByName("127.0.0.1")
         val server = ServerSocket().apply {
