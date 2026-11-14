@@ -905,19 +905,18 @@ internal object OnDeviceSelfTest {
      * interfered with the Keystore canary and UI probes.
      */
     fun runServiceStopOnly(context: Context) {
+        val report = File(context.filesDir, SERVICE_STOP_REPORT)
+        report.writeText("RUNNING\n")
         val stop = check(
             "debug-service-stop-cancels",
             "Foreground recorder: Stop during a blocked connect ends CANCELLED in a scratch catalog",
         ) { debugServiceStopCancels(context, viaDestroy = false) }
+        report.appendText(stop.state.name + "\t" + stop.id + "\t" + stop.detail + "\n")
         val destroy = check(
             "debug-service-destroy-cancels",
             "Foreground recorder: stopService during a blocked connect ends CANCELLED",
         ) { debugServiceStopCancels(context, viaDestroy = true) }
-        File(context.filesDir, SERVICE_STOP_REPORT).writeText(
-            listOf(stop, destroy).joinToString("") {
-                it.state.name + "\t" + it.id + "\t" + it.detail + "\n"
-            },
-        )
+        report.appendText(destroy.state.name + "\t" + destroy.id + "\t" + destroy.detail + "\n")
     }
 
     /**
