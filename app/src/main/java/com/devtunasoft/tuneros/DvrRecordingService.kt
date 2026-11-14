@@ -164,7 +164,7 @@ class DvrRecordingService : Service() {
                 catalog.finish(id, "FAILED", nowSeconds(), 0, null, "Schedule cancelled before start")
                 activeRecordingId.compareAndSet(id, null)
                 stopForeground(STOP_FOREGROUND_REMOVE)
-                stopSelf(startId)
+                stopSelf()
                 return
             }
             // Failure to clean up encrypted metadata must never interrupt capture.
@@ -189,7 +189,9 @@ class DvrRecordingService : Service() {
             } finally {
                 activeRecordingId.set(null)
                 stopForeground(STOP_FOREGROUND_REMOVE)
-                stopSelf(startId)
+                // Not stopSelf(startId): a later Stop command makes that id stale and Android
+                // would keep the service running after the recording ended.
+                stopSelf()
             }
         }
     }
