@@ -9,6 +9,7 @@ import android.os.IBinder
 import com.devtunasoft.tuneros.core.HlsByteRange
 import com.devtunasoft.tuneros.core.HlsCaptureEngine
 import com.devtunasoft.tuneros.core.HlsContentRange
+import com.devtunasoft.tuneros.core.RecordingWorkerLifecycle
 import com.devtunasoft.tuneros.core.StreamRecorder
 import java.io.InputStream
 import java.io.PushbackInputStream
@@ -578,10 +579,9 @@ class DvrRecordingService : Service() {
         // Enqueue the close *after* the sole recording worker, without blocking
         // the main thread or starting another worker. Disconnect wakes reads;
         // cancellation is checked before each subsequent copy/poll.
-        worker.execute {
+        RecordingWorkerLifecycle.shutdownAfterPendingWork(worker) {
             if (catalogLazy.isInitialized()) catalog.close()
         }
-        worker.shutdown()
         super.onDestroy()
     }
 
