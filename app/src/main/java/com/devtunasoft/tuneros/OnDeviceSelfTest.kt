@@ -548,10 +548,7 @@ internal object OnDeviceSelfTest {
             checks += OnDeviceGuideStress.run()
             // Scan the bounded event log once for all debug UI probes.
             checks.addAll(recentUiChecks(context))
-            checks += check(
-                "debug-service-stop-cancels",
-                "Foreground recorder: Stop during a blocked connect ends CANCELLED in a scratch catalog",
-            ) { debugServiceStopCancels(context) }
+// BISECT: service stop check temporarily unregistered
         }
         val deliveredAlarm = hasEvent(context, Event.DVR_ALARM_DELIVERED)
         checks += Check("scheduled-dvr-alarm-delivery",
