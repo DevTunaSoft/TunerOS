@@ -51,7 +51,8 @@ if ! grep -Fq "$(printf 'PASS\tdebug-service-stop-cancels\t')" service-stop-repo
    ! grep -Fq "$(printf 'PASS\tdebug-service-destroy-cancels\t')" service-stop-report.txt; then
   echo "Foreground service stop check failed or never completed"
   cat service-stop-report.txt 2>/dev/null || echo "(no report file)"
-  adb logcat -d -t 400 -v brief 2>/dev/null | grep -i "tuneros\|DvrRecording\|AndroidRuntime" | tail -60 || true
+  echo "app pid: $(adb shell pidof com.devtunasoft.tuneros 2>/dev/null || echo none)"
+  adb logcat -d -v brief 2>/dev/null | grep -E "FATAL|AndroidRuntime|DvrRecording|ActivityManager.*(died|crash|ANR)|ForegroundService|tuneros" | tail -120 || true
   exit 1
 fi
 if grep -q '^FAIL[[:space:]]' on-device-report.txt; then
