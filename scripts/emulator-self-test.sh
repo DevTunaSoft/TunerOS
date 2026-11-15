@@ -68,40 +68,6 @@ if ! grep -Fq "$(printf 'PASS\tdebug-service-stop-cancels\t')" service-stop-repo
   adb logcat -d -v brief 2>/dev/null | grep -E "FATAL|AndroidRuntime|DvrRecording|ActivityManager.*(died|crash|ANR)|ForegroundService|tuneros" | tail -120 || true
   exit 1
 fi
-# Optional real-guide import: a public XMLTV guide supplied at dispatch time (never committed).
-# The playlist stays a runner fixture (3 channels), so the guide is the variable. Programme count
-# must be above zero; the exact count depends on the public feed.
-if [ -n "${PUBLIC_GUIDE_URL:-}" ]; then
-  (cd ci-import && python3 -m http.server 8766 --bind 0.0.0.0 >guide-server.log 2>&1) &
-  GUIDE_HTTP_PID=$!
-  sleep 2
-  # Remove any earlier import report so the result can only come from this launch.
-  adb shell run-as com.devtunasoft.tuneros rm -f files/tuneros-import-report.txt || true
-  adb shell am force-stop com.devtunasoft.tuneros
-  adb shell am start -n com.devtunasoft.tuneros/.MainActivity \
-    --es tuneros.debug.import_playlist_url http://10.0.2.2:8766/playlist.m3u \
-    --es tuneros.debug.import_guide_url "$PUBLIC_GUIDE_URL"
-  for attempt in $(seq 1 150); do
-    adb shell run-as com.devtunasoft.tuneros cat files/tuneros-import-report.txt > public-guide-report.txt 2>/dev/null || true
-    if grep -Eq '^(PASS|FAIL)[[:space:]]qa-loopback-import' public-guide-report.txt; then
-      break
-    fi
-    # Sample memory while the guide imports (diagnostic only).
-    if [ $((attempt % 5)) -eq 0 ]; then
-      echo "guide-mem t=$((attempt*2))s $(adb shell dumpsys meminfo com.devtunasoft.tuneros 2>/dev/null | tr -d '\r' | grep -E 'TOTAL PSS|Java Heap|Native Heap' | tr -s ' ' | tr '\n' ' ' || echo none) | $(adb shell cat /proc/meminfo 2>/dev/null | tr -d '\r' | grep -E '^MemAvailable' || true)"
-    fi
-    sleep 2
-  done
-  kill "$GUIDE_HTTP_PID" 2>/dev/null || true
-  if ! grep -Eq '^PASS[[:space:]]qa-loopback-import[[:space:]]channels=3 programs=[1-9][0-9]*' public-guide-report.txt; then
-    echo "Public guide import failed or never completed"
-    sed -E 's#https?://[^[:space:]]*#<url>#g' public-guide-report.txt 2>/dev/null || echo "(no report file)"
-    echo "app pid: $(adb shell pidof com.devtunasoft.tuneros 2>/dev/null || echo none)"
-    adb logcat -d -v brief 2>/dev/null | grep -E "FATAL|OutOfMemory|AndroidRuntime|GuideParser|ANR|lowmemory|Killing" | tail -60 || true
-    exit 1
-  fi
-  echo "Public guide import result: $(grep -E '^PASS' public-guide-report.txt)"
-fi
 
 # Isolated launch for exact-alarm delivery. The alarm is scheduled first; only after it is
 # armed does this script force the device into deep Doze and sleep the screen. The alarm
@@ -143,7 +109,7 @@ command -v ffmpeg >/dev/null || sudo apt-get install -y -qq ffmpeg
 mkdir -p ci-playback
 ffmpeg -y -loglevel error -f lavfi -i testsrc=duration=10:size=320x240:rate=25 \
   -c:v libx264 -pix_fmt yuv420p -movflags +faststart ci-playback/test.mp4
-(cd ci-playback && python3 -m http.server 8765 --bind 0.0.0.0 >http-server.log 2>&1) &
+python3 -m http.server 8765 --bind 0.0.0.0 --directory ci-playback >http-server.log 2>&1 &
 HTTP_PID=$!
 sleep 2
 adb shell am force-stop com.devtunasoft.tuneros
@@ -190,7 +156,7 @@ cat > ci-import/guide.xml <<'XML'
 <programme start="20991115010000 +0000" stop="20991115020000 +0000" channel="qa.three"><title>Show Six</title></programme>
 </tv>
 XML
-(cd ci-import && python3 -m http.server 8766 --bind 0.0.0.0 >http-server.log 2>&1) &
+python3 -m http.server 8766 --bind 0.0.0.0 --directory ci-import >http-server.log 2>&1 &
 IMPORT_HTTP_PID=$!
 sleep 2
 adb shell am force-stop com.devtunasoft.tuneros
@@ -211,6 +177,52 @@ if ! grep -Fq "$(printf 'PASS\tqa-loopback-import\tchannels=3 programs=6')" impo
   cat ci-import/http-server.log 2>/dev/null | tail -20 || true
   exit 1
 fi
+# Optional real-guide import: a public XMLTV guide supplied at dispatch time (never committed).
+# It runs after the loopback fixtures in ci-import exist, so the 3-channel playlist fixture is
+# always served. The app keeps every parsed programme, so a programme count above zero proves the
+# public guide parsed; the exact count depends on the public feed and is not asserted.
+if [ -n "${PUBLIC_GUIDE_URL:-}" ]; then
+  python3 -m http.server 8766 --bind 0.0.0.0 --directory ci-import >guide-server.log 2>&1 &
+  GUIDE_HTTP_PID=$!
+  sleep 2
+  if ! curl -fsS -o /dev/null --max-time 10 http://127.0.0.1:8766/playlist.m3u; then
+    echo "Guide playlist fixture is not being served"
+    kill "$GUIDE_HTTP_PID" 2>/dev/null || true
+    exit 1
+  fi
+  # Remove any earlier import report, then prove it is gone, so the result can only come from this launch.
+  adb shell run-as com.devtunasoft.tuneros rm -f files/tuneros-import-report.txt || true
+  if adb shell run-as com.devtunasoft.tuneros ls files/tuneros-import-report.txt >/dev/null 2>&1; then
+    echo "Could not clear the earlier import report; refusing a possibly stale result"
+    kill "$GUIDE_HTTP_PID" 2>/dev/null || true
+    exit 1
+  fi
+  adb shell am force-stop com.devtunasoft.tuneros
+  adb shell am start -n com.devtunasoft.tuneros/.MainActivity \
+    --es tuneros.debug.import_playlist_url http://10.0.2.2:8766/playlist.m3u \
+    --es tuneros.debug.import_guide_url "$PUBLIC_GUIDE_URL"
+  for attempt in $(seq 1 200); do
+    adb shell run-as com.devtunasoft.tuneros cat files/tuneros-import-report.txt > public-guide-report.txt 2>/dev/null || true
+    if grep -Eq '^(PASS|FAIL)[[:space:]]qa-loopback-import' public-guide-report.txt; then
+      break
+    fi
+    # Sample memory while the guide imports (diagnostic only).
+    if [ $((attempt % 5)) -eq 0 ]; then
+      echo "guide-mem t=$((attempt*2))s $(adb shell dumpsys meminfo com.devtunasoft.tuneros 2>/dev/null | tr -d '\r' | grep -E 'TOTAL PSS|Java Heap|Native Heap' | tr -s ' ' | tr '\n' ' ' || echo none) | $(adb shell cat /proc/meminfo 2>/dev/null | tr -d '\r' | grep -E '^MemAvailable' || true)"
+    fi
+    sleep 2
+  done
+  kill "$GUIDE_HTTP_PID" 2>/dev/null || true
+  if ! grep -Eq '^PASS[[:space:]]qa-loopback-import[[:space:]]channels=3 programs=[1-9][0-9]*' public-guide-report.txt; then
+    echo "Public guide import failed or never completed"
+    sed -E 's#https?://[^[:space:]]*#<url>#g' public-guide-report.txt 2>/dev/null || echo "(no report file)"
+    echo "app pid: $(adb shell pidof com.devtunasoft.tuneros 2>/dev/null || echo none)"
+    adb logcat -d -v brief 2>/dev/null | grep -E "FATAL|OutOfMemory|AndroidRuntime|GuideParser|ANR|lowmemory|Killing" | tail -60 || true
+    exit 1
+  fi
+  echo "Public guide import result: $(grep -E '^PASS' public-guide-report.txt)"
+fi
+
 # Isolated launch for remote key input: keys are injected with adb after the app reports it
 # is armed. Each key must reach the activity's key dispatch, not a synthetic call.
 adb shell input keyevent 224 || true
@@ -282,7 +294,7 @@ if ! grep -Fq "$(printf 'PASS\tqa-rotation-recreate\trecreated after orientation
 fi
 # Isolated launch for a real recording: the recorder service copies a finite loopback stream
 # into app-private storage (scratch catalog) and must finish COMPLETED with the exact byte count.
-(cd ci-playback && python3 -m http.server 8767 --bind 0.0.0.0 >record-server.log 2>&1) &
+python3 -m http.server 8767 --bind 0.0.0.0 --directory ci-playback >record-server.log 2>&1 &
 RECORD_HTTP_PID=$!
 sleep 2
 RECORD_BYTES=$(stat -c %s ci-playback/test.mp4)
@@ -334,7 +346,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
 http.server.ThreadingHTTPServer(("0.0.0.0", 8769), Handler).serve_forever()
 PY
-(cd ci-playback && python3 throttle.py >throttle.log 2>&1) &
+python3 ci-playback/throttle.py >throttle.log 2>&1 &
 THROTTLE_PID=$!
 sleep 2
 FULL_BYTES=$(stat -c %s ci-playback/test.mp4)
@@ -374,7 +386,7 @@ fi
 # Optional real-feed import: a public playlist supplied at dispatch time (never committed). The
 # guide stays a runner fixture so the expected programme count is fixed. Channel count must be > 0.
 if [ -n "${PUBLIC_PLAYLIST_URL:-}" ]; then
-  (cd ci-import && python3 -m http.server 8768 --bind 0.0.0.0 >public-guide-server.log 2>&1) &
+  python3 -m http.server 8768 --bind 0.0.0.0 --directory ci-import >public-guide-server.log 2>&1 &
   PUB_HTTP_PID=$!
   sleep 2
   adb shell am force-stop com.devtunasoft.tuneros
@@ -416,7 +428,7 @@ if [ -n "${PUBLIC_PLAYLIST_URL:-}" ]; then
 fi
 # Scheduled recording: a stored schedule is started by a real exact alarm through the receiver
 # and must complete at its stop, end STARTED, and delete its credentials. Runner-served slow stream.
-(cd ci-playback && python3 throttle.py >scheduled-throttle.log 2>&1) &
+python3 ci-playback/throttle.py >scheduled-throttle.log 2>&1 &
 SCHED_HTTP_PID=$!
 sleep 2
 SCHED_FULL_BYTES=$(stat -c %s ci-playback/test.mp4)

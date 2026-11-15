@@ -445,6 +445,10 @@ class MainActivity : Activity() {
         return if (validPlaylist && validGuide) playlist to guide else null
     }
 
+    // Debug-only QA: the class name of the last failed import. Never a URL or an error message.
+    private var qaPlaylistFailure: String? = null
+    private var qaGuideFailure: String? = null
+
     /**
      * Runs the real playlist and guide imports (without saving the URLs) and reports the parsed
      * counts once both are loaded, or FAIL at the deadline. Counts are checked by the CI script.
@@ -461,12 +465,19 @@ class MainActivity : Activity() {
         poll = Runnable {
             val channelCount = channels.size
             val programCount = guide?.programs?.size ?: 0
+            val failure = qaPlaylistFailure ?: qaGuideFailure
             when {
                 channelCount > 0 && programCount > 0 -> report.appendText(
                     "PASS\tqa-loopback-import\tchannels=" + channelCount + " programs=" + programCount + "\n",
                 )
+                // Fail as soon as an import reports an error (class name only), not at the deadline.
+                failure != null -> report.appendText(
+                    "FAIL\tqa-loopback-import\tchannels=" + channelCount + " programs=" + programCount +
+                        " reason=" + failure + "\n",
+                )
                 android.os.SystemClock.elapsedRealtime() > deadline -> report.appendText(
-                    "FAIL\tqa-loopback-import\tchannels=" + channelCount + " programs=" + programCount + "\n",
+                    "FAIL\tqa-loopback-import\tchannels=" + channelCount + " programs=" + programCount +
+                        " reason=timeout\n",
                 )
                 else -> handler.postDelayed(poll, 500)
             }
@@ -801,6 +812,7 @@ class MainActivity : Activity() {
                     observe(OnDeviceSelfTest.Event.PLAYLIST_IMPORT_FAILED)
                     observe(OnDeviceSelfTest.Event.PLAYLIST_IMPORT_MILLIS,
                         SystemClock.elapsedRealtime() - startedAtMs)
+                    qaPlaylistFailure = it.javaClass.simpleName
                     showStatus("Playlist import failed: ${it.javaClass.simpleName}")
                 }
             }
@@ -847,6 +859,7 @@ class MainActivity : Activity() {
                     observe(OnDeviceSelfTest.Event.GUIDE_IMPORT_FAILED)
                     observe(OnDeviceSelfTest.Event.GUIDE_IMPORT_MILLIS,
                         SystemClock.elapsedRealtime() - startedAtMs)
+                    qaGuideFailure = it.javaClass.simpleName
                     showStatus("Guide import failed: ${it.javaClass.simpleName}")
                 }
             }
