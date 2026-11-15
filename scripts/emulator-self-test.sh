@@ -23,6 +23,51 @@ sleep 10
 echo "uid-get: $(adb shell cmd appops get --uid "$APP_UID" SCHEDULE_EXACT_ALARM 2>&1 | tr -d '\r')"
 adb shell dumpsys appops com.devtunasoft.tuneros 2>&1 | grep -iE "EXACT|uid|mode" | head -20 || true
 adb shell dumpsys package com.devtunasoft.tuneros 2>&1 | grep -iE "userId|appId|SCHEDULE_EXACT" | head -10 || true
+# Wait until the app process is gone and ActivityManager no longer holds a record of it. A process can disappear
+# while its activity record remains for a moment, and a launch in that window is delivered to the dead record,
+# so no self-test pass starts. Returns 1 when either is still present after 60 seconds.
+wait_for_app_records_gone() {
+  local tick
+  for tick in $(seq 1 60); do
+    adb shell dumpsys activity activities > app-records.txt 2>/dev/null || true
+    if ! grep -q 'com.devtunasoft.tuneros/' app-records.txt && \
+       [ -z "$(adb shell pidof com.devtunasoft.tuneros 2>/dev/null | tr -d '\r ')" ]; then
+      echo "app process and activity records gone after $tick s"
+      return 0
+    fi
+    sleep 1
+  done
+  echo "app process or activity records still present after 60 s:"
+  grep -E 'com.devtunasoft.tuneros/' app-records.txt | head -5 | cut -c1-200 || true
+  return 1
+}
+
+# Start the self-test pass. -S stops any remaining instance first (only set for the external-storage run).
+# A launch that ActivityManager still delivers to an existing instance starts nothing, so it is detected and
+# retried after another stop and wait. A launch that starts no process within 30 seconds is retried the same way.
+MAIN_START_FLAGS=""
+launch_self_test_pass() {
+  local try pid_tick
+  for try in 1 2 3; do
+    adb shell am start $MAIN_START_FLAGS -n com.devtunasoft.tuneros/.MainActivity --ez tuneros.debug.qa true > main-start.txt 2>&1 || true
+    tr -d '\r' < main-start.txt
+    if ! grep -q 'Warning: Activity not started' main-start.txt; then
+      for pid_tick in $(seq 1 30); do
+        if [ -n "$(adb shell pidof com.devtunasoft.tuneros 2>/dev/null | tr -d '\r ')" ]; then
+          echo "self-test process started (launch $try)"
+          return 0
+        fi
+        sleep 1
+      done
+    fi
+    echo "self-test process did not start (launch $try); stopping any remaining instance and retrying"
+    adb shell am force-stop com.devtunasoft.tuneros || true
+    wait_for_app_records_gone || true
+  done
+  echo "self-test process never started after 3 launches"
+  return 1
+}
+
 # External recording storage (dispatch-only, see the external_storage_check input). An isolated launch opens
 # the document-tree picker. CI taps "Use this folder", then "Allow" if the system asks for it, and the persisted
 # tree must then make external-recording-storage PASS in the main pass. Nothing is tapped when the input is off.
@@ -35,8 +80,11 @@ if [ "${EXTERNAL_STORAGE_CHECK:-false}" = "true" ]; then
   ALLOW_WAIT=0
   for attempt in $(seq 1 45); do
     sleep 2
+    rm -f picker.xml
     adb shell uiautomator dump /sdcard/picker.xml >/dev/null 2>&1 || true
     adb pull /sdcard/picker.xml picker.xml >/dev/null 2>&1 || true
+    # A failed dump leaves no file to read, so wait for the next attempt.
+    if [ ! -s picker.xml ]; then continue; fi
     # The root of internal storage is refused ("Can't use this folder"), so open a normal folder first.
     if [ "$PICK_TAPPED" = "false" ] && [ "$NAVIGATED" = "false" ]; then
       NAV_BOUNDS=$(tr '>' '\n' < picker.xml 2>/dev/null | grep -E 'text="Download"' | head -1 | grep -oE 'bounds="\[[0-9]+,[0-9]+\]\[[0-9]+,[0-9]+\]"' | head -1 || true)
@@ -75,11 +123,18 @@ if [ "${EXTERNAL_STORAGE_CHECK:-false}" = "true" ]; then
   echo "picker top activity: $(adb shell dumpsys activity activities 2>/dev/null | tr -d '\r' | grep -E 'topResumedActivity' | head -1 | cut -c1-160)"
   echo "picker labels seen: $(tr '>' '\n' < picker.xml 2>/dev/null | grep -oE ' text="[^"]+"' | sed -E 's/ text="//; s/"$//' | awk 'NF && !seen[$0]++' | head -40 | tr '\n' '|')"
   echo "Folder picker: confirm tapped=$PICK_TAPPED, allow tapped=$ALLOW_TAPPED"
+  # Poll a saved dump, not a pipe: under pipefail, grep -q exiting early can make the pipe look like a close.
+  PICKER_CLOSED=false
   for wait_tick in $(seq 1 30); do
-    if ! adb shell dumpsys activity activities 2>/dev/null | tr -d '\r' | grep -q "documentsui.picker.PickActivity"; then break; fi
+    adb shell dumpsys activity activities > picker-activities.txt 2>/dev/null || true
+    if ! grep -q "documentsui.picker.PickActivity" picker-activities.txt; then PICKER_CLOSED=true; break; fi
     sleep 1
   done
-  echo "Folder picker closed after ${wait_tick:-0} s of waiting"
+  if [ "$PICKER_CLOSED" != "true" ]; then
+    echo "Folder picker still open after 30 s; external-recording-storage cannot be checked"
+    exit 1
+  fi
+  echo "Folder picker closed after ${wait_tick} s of waiting"
   sleep 3
   # Stop the picker-launched instance and wait until the process is really gone. Otherwise the next
   # launch is delivered to that instance as a new intent, and no self-test pass starts.
@@ -89,8 +144,10 @@ if [ "${EXTERNAL_STORAGE_CHECK:-false}" = "true" ]; then
     if [ -z "$(adb shell pidof com.devtunasoft.tuneros 2>/dev/null | tr -d '\r ')" ]; then break; fi
   done
   echo "picker-launched app process gone after ${stop_tick:-0} stop attempts"
+  wait_for_app_records_gone || true
+  MAIN_START_FLAGS="-S"
 fi
-adb shell am start -n com.devtunasoft.tuneros/.MainActivity --ez tuneros.debug.qa true
+launch_self_test_pass
 # The app runs the checks itself; CI only collects/asserts its private
 # debug report. No human interaction, provider streams or credentials.
 for attempt in $(seq 1 120); do
