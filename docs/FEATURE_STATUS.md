@@ -21,7 +21,7 @@
 | Classic Cable full timeline | IN PROGRESS; PASS (CI), device UNVERIFIED | Pure-Kotlin timeline plus recycled Android TV rows wired for a three-hour window; custom-drawn timeline with no fixed cell cap, indexed window queries, focus details and select-to-play. Half-hour time rail, D-pad left/right boundary shifts in both directions with nearest-direction programme selection, and a horizontally scrollable DVR action row are wired. Local isolated Kotlin focus tests PASS (12 fixed assertions and 100,000 randomized direction cases); JVM CI, actual Android TV D-pad behavior and device focus acceptance are still UNVERIFIED |
 | Favorites, profiles, database | NOT IMPLEMENTED | Planned |
 | Android icon and TV banner | Implemented placeholders, device UNVERIFIED | XML vector resources, final branding pending |
-| Standard Gradle wrapper | NOT IMPLEMENTED | CI pins Gradle 8.9; optional Windows bootstrap script can download Gradle 8.9, but is not a wrapper |
+| Standard Gradle wrapper | **PASS (CI build job, draft PR)** | `gradlew` and `gradlew.bat` pin Gradle 8.9 (`gradle-wrapper.properties`); the CI build job runs `./gradlew :core:test :app:assembleDebug`. The distribution SHA-256 is not pinned yet (the official checksum was not reachable from the build sandbox). `scripts/build.ps1` remains an optional Windows helper |
 | FastChannels on-device server | DEFERRED | Explicitly out of current scope |
 | Android APK | **PASS (CI)** | [Main run 43773518879](https://github.com/DevTunaSoft/TunerOS/actions/runs/43773518879) on `e1a99da`: unit tests, assembleDebug, APK artifact upload; Android 35 emulator QA job PASS. Physical TV/phone acceptance NOT RUN |
 | Real-device installation and playback | NOT RUN | Requires Android TV and mobile acceptance |

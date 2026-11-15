@@ -16,7 +16,7 @@ TunerOS now runs an unattended, bounded set of local self-tests on startup and a
 
 ## Build prerequisites
 
-Android SDK (API 35), JDK 17, and Gradle 8.9. From project root, run `gradle :core:test :app:assembleDebug`. On Windows, optional `scripts/build.ps1` downloads Gradle 8.9 with a SHA-256 check (helper not yet device/Windows tested). APK output: `app/build/outputs/apk/debug/app-debug.apk`. GitHub Actions is intended to run this on commits.
+Android SDK (API 35) and JDK 17. Gradle 8.9 is provided by the wrapper. From project root, run `./gradlew :core:test :app:assembleDebug` (on Windows, `gradlew.bat :core:test :app:assembleDebug`). The optional `scripts/build.ps1` is a Windows helper that downloads Gradle 8.9 with a SHA-256 check (helper not yet device/Windows tested). APK output: `app/build/outputs/apk/debug/app-debug.apk`. GitHub Actions is intended to run this on commits.
 
 ## License and upstream sources
 
