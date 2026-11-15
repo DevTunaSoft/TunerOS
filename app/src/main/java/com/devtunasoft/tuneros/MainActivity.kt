@@ -143,6 +143,7 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (isRotationLaunch()) recordRotationCreate(savedInstanceState != null)
         val retained = lastNonConfigurationInstance as? RetainedGuideState
         if (retained != null) {
             channels = retained.channels
@@ -347,6 +348,20 @@ class MainActivity : Activity() {
         qaPlaybackUrl()?.let { url -> root.post { runQaPlayback(url) } }
         qaImportUrls()?.let { (playlist, guide) -> root.post { runQaImport(playlist, guide) } }
         if (isKeyLaunch()) root.post { armQaKeyReport() }
+    }
+
+    /** Debug-only: an isolated CI launch that checks the activity is recreated after rotation. */
+    private fun isRotationLaunch(): Boolean =
+        (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0 &&
+            intent?.getBooleanExtra("tuneros.debug.rotation", false) == true
+
+    private fun recordRotationCreate(recreated: Boolean) {
+        val report = java.io.File(filesDir, "tuneros-rotation-report.txt")
+        if (recreated) {
+            report.appendText("PASS\tqa-rotation-recreate\trecreated after orientation change\n")
+        } else {
+            report.writeText("CREATED\n")
+        }
     }
 
     /** Debug-only: an isolated CI launch that records remote key input reaching this activity. */
@@ -622,7 +637,7 @@ class MainActivity : Activity() {
         // Only one probe pass at once; use the app's existing serial worker.
         if (worker.isShutdown) return
         // The isolated service-stop launch must not share the process with the main pass.
-        if (isServiceStopLaunch() || isAlarmLaunch() || qaPlaybackUrl() != null || qaImportUrls() != null || isKeyLaunch()) return
+        if (isServiceStopLaunch() || isAlarmLaunch() || qaPlaybackUrl() != null || qaImportUrls() != null || isKeyLaunch() || isRotationLaunch()) return
         if (selfTestsQueued) {
             // An import completed while a previous pass was running: do not lose its results.
             selfTestsDirty = true

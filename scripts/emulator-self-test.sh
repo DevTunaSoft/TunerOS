@@ -200,6 +200,33 @@ if ! grep -Eq "$(printf '^PASS\tqa-remote-key-input\tkeys=4 focusChanged=(true|f
   cat key-report.txt 2>/dev/null || echo "(no report file)"
   exit 1
 fi
+# Isolated launch for rotation: the activity must be recreated with its saved state after the
+# emulator rotates. Auto-rotate is disabled so the user_rotation setting applies.
+adb shell settings put system accelerometer_rotation 0
+adb shell settings put system user_rotation 0
+adb shell am force-stop com.devtunasoft.tuneros
+adb shell am start -n com.devtunasoft.tuneros/.MainActivity --ez tuneros.debug.rotation true
+for attempt in $(seq 1 60); do
+  adb shell run-as com.devtunasoft.tuneros cat files/tuneros-rotation-report.txt > rotation-report.txt 2>/dev/null || true
+  if grep -Fq "CREATED" rotation-report.txt; then
+    break
+  fi
+  sleep 2
+done
+adb shell settings put system user_rotation 1
+for attempt in $(seq 1 60); do
+  adb shell run-as com.devtunasoft.tuneros cat files/tuneros-rotation-report.txt > rotation-report.txt 2>/dev/null || true
+  if grep -Fq "$(printf 'PASS\tqa-rotation-recreate\trecreated after orientation change')" rotation-report.txt; then
+    break
+  fi
+  sleep 2
+done
+adb shell settings put system user_rotation 0
+if ! grep -Fq "$(printf 'PASS\tqa-rotation-recreate\trecreated after orientation change')" rotation-report.txt; then
+  echo "Rotation recreate check failed or never completed"
+  cat rotation-report.txt 2>/dev/null || echo "(no report file)"
+  exit 1
+fi
 if grep -q '^FAIL[[:space:]]' on-device-report.txt; then
   echo "Unexpected failure in the app's own self-test report"
   cat on-device-report.txt
