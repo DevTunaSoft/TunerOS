@@ -146,7 +146,22 @@ class MainActivity : Activity() {
         if (isRotationLaunch()) recordRotationCreate(savedInstanceState != null)
         qaRecordUrl()?.let { url ->
             val deadline = intent?.getStringExtra("tuneros.debug.record_mode") == "deadline"
-            worker.execute { OnDeviceSelfTest.runRecordingOnly(applicationContext, url, deadline) }
+            // The deadline recording is then played back from its own file (first video frame).
+            val onRecorded: ((java.io.File) -> Unit)? = if (deadline) {
+                { file ->
+                    runOnUiThread {
+                        runQaPlayback(
+                            android.net.Uri.fromFile(file).toString(),
+                            java.io.File(filesDir, "tuneros-recording-report.txt"),
+                            "qa-recording-playback-first-frame",
+                            reset = false,
+                        )
+                    }
+                }
+            } else {
+                null
+            }
+            worker.execute { OnDeviceSelfTest.runRecordingOnly(applicationContext, url, deadline, onRecorded) }
         }
         val retained = lastNonConfigurationInstance as? RetainedGuideState
         if (retained != null) {
@@ -461,9 +476,13 @@ class MainActivity : Activity() {
      * Plays [url] with ExoPlayer into an off-screen ImageReader surface and waits for the first
      * rendered video frame. Writes its own report file; a 60 second deadline makes it FAIL.
      */
-    private fun runQaPlayback(url: String) {
-        val report = java.io.File(filesDir, "tuneros-playback-report.txt")
-        report.writeText("RUNNING\n")
+    private fun runQaPlayback(
+        url: String,
+        report: java.io.File = java.io.File(filesDir, "tuneros-playback-report.txt"),
+        checkId: String = "qa-playback-first-frame",
+        reset: Boolean = true,
+    ) {
+        if (reset) report.writeText("RUNNING\n")
         val reader = android.media.ImageReader.newInstance(
             320, 240, android.graphics.ImageFormat.YUV_420_888, 3,
         )
@@ -474,7 +493,7 @@ class MainActivity : Activity() {
         fun finish(state: String, detail: String) {
             if (finished) return
             finished = true
-            report.appendText(state + "\tqa-playback-first-frame\t" + detail + "\n")
+            report.appendText(state + "\t" + checkId + "\t" + detail + "\n")
             player.release()
             reader.close()
         }

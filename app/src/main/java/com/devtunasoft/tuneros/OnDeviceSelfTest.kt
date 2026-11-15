@@ -911,7 +911,12 @@ internal object OnDeviceSelfTest {
      *   must be COMPLETED with bytes on disk, and fewer bytes than the full stream.
      * Never touches recordings.db or the user's recordings.
      */
-    fun runRecordingOnly(context: Context, url: String, deadlineMode: Boolean = false) {
+    fun runRecordingOnly(
+        context: Context,
+        url: String,
+        deadlineMode: Boolean = false,
+        onRecorded: ((File) -> Unit)? = null,
+    ) {
         val report = File(context.filesDir, RECORDING_REPORT)
         report.writeText("RUNNING\n")
         val database = "tuneros-selftest-recording-" + System.currentTimeMillis() + ".db"
@@ -922,6 +927,7 @@ internal object OnDeviceSelfTest {
         } else {
             "Recorder copies a loopback stream that ends early as PARTIAL with exact bytes on disk"
         }
+        var recordedFile: File? = null
         val result = check(checkId, description) {
             DvrRecordingService.qaCatalogDatabaseName = database
             try {
@@ -948,6 +954,7 @@ internal object OnDeviceSelfTest {
                         " disk=" + (onDisk ?: -1L) + "\n",
                 )
                 val exactOnDisk = onDisk == entry.bytesWritten && entry.bytesWritten > 0L
+                if (exactOnDisk) recordedFile = File(entry.storageLocation!!)
                 if (deadlineMode) {
                     entry.state == "COMPLETED" && exactOnDisk && entry.stoppedEpochSeconds != null
                 } else {
@@ -964,6 +971,7 @@ internal object OnDeviceSelfTest {
             result.state.name + "\t" + result.id + "\t" + result.detail +
                 (if (bytes != null) " bytes=" + bytes else "") + "\n",
         )
+        if (result.state == State.PASS) recordedFile?.let { onRecorded?.invoke(it) }
     }
 
     /**

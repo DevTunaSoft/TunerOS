@@ -307,6 +307,20 @@ if ! grep -Eq '^PASS[[:space:]]qa-recording-deadline-complete' deadline-report.t
   exit 1
 fi
 
+# The deadline recording must also play back: its own file must render a first video frame.
+for attempt in $(seq 1 60); do
+  adb shell run-as com.devtunasoft.tuneros cat files/tuneros-recording-report.txt > deadline-report.txt 2>/dev/null || true
+  if grep -Eq '^(PASS|FAIL)[[:space:]]qa-recording-playback-first-frame' deadline-report.txt; then
+    break
+  fi
+  sleep 2
+done
+if ! grep -Fq "$(printf 'PASS\tqa-recording-playback-first-frame\tfirst video frame rendered')" deadline-report.txt; then
+  echo "Recorded file playback check failed or never completed"
+  cat deadline-report.txt 2>/dev/null || echo "(no report file)"
+  exit 1
+fi
+
 # Optional real-feed import: a public playlist supplied at dispatch time (never committed). The
 # guide stays a runner fixture so the expected programme count is fixed. Channel count must be > 0.
 if [ -n "${PUBLIC_PLAYLIST_URL:-}" ]; then
