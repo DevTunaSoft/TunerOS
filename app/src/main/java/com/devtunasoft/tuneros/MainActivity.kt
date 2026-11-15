@@ -369,6 +369,9 @@ class MainActivity : Activity() {
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         val handled = super.dispatchKeyEvent(event)
         val report = qaKeyReportFile
+        if (report != null) {
+            report.appendText("KEY\t" + event.keyCode + "\t" + event.action + "\n")
+        }
         if (report != null && event.action == KeyEvent.ACTION_UP) {
             qaKeyCount++
             if (currentFocus !== qaKeyFirstFocus) qaKeyFocusChanged = true
