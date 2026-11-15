@@ -17,6 +17,9 @@ echo "app uid: ${APP_UID:-unknown}"
 adb shell cmd appops set --uid "$APP_UID" SCHEDULE_EXACT_ALARM allow; echo "set-by-uid rc=$?"
 adb shell cmd appops set com.devtunasoft.tuneros SCHEDULE_EXACT_ALARM allow; echo "set-by-pkg rc=$?"
 echo "get: $(adb shell cmd appops get com.devtunasoft.tuneros SCHEDULE_EXACT_ALARM 2>&1 | tr -d '\r')"
+# The system applies exact-alarm state asynchronously; re-apply and settle before the first launch.
+adb shell cmd appops set --uid "$APP_UID" SCHEDULE_EXACT_ALARM allow || true
+sleep 10
 echo "uid-get: $(adb shell cmd appops get --uid "$APP_UID" SCHEDULE_EXACT_ALARM 2>&1 | tr -d '\r')"
 adb shell dumpsys appops com.devtunasoft.tuneros 2>&1 | grep -iE "EXACT|uid|mode" | head -20 || true
 adb shell dumpsys package com.devtunasoft.tuneros 2>&1 | grep -iE "userId|appId|SCHEDULE_EXACT" | head -10 || true
