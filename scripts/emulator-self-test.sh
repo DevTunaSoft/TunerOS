@@ -162,6 +162,12 @@ if [ "${EXTERNAL_STORAGE_CHECK:-false}" = "true" ]; then
   fi
   echo "Folder picker closed after $CONFIRM_TAPS confirm tap(s) and $close_check check(s)"
   sleep 3
+  # Record what the app shows and logs once the picker has returned. A rejected folder leaves its reason on screen.
+  adb shell uiautomator dump /sdcard/after-picker.xml >/dev/null 2>&1 || true
+  adb pull /sdcard/after-picker.xml after-picker.xml >/dev/null 2>&1 || true
+  echo "app labels after the picker: $(tr '>' '\n' < after-picker.xml 2>/dev/null | grep -oE ' text="[^"]+"' | sed -E 's/ text="//; s/"$//' | awk 'NF && !seen[$0]++' | head -40 | tr '\n' '|')"
+  echo "app debug log after the picker:"
+  adb logcat -d -v brief 2>/dev/null | tr -d '\r' | grep -E 'TunerOSRecording|SafStorageInspector' | tail -20 | cut -c1-240 || true
   # Stop the picker-launched instance and wait until the process is really gone. Otherwise the next
   # launch is delivered to that instance as a new intent, and no self-test pass starts.
   for stop_tick in $(seq 1 15); do

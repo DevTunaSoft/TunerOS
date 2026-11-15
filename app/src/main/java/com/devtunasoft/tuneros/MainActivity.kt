@@ -1400,6 +1400,12 @@ class MainActivity : Activity() {
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == recordingTreeRequestCode && (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0) {
+            android.util.Log.i(
+                "TunerOSRecording",
+                "folder picker returned code=$resultCode hasData=${data != null} flags=${data?.flags ?: 0}",
+            )
+        }
         if (requestCode != recordingTreeRequestCode || resultCode != RESULT_OK) return
         val resultData = data ?: run {
             showStatus("No recording folder was selected")

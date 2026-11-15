@@ -1,8 +1,10 @@
 package com.devtunasoft.tuneros
 
 import android.content.Context
+import android.content.pm.ApplicationInfo
 import android.net.Uri
 import android.provider.DocumentsContract
+import android.util.Log
 import com.devtunasoft.tuneros.core.RecordingPolicy
 
 internal data class SafStorageInfo(
@@ -13,6 +15,7 @@ internal data class SafStorageInfo(
 
 internal object SafStorageInspector {
     const val EXTERNAL_STORAGE_AUTHORITY = "com.android.externalstorage.documents"
+    private const val TAG = "SafStorageInspector"
 
     fun inspect(context: Context, treeUri: Uri): SafStorageInfo? = runCatching {
         if (treeUri.scheme != "content" || treeUri.authority != EXTERNAL_STORAGE_AUTHORITY) {
@@ -50,6 +53,7 @@ internal object SafStorageInspector {
                     flags and DocumentsContract.Document.FLAG_DIR_SUPPORTS_CREATE.toLong() != 0L
             }
         } ?: false
+        debugLog(context, "tree=$treeDocumentId canCreate=$canCreate")
         if (!canCreate) return@runCatching null
 
         val rootsUri = DocumentsContract.buildRootsUri(EXTERNAL_STORAGE_AUTHORITY)
@@ -76,8 +80,12 @@ internal object SafStorageInspector {
             var bestDocumentIdLength = -1
             var bestTitle: String? = null
             var bestAvailable: Long? = null
+            val rootSummary = StringBuilder()
             while (cursor.moveToNext()) {
                 val rootDocumentId = cursor.getString(documentIdColumn) ?: continue
+                rootSummary.append(" [").append(rootDocumentId).append(" available=")
+                    .append(if (cursor.isNull(availableColumn)) "null" else cursor.getLong(availableColumn).toString())
+                    .append("]")
                 if (!RecordingPolicy.isDocumentOnRoot(treeDocumentId, rootDocumentId) ||
                     rootDocumentId.length <= bestDocumentIdLength
                 ) {
@@ -90,9 +98,19 @@ internal object SafStorageInspector {
                 bestTitle = if (cursor.isNull(titleColumn)) null else cursor.getString(titleColumn)
                 bestAvailable = available
             }
+            debugLog(context, "roots:$rootSummary chosen=$bestAvailable")
             bestAvailable?.let { available ->
                 SafStorageInfo(treeUri, bestTitle, available)
             }
         }
+    }.onFailure { failure ->
+        debugLog(context, "inspect failed: ${failure.javaClass.simpleName}")
     }.getOrNull()
+
+    /** Debug builds only. Logs document ids and sizes, never a URI. */
+    private fun debugLog(context: Context, message: String) {
+        if ((context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0) {
+            Log.i(TAG, message)
+        }
+    }
 }
