@@ -913,8 +913,8 @@ internal object OnDeviceSelfTest {
         val database = "tuneros-selftest-recording-" + System.currentTimeMillis() + ".db"
         val id = "qa-recording-" + System.currentTimeMillis()
         val result = check(
-            "qa-recording-completion",
-            "Recorder service copies a finite loopback stream to COMPLETED (scratch catalog)",
+            "qa-recording-partial-eof",
+            "Recorder copies a loopback stream that ends early as PARTIAL with exact bytes on disk",
         ) {
             DvrRecordingService.qaCatalogDatabaseName = database
             try {
@@ -934,14 +934,20 @@ internal object OnDeviceSelfTest {
                     }?.takeIf { it.state != "RECORDING" }
                 }
                 if (entry == null) return@check false
-                report.appendText("DETAIL\tstate=" + entry.state + " bytes=" + entry.bytesWritten + "\n")
-                entry.state == "COMPLETED" && entry.bytesWritten > 0L && entry.storageLocation != null
+                val onDisk = entry.storageLocation?.let { java.io.File(it).takeIf { f -> f.isFile }?.length() }
+                report.appendText(
+                    "DETAIL\tstate=" + entry.state + " bytes=" + entry.bytesWritten +
+                        " disk=" + (onDisk ?: -1L) + "\n",
+                )
+                // A stream that ends before the scheduled stop must be PARTIAL, never COMPLETED,
+                // and every byte the copier counted must be on disk.
+                entry.state == "PARTIAL" && entry.bytesWritten > 0L && onDisk == entry.bytesWritten
             } finally {
                 DvrRecordingService.qaCatalogDatabaseName = null
             }
         }
         val bytes = report.readLines().firstOrNull { it.startsWith("DETAIL") }
-            ?.substringAfter("bytes=")
+            ?.substringAfter("disk=")
             ?.trim()
         report.appendText(
             result.state.name + "\t" + result.id + "\t" + result.detail +

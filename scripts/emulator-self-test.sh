@@ -237,14 +237,14 @@ adb shell am force-stop com.devtunasoft.tuneros
 adb shell am start -n com.devtunasoft.tuneros/.MainActivity --es tuneros.debug.record_url http://10.0.2.2:8767/test.mp4
 for attempt in $(seq 1 90); do
   adb shell run-as com.devtunasoft.tuneros cat files/tuneros-recording-report.txt > recording-report.txt 2>/dev/null || true
-  if grep -Eq '^(PASS|FAIL)[[:space:]]qa-recording-completion' recording-report.txt; then
+  if grep -Eq '^(PASS|FAIL)[[:space:]]qa-recording-partial-eof' recording-report.txt; then
     break
   fi
   sleep 2
 done
 kill "$RECORD_HTTP_PID" 2>/dev/null || true
-if ! grep -Eq "^PASS[[:space:]]qa-recording-completion.* bytes=${RECORD_BYTES}\$" recording-report.txt; then
-  echo "Recording completion check failed or never completed (expected bytes=${RECORD_BYTES})"
+if ! grep -Eq "^PASS[[:space:]]qa-recording-partial-eof.* bytes=${RECORD_BYTES}\$" recording-report.txt; then
+  echo "Recording partial-EOF check failed or never completed (expected bytes=${RECORD_BYTES})"
   cat recording-report.txt 2>/dev/null || echo "(no report file)"
   exit 1
 fi
