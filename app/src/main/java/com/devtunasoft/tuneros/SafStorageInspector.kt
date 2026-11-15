@@ -5,7 +5,6 @@ import android.content.pm.ApplicationInfo
 import android.net.Uri
 import android.provider.DocumentsContract
 import android.util.Log
-import com.devtunasoft.tuneros.core.RecordingPolicy
 
 internal data class SafStorageInfo(
     val treeUri: Uri,
@@ -56,56 +55,40 @@ internal object SafStorageInspector {
         debugLog(context, "tree=$treeDocumentId canCreate=$canCreate")
         if (!canCreate) return@runCatching null
 
-        val rootsUri = DocumentsContract.buildRootsUri(EXTERNAL_STORAGE_AUTHORITY)
-        resolver.query(
-            rootsUri,
-            arrayOf(
-                DocumentsContract.Root.COLUMN_DOCUMENT_ID,
-                DocumentsContract.Root.COLUMN_TITLE,
-                DocumentsContract.Root.COLUMN_AVAILABLE_BYTES,
-            ),
-            null,
-            null,
-            null,
-        )?.use { cursor ->
-            val documentIdColumn = cursor.getColumnIndexOrThrow(
-                DocumentsContract.Root.COLUMN_DOCUMENT_ID,
-            )
-            val titleColumn = cursor.getColumnIndexOrThrow(
-                DocumentsContract.Root.COLUMN_TITLE,
-            )
-            val availableColumn = cursor.getColumnIndexOrThrow(
-                DocumentsContract.Root.COLUMN_AVAILABLE_BYTES,
-            )
-            var bestDocumentIdLength = -1
-            var bestTitle: String? = null
-            var bestAvailable: Long? = null
-            val rootSummary = StringBuilder()
-            while (cursor.moveToNext()) {
-                val rootDocumentId = cursor.getString(documentIdColumn) ?: continue
-                rootSummary.append(" [").append(rootDocumentId).append(" available=")
-                    .append(if (cursor.isNull(availableColumn)) "null" else cursor.getLong(availableColumn).toString())
-                    .append("]")
-                if (!RecordingPolicy.isDocumentOnRoot(treeDocumentId, rootDocumentId) ||
-                    rootDocumentId.length <= bestDocumentIdLength
-                ) {
-                    continue
-                }
-                if (cursor.isNull(availableColumn)) continue
-                val available = cursor.getLong(availableColumn)
-                if (available < 0) continue
-                bestDocumentIdLength = rootDocumentId.length
-                bestTitle = if (cursor.isNull(titleColumn)) null else cursor.getString(titleColumn)
-                bestAvailable = available
-            }
-            debugLog(context, "roots:$rootSummary chosen=$bestAvailable")
-            bestAvailable?.let { available ->
-                SafStorageInfo(treeUri, bestTitle, available)
-            }
-        }
+        // Free space comes from the storage volume that holds the folder. The provider's roots list cannot be
+        // read by an app ("requires that you obtain access using ACTION_OPEN_DOCUMENT"), so it is not queried.
+        val volumeId = treeDocumentId.substringBefore(':', missingDelimiterValue = "")
+        val volume = volumeSpaces(context).firstOrNull { it.volumeId == volumeId }
+        debugLog(context, "volume=$volumeId found=${volume != null} usable=${volume?.usableBytes}")
+        if (volume == null || volume.usableBytes < 0L) return@runCatching null
+        SafStorageInfo(treeUri, volumeId, volume.usableBytes)
     }.onFailure { failure ->
         debugLog(context, "inspect failed: ${failure.javaClass.simpleName}")
     }.getOrNull()
+
+    private class VolumeSpace(val volumeId: String, val usableBytes: Long)
+
+    /**
+     * Usable space for each mounted storage volume. The app's own external files directory on each volume is
+     * public API (minSdk 26) and needs no permission; the usable space of that path is the volume's free space.
+     * The volume id is "primary" for shared internal storage and the card's UUID for SD or USB storage.
+     */
+    private fun volumeSpaces(context: Context): List<VolumeSpace> {
+        val spaces = ArrayList<VolumeSpace>()
+        for (dir in context.getExternalFilesDirs(null)) {
+            if (dir == null) continue
+            if (!dir.exists()) dir.mkdirs()
+            val path = dir.absolutePath
+            val volumeId = when {
+                path.startsWith("/storage/emulated/") -> "primary"
+                path.startsWith("/storage/") -> path.removePrefix("/storage/").substringBefore('/')
+                else -> continue
+            }
+            if (volumeId.isEmpty()) continue
+            spaces += VolumeSpace(volumeId, dir.usableSpace)
+        }
+        return spaces
+    }
 
     /** Debug builds only. Logs document ids and sizes, never a URI. */
     private fun debugLog(context: Context, message: String) {
