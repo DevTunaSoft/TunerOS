@@ -4,6 +4,7 @@ import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import android.os.Debug
 import android.os.SystemClock
@@ -36,6 +37,7 @@ import java.util.concurrent.atomic.AtomicReference
 import java.net.URL
 import java.io.File
 import java.io.FileOutputStream
+import java.security.MessageDigest
 
 /**
  * In-app, unattended, read-only (except owned scratch data) Android acceptance probes.
@@ -903,6 +905,35 @@ internal object OnDeviceSelfTest {
         }
     }
 
+    /** A stored recording read back in full: its byte count, its SHA-256, and whether it is a SAF document. */
+    private class StoredCopy(val bytes: Long, val sha256: String, val content: Boolean)
+
+    /**
+     * Reads a stored recording back through the route the recorder wrote it with: a content URI (a SAF
+     * document in the picked folder) or an app-private file. Streams in fixed chunks, so a recording is never
+     * held in memory. Returns null when the location cannot be opened.
+     */
+    private fun readStored(context: Context, location: String): StoredCopy? = runCatching<StoredCopy?> {
+        val content = location.startsWith("content://")
+        val input: InputStream = if (content) {
+            context.contentResolver.openInputStream(Uri.parse(location)) ?: return@runCatching null
+        } else {
+            File(location).takeIf { it.isFile }?.inputStream() ?: return@runCatching null
+        }
+        input.use { stream ->
+            val digest = MessageDigest.getInstance("SHA-256")
+            val buffer = ByteArray(64 * 1024)
+            var total = 0L
+            while (true) {
+                val read = stream.read(buffer)
+                if (read < 0) break
+                digest.update(buffer, 0, read)
+                total += read
+            }
+            StoredCopy(total, digest.digest().joinToString("") { "%02x".format(it) }, content)
+        }
+    }.getOrNull()
+
     /**
      * Isolated debug launch only: the real recorder service copies a loopback stream into
      * app-private storage using a scratch catalog. Two modes:
@@ -949,13 +980,19 @@ internal object OnDeviceSelfTest {
                     }?.takeIf { it.state != "RECORDING" }
                 }
                 if (entry == null) return@check false
-                val onDisk = entry.storageLocation?.let { File(it).takeIf { f -> f.isFile }?.length() }
+                val stored = entry.storageLocation?.let { readStored(context, it) }
+                val onDisk = stored?.bytes
                 report.appendText(
                     "DETAIL\tstate=" + entry.state + " bytes=" + entry.bytesWritten +
+                        " storage=" + (if (stored?.content == true) "saf" else "file") +
+                        " sha256=" + (stored?.sha256 ?: "none") +
                         " disk=" + (onDisk ?: -1L) + "\n",
                 )
                 val exactOnDisk = onDisk == entry.bytesWritten && entry.bytesWritten > 0L
-                if (exactOnDisk) recordedFile = File(entry.storageLocation!!)
+                val location = entry.storageLocation
+                if (exactOnDisk && location != null && !location.startsWith("content://")) {
+                    recordedFile = File(location)
+                }
                 if (deadlineMode) {
                     entry.state == "COMPLETED" && exactOnDisk && entry.stoppedEpochSeconds != null
                 } else {
@@ -1058,7 +1095,7 @@ internal object OnDeviceSelfTest {
                     }?.takeIf { it.state != "RECORDING" }
                 }
                 val schedule = RecordingScheduleStore(context).use { it.get(id) }
-                val onDisk = entry?.storageLocation?.let { File(it).takeIf { f -> f.isFile }?.length() }
+                val onDisk = entry?.storageLocation?.let { readStored(context, it)?.bytes }
                 report.appendText(
                     "DETAIL\tstate=" + (entry?.state ?: "none") + " bytes=" + (entry?.bytesWritten ?: -1L) +
                         " disk=" + (onDisk ?: -1L) + " schedule=" + (schedule?.state ?: "none") +

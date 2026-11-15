@@ -223,6 +223,41 @@ if adb shell run-as com.devtunasoft.tuneros ls files/tuneros-selftest-in-progres
   echo "The self-test has not committed its report and cleared its run marker"
   exit 1
 fi
+# External storage: the same finite loopback stream is recorded into the picked folder while it is still saved.
+# The report must say storage=saf, and the stored document must hold exactly the served bytes (sha256).
+if [ "${EXTERNAL_STORAGE_CHECK:-false}" = "true" ]; then
+  python3 -m http.server 8767 --bind 0.0.0.0 --directory ci-playback >saf-record-server.log 2>&1 &
+  SAF_HTTP_PID=$!
+  sleep 2
+  SAF_BYTES=$(stat -c %s ci-playback/test.mp4)
+  SAF_SHA=$(sha256sum ci-playback/test.mp4 | cut -d' ' -f1)
+  adb shell run-as com.devtunasoft.tuneros rm -f files/tuneros-recording-report.txt || true
+  adb shell am force-stop com.devtunasoft.tuneros
+  adb shell am start -n com.devtunasoft.tuneros/.MainActivity --es tuneros.debug.record_url http://10.0.2.2:8767/test.mp4
+  for attempt in $(seq 1 90); do
+    adb shell run-as com.devtunasoft.tuneros cat files/tuneros-recording-report.txt > saf-recording-report.txt 2>/dev/null || true
+    if grep -Eq '^(PASS|FAIL)[[:space:]]qa-recording-partial-eof' saf-recording-report.txt; then
+      break
+    fi
+    sleep 2
+  done
+  kill "$SAF_HTTP_PID" 2>/dev/null || true
+  wait "$SAF_HTTP_PID" 2>/dev/null || true
+  if ! grep -Eq "^PASS[[:space:]]qa-recording-partial-eof.* bytes=${SAF_BYTES}\$" saf-recording-report.txt \
+     || ! grep -Fq "storage=saf sha256=${SAF_SHA} disk=${SAF_BYTES}" saf-recording-report.txt; then
+    echo "Recording into the picked folder failed the byte-exact check (expected ${SAF_BYTES} bytes, sha256=${SAF_SHA})"
+    cat saf-recording-report.txt 2>/dev/null || echo "(no report file)"
+    exit 1
+  fi
+  echo "Recording into the picked folder matched the served file: ${SAF_BYTES} bytes, sha256=${SAF_SHA}"
+  # The internal recording check below reads the same report file. Clear this result so it cannot pass on it.
+  adb shell am force-stop com.devtunasoft.tuneros
+  adb shell run-as com.devtunasoft.tuneros rm -f files/tuneros-recording-report.txt || true
+  if adb shell run-as com.devtunasoft.tuneros ls files/tuneros-recording-report.txt >/dev/null 2>&1; then
+    echo "The recording report could not be cleared before the internal recording check"
+    exit 1
+  fi
+fi
 # The picked folder stays saved in the app. The external-storage check above has verified it, so reset the
 # destination to internal storage before the checks that follow, which were written for internal storage.
 if [ "${EXTERNAL_STORAGE_CHECK:-false}" = "true" ]; then
@@ -591,11 +626,12 @@ if ! grep -Fq "$(printf 'PASS\tqa-rotation-recreate\trecreated after orientation
   exit 1
 fi
 # Isolated launch for a real recording: the recorder service copies a finite loopback stream
-# into app-private storage (scratch catalog) and must finish COMPLETED with the exact byte count.
+# into app-private storage (scratch catalog) and must finish PARTIAL with the exact bytes on disk (sha256 checked).
 python3 -m http.server 8767 --bind 0.0.0.0 --directory ci-playback >record-server.log 2>&1 &
 RECORD_HTTP_PID=$!
 sleep 2
 RECORD_BYTES=$(stat -c %s ci-playback/test.mp4)
+RECORD_SHA=$(sha256sum ci-playback/test.mp4 | cut -d' ' -f1)
 adb shell am force-stop com.devtunasoft.tuneros
 adb shell am start -n com.devtunasoft.tuneros/.MainActivity --es tuneros.debug.record_url http://10.0.2.2:8767/test.mp4
 for attempt in $(seq 1 90); do
@@ -606,8 +642,9 @@ for attempt in $(seq 1 90); do
   sleep 2
 done
 kill "$RECORD_HTTP_PID" 2>/dev/null || true
-if ! grep -Eq "^PASS[[:space:]]qa-recording-partial-eof.* bytes=${RECORD_BYTES}\$" recording-report.txt; then
-  echo "Recording partial-EOF check failed or never completed (expected bytes=${RECORD_BYTES})"
+if ! grep -Eq "^PASS[[:space:]]qa-recording-partial-eof.* bytes=${RECORD_BYTES}\$" recording-report.txt \
+   || ! grep -Fq "storage=file sha256=${RECORD_SHA} disk=${RECORD_BYTES}" recording-report.txt; then
+  echo "Recording partial-EOF check failed or never completed (expected bytes=${RECORD_BYTES}, sha256=${RECORD_SHA})"
   cat recording-report.txt 2>/dev/null || echo "(no report file)"
   exit 1
 fi
