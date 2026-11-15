@@ -316,42 +316,58 @@ for attempt in $(seq 1 60); do
   fi
   sleep 2
 done
-# Keys must go to the app's window: wait until the app holds focus before injecting them.
-# A timed-out screen or a lock screen takes focus and drops keys, so keep the device awake and
-# unlocked for the whole run. The focus check itself stays strict.
+# Keys must go to the app's window. The top resumed activity can match before a new window has focus, and keys
+# sent in that gap are dropped, so the window's own focus is required. Top-activity is accepted only when the
+# window dump has no mCurrentFocus line at all. A timed-out screen, a lock screen or the notification shade can
+# take focus, so keep the device awake and unlocked and collapse the shade while waiting. The check stays strict.
 adb shell svc power stayon true || true
 adb shell settings put system screen_off_timeout 600000 || true
 FOCUSED=false
 FOCUSED_BY=none
-for attempt in $(seq 1 30); do
-  adb shell dumpsys window windows 2>/dev/null > focus-window.txt || true
+for attempt in $(seq 1 45); do
+  adb shell dumpsys window 2>/dev/null > focus-window.txt || true
   adb shell dumpsys activity activities 2>/dev/null > focus-activity.txt || true
-  if grep -q 'mCurrentFocus.*com.devtunasoft.tuneros' focus-window.txt; then FOCUSED=true; FOCUSED_BY=window; break; fi
-  if grep -Eq '(topResumedActivity|mResumedActivity).*com.devtunasoft.tuneros' focus-activity.txt; then FOCUSED=true; FOCUSED_BY=top-activity; break; fi
+  if grep -q 'mCurrentFocus=.*com.devtunasoft.tuneros' focus-window.txt; then FOCUSED=true; FOCUSED_BY=window; break; fi
+  if ! grep -q 'mCurrentFocus=' focus-window.txt && grep -Eq '(topResumedActivity|mResumedActivity).*com.devtunasoft.tuneros' focus-activity.txt; then FOCUSED=true; FOCUSED_BY=top-activity; break; fi
   adb shell input keyevent 224 || true
   adb shell wm dismiss-keyguard || true
+  adb shell cmd statusbar collapse || true
   sleep 2
 done
 echo "Key test window focused: $FOCUSED ($FOCUSED_BY)"
-adb shell input keyevent 22
-sleep 1
-adb shell input keyevent 22
-sleep 1
-adb shell input keyevent 20
-sleep 1
-adb shell input keyevent 20
-for attempt in $(seq 1 30); do
-  adb shell run-as com.devtunasoft.tuneros cat files/tuneros-key-report.txt > key-report.txt 2>/dev/null || true
-  if grep -Fq "$(printf 'PASS\tqa-remote-key-input\tkeys=4 focusChanged=')" key-report.txt; then
-    break
-  fi
-  sleep 2
+grep -E 'mCurrentFocus=' focus-window.txt | head -1 | cut -c1-200 || true
+# Let the newly focused window's input channel settle before the first key.
+sleep 2
+# Up to three rounds. A round is repeated only when the app recorded no key event at all: a key that arrived is
+# already counted, so a partly delivered round is never repeated. The strict PASS line below still decides.
+for round in 1 2 3; do
+  adb shell input keyevent 22
+  sleep 1
+  adb shell input keyevent 22
+  sleep 1
+  adb shell input keyevent 20
+  sleep 1
+  adb shell input keyevent 20
+  for attempt in $(seq 1 15); do
+    adb shell run-as com.devtunasoft.tuneros cat files/tuneros-key-report.txt > key-report.txt 2>/dev/null || true
+    if grep -Fq "$(printf 'PASS\tqa-remote-key-input\tkeys=4 focusChanged=')" key-report.txt; then
+      break
+    fi
+    sleep 2
+  done
+  if grep -Fq "$(printf 'PASS\tqa-remote-key-input\tkeys=4 focusChanged=')" key-report.txt; then break; fi
+  if grep -q '^KEY' key-report.txt; then break; fi
+  echo "Key round $round: no key event reached the app; checking focus before the next round"
+  adb shell input keyevent 224 || true
+  adb shell wm dismiss-keyguard || true
+  adb shell cmd statusbar collapse || true
+  sleep 3
 done
 if ! grep -Eq "$(printf '^PASS\tqa-remote-key-input\tkeys=4 focusChanged=(true|false)$')" key-report.txt; then
   echo "Remote key input check failed or never completed"
   cat key-report.txt 2>/dev/null || echo "(no report file)"
   # Snapshot focus, keyguard and power state so a dropped-key failure can be diagnosed from the log.
-  adb shell dumpsys window windows 2>/dev/null > key-window-dump.txt || true
+  adb shell dumpsys window 2>/dev/null > key-window-dump.txt || true
   echo "window dump lines: $(wc -l < key-window-dump.txt 2>/dev/null || echo 0)"
   grep -E 'mCurrentFocus|mFocusedApp|isKeyguardShowing|mKeyguard' key-window-dump.txt | head -6 || true
   adb shell dumpsys activity activities 2>/dev/null | tr -d '\r' | grep -E 'topResumedActivity|mResumedActivity' | head -2 || true
