@@ -346,6 +346,37 @@ class MainActivity : Activity() {
         }
         qaPlaybackUrl()?.let { url -> root.post { runQaPlayback(url) } }
         qaImportUrls()?.let { (playlist, guide) -> root.post { runQaImport(playlist, guide) } }
+        if (isKeyLaunch()) root.post { armQaKeyReport() }
+    }
+
+    /** Debug-only: an isolated CI launch that records remote key input reaching this activity. */
+    private fun isKeyLaunch(): Boolean =
+        (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0 &&
+            intent?.getBooleanExtra("tuneros.debug.keys", false) == true
+
+    private var qaKeyReportFile: java.io.File? = null
+    private var qaKeyCount = 0
+    private var qaKeyFirstFocus: Any? = null
+    private var qaKeyFocusChanged = false
+
+    private fun armQaKeyReport() {
+        val report = java.io.File(filesDir, "tuneros-key-report.txt")
+        report.writeText("ARMED\n")
+        qaKeyFirstFocus = currentFocus
+        qaKeyReportFile = report
+    }
+
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        val handled = super.dispatchKeyEvent(event)
+        val report = qaKeyReportFile
+        if (report != null && event.action == KeyEvent.ACTION_UP) {
+            qaKeyCount++
+            if (currentFocus !== qaKeyFirstFocus) qaKeyFocusChanged = true
+            if (qaKeyCount == 4) {
+                report.appendText("PASS\tqa-remote-key-input\tkeys=4 focusChanged=" + qaKeyFocusChanged + "\n")
+            }
+        }
+        return handled
     }
 
     /** Debug-only: playlist and guide URLs imported by an isolated CI launch. Never saved. */
@@ -588,7 +619,7 @@ class MainActivity : Activity() {
         // Only one probe pass at once; use the app's existing serial worker.
         if (worker.isShutdown) return
         // The isolated service-stop launch must not share the process with the main pass.
-        if (isServiceStopLaunch() || isAlarmLaunch() || qaPlaybackUrl() != null || qaImportUrls() != null) return
+        if (isServiceStopLaunch() || isAlarmLaunch() || qaPlaybackUrl() != null || qaImportUrls() != null || isKeyLaunch()) return
         if (selfTestsQueued) {
             // An import completed while a previous pass was running: do not lose its results.
             selfTestsDirty = true

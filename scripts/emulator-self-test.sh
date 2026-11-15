@@ -167,6 +167,36 @@ if ! grep -Fq "$(printf 'PASS\tqa-loopback-import\tchannels=3 programs=6')" impo
   cat ci-import/http-server.log 2>/dev/null | tail -20 || true
   exit 1
 fi
+# Isolated launch for remote key input: keys are injected with adb after the app reports it
+# is armed. Each key must reach the activity's key dispatch, not a synthetic call.
+adb shell am force-stop com.devtunasoft.tuneros
+adb shell am start -n com.devtunasoft.tuneros/.MainActivity --ez tuneros.debug.keys true
+for attempt in $(seq 1 60); do
+  adb shell run-as com.devtunasoft.tuneros cat files/tuneros-key-report.txt > key-report.txt 2>/dev/null || true
+  if grep -Fq "ARMED" key-report.txt; then
+    break
+  fi
+  sleep 2
+done
+adb shell input keyevent 22
+sleep 1
+adb shell input keyevent 22
+sleep 1
+adb shell input keyevent 20
+sleep 1
+adb shell input keyevent 20
+for attempt in $(seq 1 30); do
+  adb shell run-as com.devtunasoft.tuneros cat files/tuneros-key-report.txt > key-report.txt 2>/dev/null || true
+  if grep -Fq "$(printf 'PASS\tqa-remote-key-input\tkeys=4 focusChanged=')" key-report.txt; then
+    break
+  fi
+  sleep 2
+done
+if ! grep -Eq "$(printf '^PASS\tqa-remote-key-input\tkeys=4 focusChanged=(true|false)$')" key-report.txt; then
+  echo "Remote key input check failed or never completed"
+  cat key-report.txt 2>/dev/null || echo "(no report file)"
+  exit 1
+fi
 if grep -q '^FAIL[[:space:]]' on-device-report.txt; then
   echo "Unexpected failure in the app's own self-test report"
   cat on-device-report.txt
