@@ -68,6 +68,35 @@ if ! grep -Fq "$(printf 'PASS\tdebug-service-stop-cancels\t')" service-stop-repo
   adb logcat -d -v brief 2>/dev/null | grep -E "FATAL|AndroidRuntime|DvrRecording|ActivityManager.*(died|crash|ANR)|ForegroundService|tuneros" | tail -120 || true
   exit 1
 fi
+# Optional real-guide import: a public XMLTV guide supplied at dispatch time (never committed).
+# The playlist stays a runner fixture (3 channels), so the guide is the variable. Programme count
+# must be above zero; the exact count depends on the public feed.
+if [ -n "${PUBLIC_GUIDE_URL:-}" ]; then
+  (cd ci-import && python3 -m http.server 8766 --bind 0.0.0.0 >guide-server.log 2>&1) &
+  GUIDE_HTTP_PID=$!
+  sleep 2
+  # Remove any earlier import report so the result can only come from this launch.
+  adb shell run-as com.devtunasoft.tuneros rm -f files/tuneros-import-report.txt || true
+  adb shell am force-stop com.devtunasoft.tuneros
+  adb shell am start -n com.devtunasoft.tuneros/.MainActivity \
+    --es tuneros.debug.import_playlist_url http://10.0.2.2:8766/playlist.m3u \
+    --es tuneros.debug.import_guide_url "$PUBLIC_GUIDE_URL"
+  for attempt in $(seq 1 150); do
+    adb shell run-as com.devtunasoft.tuneros cat files/tuneros-import-report.txt > public-guide-report.txt 2>/dev/null || true
+    if grep -Eq '^(PASS|FAIL)[[:space:]]qa-loopback-import' public-guide-report.txt; then
+      break
+    fi
+    sleep 2
+  done
+  kill "$GUIDE_HTTP_PID" 2>/dev/null || true
+  if ! grep -Eq '^PASS[[:space:]]qa-loopback-import[[:space:]]channels=3 programs=[1-9][0-9]*' public-guide-report.txt; then
+    echo "Public guide import failed or never completed"
+    sed -E 's#https?://[^[:space:]]*#<url>#g' public-guide-report.txt 2>/dev/null || echo "(no report file)"
+    exit 1
+  fi
+  echo "Public guide import result: $(grep -E '^PASS' public-guide-report.txt)"
+fi
+
 # Isolated launch for exact-alarm delivery. The alarm is scheduled first; only after it is
 # armed does this script force the device into deep Doze and sleep the screen. The alarm
 # must still be delivered while idle.
@@ -92,10 +121,16 @@ done
 if ! grep -Fq "$(printf 'PASS\tqa-alarm-delivery\tExact alarm delivered, idle=true')" alarm-report.txt; then
   echo "Exact alarm delivery during Doze failed or never completed"
   cat alarm-report.txt 2>/dev/null || echo "(no report file)"
+  adb shell dumpsys deviceidle get deep || true
+  adb shell dumpsys alarm 2>/dev/null | grep -iE "devtunasoft|qa-alarm" | head -20 || true
   adb shell dumpsys deviceidle unforce || true
+  adb shell input keyevent 224 || true
   exit 1
 fi
 adb shell dumpsys deviceidle unforce || true
+adb shell input keyevent 224 || true
+adb shell wm dismiss-keyguard || true
+sleep 2
 # Isolated launch for first decoded video frame. The runner generates a short test stream,
 # serves it on the host, and the emulator reaches it through the host alias 10.0.2.2.
 command -v ffmpeg >/dev/null || sudo apt-get install -y -qq ffmpeg
@@ -172,11 +207,11 @@ if ! grep -Fq "$(printf 'PASS\tqa-loopback-import\tchannels=3 programs=6')" impo
 fi
 # Isolated launch for remote key input: keys are injected with adb after the app reports it
 # is armed. Each key must reach the activity's key dispatch, not a synthetic call.
-adb shell am force-stop com.devtunasoft.tuneros
-adb shell am start -n com.devtunasoft.tuneros/.MainActivity --ez tuneros.debug.keys true
-# The Doze step above sleeps the screen; wake it and dismiss the keyguard so input reaches the app.
 adb shell input keyevent 224 || true
 adb shell wm dismiss-keyguard || true
+sleep 2
+adb shell am force-stop com.devtunasoft.tuneros
+adb shell am start -n com.devtunasoft.tuneros/.MainActivity --ez tuneros.debug.keys true
 for attempt in $(seq 1 60); do
   adb shell run-as com.devtunasoft.tuneros cat files/tuneros-key-report.txt > key-report.txt 2>/dev/null || true
   if grep -Fq "ARMED" key-report.txt; then
@@ -184,6 +219,14 @@ for attempt in $(seq 1 60); do
   fi
   sleep 2
 done
+# Keys must go to the app's window: wait until the app holds focus before injecting them.
+FOCUSED=false
+for attempt in $(seq 1 30); do
+  adb shell dumpsys window windows 2>/dev/null | grep -E 'mCurrentFocus' | grep -q 'com.devtunasoft.tuneros' && { FOCUSED=true; break; }
+  adb shell input keyevent 224 || true
+  sleep 2
+done
+echo "Key test window focused: $FOCUSED"
 adb shell input keyevent 22
 sleep 1
 adb shell input keyevent 22
@@ -201,6 +244,7 @@ done
 if ! grep -Eq "$(printf '^PASS\tqa-remote-key-input\tkeys=4 focusChanged=(true|false)$')" key-report.txt; then
   echo "Remote key input check failed or never completed"
   cat key-report.txt 2>/dev/null || echo "(no report file)"
+  adb shell dumpsys window windows 2>/dev/null | grep -E 'mCurrentFocus|mFocusedApp' | head -4 || true
   exit 1
 fi
 # Isolated launch for rotation: the activity must be recreated with its saved state after the
@@ -387,35 +431,6 @@ if ! grep -Eq '^PASS[[:space:]]qa-dvr-rearm' scheduled-report.txt \
   echo "Scheduled recording check failed (full stream ${SCHED_FULL_BYTES} bytes, recorded ${SCHED_BYTES:-none})"
   cat scheduled-report.txt 2>/dev/null || echo "(no report file)"
   exit 1
-fi
-
-# Optional real-guide import: a public XMLTV guide supplied at dispatch time (never committed).
-# The playlist stays a runner fixture (3 channels), so the guide is the variable. Programme count
-# must be above zero; the exact count depends on the public feed.
-if [ -n "${PUBLIC_GUIDE_URL:-}" ]; then
-  (cd ci-import && python3 -m http.server 8766 --bind 0.0.0.0 >guide-server.log 2>&1) &
-  GUIDE_HTTP_PID=$!
-  sleep 2
-  # Remove any earlier import report so the result can only come from this launch.
-  adb shell run-as com.devtunasoft.tuneros rm -f files/tuneros-import-report.txt || true
-  adb shell am force-stop com.devtunasoft.tuneros
-  adb shell am start -n com.devtunasoft.tuneros/.MainActivity \
-    --es tuneros.debug.import_playlist_url http://10.0.2.2:8766/playlist.m3u \
-    --es tuneros.debug.import_guide_url "$PUBLIC_GUIDE_URL"
-  for attempt in $(seq 1 150); do
-    adb shell run-as com.devtunasoft.tuneros cat files/tuneros-import-report.txt > public-guide-report.txt 2>/dev/null || true
-    if grep -Eq '^(PASS|FAIL)[[:space:]]qa-loopback-import' public-guide-report.txt; then
-      break
-    fi
-    sleep 2
-  done
-  kill "$GUIDE_HTTP_PID" 2>/dev/null || true
-  if ! grep -Eq '^PASS[[:space:]]qa-loopback-import[[:space:]]channels=3 programs=[1-9][0-9]*' public-guide-report.txt; then
-    echo "Public guide import failed or never completed"
-    sed -E 's#https?://[^[:space:]]*#<url>#g' public-guide-report.txt 2>/dev/null || echo "(no report file)"
-    exit 1
-  fi
-  echo "Public guide import result: $(grep -E '^PASS' public-guide-report.txt)"
 fi
 
 if grep -q '^FAIL[[:space:]]' on-device-report.txt; then
