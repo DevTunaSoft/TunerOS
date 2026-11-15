@@ -364,7 +364,7 @@ class MainActivity : Activity() {
         val report = java.io.File(filesDir, "tuneros-playback-report.txt")
         report.writeText("RUNNING\n")
         val reader = android.media.ImageReader.newInstance(
-            320, 240, android.graphics.PixelFormat.RGBA_8888, 3,
+            320, 240, android.graphics.ImageFormat.YUV_420_888, 3,
         )
         // Keep images flowing so rendering never stalls waiting for the app to release them.
         reader.setOnImageAvailableListener({ r -> r.acquireLatestImage()?.close() }, null)
