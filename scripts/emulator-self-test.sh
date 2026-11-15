@@ -462,6 +462,14 @@ if [ -n "${PUBLIC_PLAYLIST_URL:-}" ]; then
   python3 -m http.server 8768 --bind 0.0.0.0 --directory ci-import >public-guide-server.log 2>&1 &
   PUB_HTTP_PID=$!
   sleep 2
+  # Remove any earlier import report so the result can only come from this launch.
+  adb shell run-as com.devtunasoft.tuneros rm -f files/tuneros-import-report.txt || true
+  rm -f public-import-report.txt
+  if adb shell run-as com.devtunasoft.tuneros ls files/tuneros-import-report.txt >/dev/null 2>&1; then
+    echo "Could not clear the earlier import report; refusing a possibly stale result"
+    kill "$PUB_HTTP_PID" 2>/dev/null || true
+    exit 1
+  fi
   adb shell am force-stop com.devtunasoft.tuneros
   adb shell am start -n com.devtunasoft.tuneros/.MainActivity \
     --es tuneros.debug.import_playlist_url "$PUBLIC_PLAYLIST_URL" \
