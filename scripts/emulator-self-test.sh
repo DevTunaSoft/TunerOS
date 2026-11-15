@@ -381,7 +381,8 @@ for attempt in $(seq 1 90); do
 done
 kill "$SCHED_HTTP_PID" 2>/dev/null || true
 SCHED_BYTES=$(sed -n 's/.* bytes=\([0-9]*\)$/\1/p' scheduled-report.txt | tail -1)
-if ! grep -Eq '^PASS[[:space:]]qa-scheduled-recording' scheduled-report.txt \
+if ! grep -Eq '^PASS[[:space:]]qa-dvr-rearm' scheduled-report.txt \
+   || ! grep -Eq '^PASS[[:space:]]qa-scheduled-recording' scheduled-report.txt \
    || [ -z "$SCHED_BYTES" ] || [ "$SCHED_BYTES" -le 0 ] || [ "$SCHED_BYTES" -ge "$SCHED_FULL_BYTES" ]; then
   echo "Scheduled recording check failed (full stream ${SCHED_FULL_BYTES} bytes, recorded ${SCHED_BYTES:-none})"
   cat scheduled-report.txt 2>/dev/null || echo "(no report file)"
