@@ -1,6 +1,8 @@
 package com.devtunasoft.tuneros.core
 
+import java.io.BufferedInputStream
 import java.io.InputStream
+import java.io.StringReader
 import java.time.LocalDateTime
 import java.time.OffsetDateTime
 import java.time.ZoneId
@@ -55,10 +57,13 @@ object GuideParser {
         var truncatedChannelNames = 0
         var truncatedDescriptions = 0
         val handler = object : DefaultHandler2() {
-            // A lexical DTD callback is required, not merely optional, so rejection
-            // works with Android Expat and JVM Xerces without relying on vendor flags.
+            // A lexical DTD callback is required, not merely optional, so DTD handling is
+            // checked the same way on Android Expat and JVM Xerces. XmltvProlog has already
+            // accepted only the canonical xmltv.dtd reference before the parser starts.
             override fun startDTD(name: String?, publicId: String?, systemId: String?) {
-                throw SAXException("XMLTV DOCTYPE declarations are not allowed")
+                if (name != "tv" || !publicId.isNullOrEmpty() || systemId != "xmltv.dtd") {
+                    throw SAXException("XMLTV DOCTYPE must be the canonical xmltv.dtd reference")
+                }
             }
 
             override fun resolveEntity(publicId: String?, systemId: String?): InputSource? {
@@ -68,6 +73,13 @@ object GuideParser {
             override fun resolveEntity(
                 name: String?, publicId: String?, baseURI: String?, systemId: String?,
             ): InputSource? {
+                // Only the canonical external DTD can be requested: XmltvProlog admits no other DOCTYPE
+                // and no internal subset. It is answered with an empty document, so nothing is fetched
+                // and nothing is declared. JDK Xerces reports it with a null name and the literal
+                // systemId; other parsers may use "[dtd]" or an absolute URI ending in the same name.
+                val canonicalDtd = publicId.isNullOrEmpty() &&
+                    (name == "[dtd]" || systemId?.endsWith("xmltv.dtd") == true)
+                if (canonicalDtd) return InputSource(StringReader(""))
                 throw SAXException("External XMLTV entities are not allowed")
             }
 
@@ -173,7 +185,12 @@ object GuideParser {
         reader.entityResolver = handler
         reader.contentHandler = handler
         reader.errorHandler = handler
-        reader.parse(InputSource(input))
+        // Check the prolog before the parser reads any byte, then rewind so parsing starts at byte zero.
+        val source = if (input.markSupported()) input else BufferedInputStream(input)
+        source.mark(XmltvProlog.MAX_BYTES + 8)
+        XmltvProlog.verify(source)
+        source.reset()
+        reader.parse(InputSource(source))
         val warnings = buildList {
             if (skippedPrograms > 0) add("$skippedPrograms programmes omitted: limit $maxPrograms")
             if (skippedChannels > 0) add("$skippedChannels channel names omitted: limit $maxChannels")
