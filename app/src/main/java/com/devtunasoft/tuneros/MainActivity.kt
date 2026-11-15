@@ -144,7 +144,10 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         if (isRotationLaunch()) recordRotationCreate(savedInstanceState != null)
-        qaRecordUrl()?.let { url -> worker.execute { OnDeviceSelfTest.runRecordingOnly(applicationContext, url) } }
+        qaRecordUrl()?.let { url ->
+            val deadline = intent?.getStringExtra("tuneros.debug.record_mode") == "deadline"
+            worker.execute { OnDeviceSelfTest.runRecordingOnly(applicationContext, url, deadline) }
+        }
         val retained = lastNonConfigurationInstance as? RetainedGuideState
         if (retained != null) {
             channels = retained.channels

@@ -249,6 +249,61 @@ if ! grep -Eq "^PASS[[:space:]]qa-recording-partial-eof.* bytes=${RECORD_BYTES}\
   exit 1
 fi
 
+# Deadline mode: the runner serves the same file slowly, so the stream is still running when the
+# scheduled stop passes. The recorder must complete with a partial byte count on disk.
+cat > ci-playback/throttle.py <<'PY'
+import http.server
+import os
+import time
+
+class Handler(http.server.BaseHTTPRequestHandler):
+    def do_GET(self):
+        path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "test.mp4")
+        size = os.path.getsize(path)
+        self.send_response(200)
+        self.send_header("Content-Type", "video/mp4")
+        self.send_header("Content-Length", str(size))
+        self.end_headers()
+        with open(path, "rb") as f:
+            while True:
+                chunk = f.read(1024)
+                if not chunk:
+                    break
+                try:
+                    self.wfile.write(chunk)
+                    self.wfile.flush()
+                except (BrokenPipeError, ConnectionResetError):
+                    break
+                time.sleep(0.25)
+
+    def log_message(self, *args):
+        pass
+
+http.server.ThreadingHTTPServer(("0.0.0.0", 8769), Handler).serve_forever()
+PY
+(cd ci-playback && python3 throttle.py >throttle.log 2>&1) &
+THROTTLE_PID=$!
+sleep 2
+FULL_BYTES=$(stat -c %s ci-playback/test.mp4)
+adb shell am force-stop com.devtunasoft.tuneros
+adb shell am start -n com.devtunasoft.tuneros/.MainActivity --es tuneros.debug.record_url http://10.0.2.2:8769/test.mp4 --es tuneros.debug.record_mode deadline
+for attempt in $(seq 1 90); do
+  adb shell run-as com.devtunasoft.tuneros cat files/tuneros-recording-report.txt > deadline-report.txt 2>/dev/null || true
+  if grep -Eq '^(PASS|FAIL)[[:space:]]qa-recording-deadline-complete' deadline-report.txt; then
+    break
+  fi
+  sleep 2
+done
+kill "$THROTTLE_PID" 2>/dev/null || true
+DEADLINE_BYTES=$(sed -n 's/.* bytes=\([0-9]*\)$/\1/p' deadline-report.txt | tail -1)
+if ! grep -Eq '^PASS[[:space:]]qa-recording-deadline-complete' deadline-report.txt \
+   || [ -z "$DEADLINE_BYTES" ] || [ "$DEADLINE_BYTES" -le 0 ] || [ "$DEADLINE_BYTES" -ge "$FULL_BYTES" ]; then
+  echo "Deadline recording check failed (full stream ${FULL_BYTES} bytes, recorded ${DEADLINE_BYTES:-none})"
+  cat deadline-report.txt 2>/dev/null || echo "(no report file)"
+  cat ci-playback/throttle.log 2>/dev/null | tail -20 || true
+  exit 1
+fi
+
 # Optional real-feed import: a public playlist supplied at dispatch time (never committed). The
 # guide stays a runner fixture so the expected programme count is fixed. Channel count must be > 0.
 if [ -n "${PUBLIC_PLAYLIST_URL:-}" ]; then

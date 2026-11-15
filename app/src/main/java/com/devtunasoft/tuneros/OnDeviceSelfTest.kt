@@ -903,22 +903,30 @@ internal object OnDeviceSelfTest {
     }
 
     /**
-     * Isolated debug launch only: the real recorder service copies a finite loopback stream into
-     * app-private storage. It must finish COMPLETED with bytes written. Uses a scratch catalog
-     * and never touches recordings.db or the user's recordings.
+     * Isolated debug launch only: the real recorder service copies a loopback stream into
+     * app-private storage using a scratch catalog. Two modes:
+     * - eof: the stream ends before the scheduled stop, so the recording must be PARTIAL with
+     *   exactly the bytes on disk.
+     * - deadline: the stream is still running when the scheduled stop passes, so the recording
+     *   must be COMPLETED with bytes on disk, and fewer bytes than the full stream.
+     * Never touches recordings.db or the user's recordings.
      */
-    fun runRecordingOnly(context: Context, url: String) {
+    fun runRecordingOnly(context: Context, url: String, deadlineMode: Boolean = false) {
         val report = File(context.filesDir, RECORDING_REPORT)
         report.writeText("RUNNING\n")
         val database = "tuneros-selftest-recording-" + System.currentTimeMillis() + ".db"
         val id = "qa-recording-" + System.currentTimeMillis()
-        val result = check(
-            "qa-recording-partial-eof",
-            "Recorder copies a loopback stream that ends early as PARTIAL with exact bytes on disk",
-        ) {
+        val checkId = if (deadlineMode) "qa-recording-deadline-complete" else "qa-recording-partial-eof"
+        val description = if (deadlineMode) {
+            "Recorder reaches the scheduled stop on a live loopback stream and completes with exact bytes"
+        } else {
+            "Recorder copies a loopback stream that ends early as PARTIAL with exact bytes on disk"
+        }
+        val result = check(checkId, description) {
             DvrRecordingService.qaCatalogDatabaseName = database
             try {
-                val end = System.currentTimeMillis() / 1000L + 600L
+                val now = System.currentTimeMillis() / 1000L
+                val endEpoch = if (deadlineMode) now + 8L else now + 600L
                 context.startForegroundService(
                     Intent(context, DvrRecordingService::class.java)
                         .setAction(DvrRecordingService.ACTION_START)
@@ -926,7 +934,7 @@ internal object OnDeviceSelfTest {
                         .putExtra(DvrRecordingService.EXTRA_TITLE, "QA recording")
                         .putExtra(DvrRecordingService.EXTRA_CHANNEL_ID, "qa-channel")
                         .putExtra(DvrRecordingService.EXTRA_URL, url)
-                        .putExtra(DvrRecordingService.EXTRA_END_EPOCH_SECONDS, end),
+                        .putExtra(DvrRecordingService.EXTRA_END_EPOCH_SECONDS, endEpoch),
                 )
                 val entry = waitUntilValue(120_000) {
                     RecordingCatalog(context, database).use { catalog ->
@@ -934,21 +942,24 @@ internal object OnDeviceSelfTest {
                     }?.takeIf { it.state != "RECORDING" }
                 }
                 if (entry == null) return@check false
-                val onDisk = entry.storageLocation?.let { java.io.File(it).takeIf { f -> f.isFile }?.length() }
+                val onDisk = entry.storageLocation?.let { File(it).takeIf { f -> f.isFile }?.length() }
                 report.appendText(
                     "DETAIL\tstate=" + entry.state + " bytes=" + entry.bytesWritten +
                         " disk=" + (onDisk ?: -1L) + "\n",
                 )
-                // A stream that ends before the scheduled stop must be PARTIAL, never COMPLETED,
-                // and every byte the copier counted must be on disk.
-                entry.state == "PARTIAL" && entry.bytesWritten > 0L && onDisk == entry.bytesWritten
+                val exactOnDisk = onDisk == entry.bytesWritten && entry.bytesWritten > 0L
+                if (deadlineMode) {
+                    entry.state == "COMPLETED" && exactOnDisk && entry.stoppedEpochSeconds != null
+                } else {
+                    // A stream that ends before the scheduled stop must be PARTIAL, never COMPLETED.
+                    entry.state == "PARTIAL" && exactOnDisk
+                }
             } finally {
                 DvrRecordingService.qaCatalogDatabaseName = null
             }
         }
-        val bytes = report.readLines().firstOrNull { it.startsWith("DETAIL") }
-            ?.substringAfter("disk=")
-            ?.trim()
+        val detailLine = report.readLines().firstOrNull { it.startsWith("DETAIL") }
+        val bytes = detailLine?.substringAfter("disk=")?.trim()
         report.appendText(
             result.state.name + "\t" + result.id + "\t" + result.detail +
                 (if (bytes != null) " bytes=" + bytes else "") + "\n",
