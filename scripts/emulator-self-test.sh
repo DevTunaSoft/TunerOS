@@ -23,6 +23,29 @@ sleep 10
 echo "uid-get: $(adb shell cmd appops get --uid "$APP_UID" SCHEDULE_EXACT_ALARM 2>&1 | tr -d '\r')"
 adb shell dumpsys appops com.devtunasoft.tuneros 2>&1 | grep -iE "EXACT|uid|mode" | head -20 || true
 adb shell dumpsys package com.devtunasoft.tuneros 2>&1 | grep -iE "userId|appId|SCHEDULE_EXACT" | head -10 || true
+# External recording storage: open the folder picker in an isolated launch, select the current
+# folder by reading the picker's own screen (uiautomator dump) and tapping its confirm button.
+# The chosen tree is persisted, then the main QA pass must report external storage PASS.
+adb shell am force-stop com.devtunasoft.tuneros
+adb shell am start -n com.devtunasoft.tuneros/.MainActivity --ez tuneros.debug.pick_folder true
+PICK_TAPPED=false
+for attempt in $(seq 1 30); do
+  sleep 2
+  adb shell uiautomator dump /sdcard/picker.xml >/dev/null 2>&1 || true
+  adb pull /sdcard/picker.xml picker.xml >/dev/null 2>&1 || true
+  BOUNDS=$(tr '>' '\n' < picker.xml 2>/dev/null | grep -iE 'text="(Use this folder|USE THIS FOLDER|Select|SELECT)"' | head -1 | grep -oE 'bounds="\[[0-9]+,[0-9]+\]\[[0-9]+,[0-9]+\]"' | head -1 || true)
+  if [ -n "$BOUNDS" ]; then
+    X=$(echo "$BOUNDS" | sed -E 's/.*\[([0-9]+),([0-9]+)\]\[([0-9]+),([0-9]+)\].*/\1 \3/' | awk '{print int(($1+$2)/2)}')
+    Y=$(echo "$BOUNDS" | sed -E 's/.*\[([0-9]+),([0-9]+)\]\[([0-9]+),([0-9]+)\].*/\2 \4/' | awk '{print int(($1+$2)/2)}')
+    adb shell input tap "$X" "$Y"
+    PICK_TAPPED=true
+    break
+  fi
+done
+echo "Folder picker confirm tapped: $PICK_TAPPED"
+sleep 3
+adb shell am force-stop com.devtunasoft.tuneros
+
 adb shell am start -n com.devtunasoft.tuneros/.MainActivity --ez tuneros.debug.qa true
 # The app runs the checks itself; CI only collects/asserts its private
 # debug report. No human interaction, provider streams or credentials.
@@ -37,7 +60,7 @@ for attempt in $(seq 1 120); do
   fi
   sleep 2
 done
-for check in source-recovery-policy offline-m3u-parser offline-source-stall offline-xmltv-parser debug-xmltv-depth-limit offline-channel-filter offline-timeline offline-xmltv-dtd-block scratch-dvr-copy scratch-dvr-catalog scratch-dvr-schedule-reservation scratch-dvr-preparation-recovery android-keystore-roundtrip debug-large-guide-stress debug-hls-dvr-sequence debug-hls-response-length debug-loopback-hls-transport debug-connection-abort debug-internal-dvr-finalize debug-saf-storage-guard debug-ui-focus debug-empty-guide-dpad debug-now-marker; do
+for check in external-recording-storage source-recovery-policy offline-m3u-parser offline-source-stall offline-xmltv-parser debug-xmltv-depth-limit offline-channel-filter offline-timeline offline-xmltv-dtd-block scratch-dvr-copy scratch-dvr-catalog scratch-dvr-schedule-reservation scratch-dvr-preparation-recovery android-keystore-roundtrip debug-large-guide-stress debug-hls-dvr-sequence debug-hls-response-length debug-loopback-hls-transport debug-connection-abort debug-internal-dvr-finalize debug-saf-storage-guard debug-ui-focus debug-empty-guide-dpad debug-now-marker; do
   if ! grep -Fq "$(printf 'PASS\t%s\t' "$check")" on-device-report.txt; then
     echo "On-device QA assertion failed or never completed: $check"
     cat on-device-report.txt
