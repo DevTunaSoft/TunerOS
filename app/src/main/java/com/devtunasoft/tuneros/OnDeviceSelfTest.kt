@@ -105,6 +105,7 @@ internal object OnDeviceSelfTest {
     const val SERVICE_STOP_REPORT = "tuneros-service-stop-report.txt"
     const val ALARM_REPORT = "tuneros-alarm-report.txt"
     const val RECORDING_REPORT = "tuneros-recording-report.txt"
+    const val SCHEDULED_REPORT = "tuneros-scheduled-report.txt"
     private const val MAX_SHARE_EVENTS = 8 * 1024
     private const val CANARY_KEY = "tuneros_selftest_canary_v1"
     private const val RUN_MARKER = "tuneros-selftest-in-progress"
@@ -972,6 +973,82 @@ internal object OnDeviceSelfTest {
                 (if (bytes != null) " bytes=" + bytes else "") + "\n",
         )
         if (result.state == State.PASS) recordedFile?.let { onRecorded?.invoke(it) }
+    }
+
+    /**
+     * Isolated debug launch only: a stored schedule (scratch database) with its encrypted source
+     * is started by a real exact alarm through RecordingAlarmReceiver. The recorder must complete
+     * at the scheduled stop, the schedule must end STARTED, and its credentials must be deleted.
+     */
+    fun runScheduledRecordingOnly(context: Context, url: String) {
+        val report = File(context.filesDir, SCHEDULED_REPORT)
+        report.writeText("RUNNING\n")
+        val now = System.currentTimeMillis()
+        val scheduleDb = "tuneros-selftest-schedule-" + now + ".db"
+        val catalogDb = "tuneros-selftest-scheduled-catalog-" + now + ".db"
+        val id = "qa-schedule-" + now
+        val key = "qa-schedule-key-" + now
+        val result = check(
+            "qa-scheduled-recording",
+            "Exact alarm starts a stored schedule; recorder completes at its stop and credentials are deleted",
+        ) {
+            RecordingScheduleStore.qaDatabaseName = scheduleDb
+            DvrRecordingService.qaCatalogDatabaseName = catalogDb
+            try {
+                val secrets = SecureSourceStore(context)
+                ScheduledRecordingSecrets.save(
+                    secrets, key, ScheduledRecordingSource(url = url, userAgent = null, referer = null),
+                )
+                val startSec = now / 1000L
+                val endSec = startSec + 8L
+                RecordingScheduleStore(context).use { store ->
+                    store.insertIfAbsent(
+                        RecordingScheduleEntry(
+                            id = id, title = "QA scheduled", channelId = "qa-channel",
+                            secureSourceKey = key, startEpochSeconds = startSec,
+                            endEpochSeconds = endSec, state = "PREPARING",
+                            exactAlarm = true, lastError = null,
+                        ),
+                    )
+                    store.markScheduledIfPreparing(id)
+                }
+                val alarm = context.getSystemService(AlarmManager::class.java)
+                val intent = Intent(context, RecordingAlarmReceiver::class.java)
+                    .setAction(RecordingAlarmReceiver.ACTION_START_SCHEDULED)
+                    .putExtra(RecordingAlarmReceiver.EXTRA_SCHEDULE_ID, id)
+                val pending = PendingIntent.getBroadcast(
+                    context, id.hashCode(), intent,
+                    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+                )
+                alarm.setExactAndAllowWhileIdle(
+                    AlarmManager.RTC_WAKEUP, now + 2_000L, pending,
+                )
+                val entry = waitUntilValue(120_000) {
+                    RecordingCatalog(context, catalogDb).use { catalog ->
+                        catalog.recent(10).firstOrNull { it.id == id }
+                    }?.takeIf { it.state != "RECORDING" }
+                }
+                val schedule = RecordingScheduleStore(context).use { it.get(id) }
+                val onDisk = entry?.storageLocation?.let { File(it).takeIf { f -> f.isFile }?.length() }
+                report.appendText(
+                    "DETAIL\tstate=" + (entry?.state ?: "none") + " bytes=" + (entry?.bytesWritten ?: -1L) +
+                        " disk=" + (onDisk ?: -1L) + " schedule=" + (schedule?.state ?: "none") +
+                        " secretsLeft=" + (ScheduledRecordingSecrets.load(secrets, key) != null) + "\n",
+                )
+                entry != null && entry.state == "COMPLETED" && entry.bytesWritten > 0L &&
+                    onDisk == entry.bytesWritten && schedule?.state == "STARTED" &&
+                    ScheduledRecordingSecrets.load(secrets, key) == null
+            } finally {
+                RecordingScheduleStore.qaDatabaseName = null
+                DvrRecordingService.qaCatalogDatabaseName = null
+            }
+        }
+        val detail = report.readLines().firstOrNull { it.startsWith("DETAIL") }
+        val bytes = detail?.substringAfter("disk=")?.substringBefore(" ")?.trim()
+        report.appendText(
+            result.state.name + "\t" + result.id + "\t" + result.detail +
+                (if (bytes != null) " bytes=" + bytes else "") + "\n",
+        )
     }
 
     /**

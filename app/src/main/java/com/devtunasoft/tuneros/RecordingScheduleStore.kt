@@ -21,8 +21,13 @@ internal data class OrphanedPreparation(val id: String, val secureSourceKey: Str
 
 internal class RecordingScheduleStore(
     context: Context,
-    databaseName: String = "recording_schedules.db",
+    databaseName: String = qaDatabaseName ?: "recording_schedules.db",
 ) : SQLiteOpenHelper(context.applicationContext, databaseName, null, 1) {
+    companion object {
+        /** Set only by the debug QA harness so scheduled-recording checks never touch the real schedules. */
+        @Volatile internal var qaDatabaseName: String? = null
+    }
+
 
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL(

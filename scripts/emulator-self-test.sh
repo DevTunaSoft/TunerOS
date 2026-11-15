@@ -364,6 +364,30 @@ if [ -n "${PUBLIC_PLAYLIST_URL:-}" ]; then
     echo "INFORMATIONAL: no http(s) stream found in the public playlist"
   fi
 fi
+# Scheduled recording: a stored schedule is started by a real exact alarm through the receiver
+# and must complete at its stop, end STARTED, and delete its credentials. Runner-served slow stream.
+(cd ci-playback && python3 throttle.py >scheduled-throttle.log 2>&1) &
+SCHED_HTTP_PID=$!
+sleep 2
+SCHED_FULL_BYTES=$(stat -c %s ci-playback/test.mp4)
+adb shell am force-stop com.devtunasoft.tuneros
+adb shell am start -n com.devtunasoft.tuneros/.MainActivity --es tuneros.debug.scheduled_url http://10.0.2.2:8769/test.mp4
+for attempt in $(seq 1 90); do
+  adb shell run-as com.devtunasoft.tuneros cat files/tuneros-scheduled-report.txt > scheduled-report.txt 2>/dev/null || true
+  if grep -Eq '^(PASS|FAIL)[[:space:]]qa-scheduled-recording' scheduled-report.txt; then
+    break
+  fi
+  sleep 2
+done
+kill "$SCHED_HTTP_PID" 2>/dev/null || true
+SCHED_BYTES=$(sed -n 's/.* bytes=\([0-9]*\)$/\1/p' scheduled-report.txt | tail -1)
+if ! grep -Eq '^PASS[[:space:]]qa-scheduled-recording' scheduled-report.txt \
+   || [ -z "$SCHED_BYTES" ] || [ "$SCHED_BYTES" -le 0 ] || [ "$SCHED_BYTES" -ge "$SCHED_FULL_BYTES" ]; then
+  echo "Scheduled recording check failed (full stream ${SCHED_FULL_BYTES} bytes, recorded ${SCHED_BYTES:-none})"
+  cat scheduled-report.txt 2>/dev/null || echo "(no report file)"
+  exit 1
+fi
+
 if grep -q '^FAIL[[:space:]]' on-device-report.txt; then
   echo "Unexpected failure in the app's own self-test report"
   cat on-device-report.txt

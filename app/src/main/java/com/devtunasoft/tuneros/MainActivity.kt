@@ -144,6 +144,7 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         if (isRotationLaunch()) recordRotationCreate(savedInstanceState != null)
+        qaScheduledUrl()?.let { url -> worker.execute { OnDeviceSelfTest.runScheduledRecordingOnly(applicationContext, url) } }
         qaRecordUrl()?.let { url ->
             val deadline = intent?.getStringExtra("tuneros.debug.record_mode") == "deadline"
             // The deadline recording is then played back from its own file (first video frame).
@@ -368,6 +369,15 @@ class MainActivity : Activity() {
         qaImportUrls()?.let { (playlist, guide) -> root.post { runQaImport(playlist, guide) } }
         if (isKeyLaunch()) root.post { armQaKeyReport() }
     }
+
+    /** Debug-only: an http(s) URL used by an isolated scheduled-recording launch. */
+    private fun qaScheduledUrl(): String? =
+        if ((applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0) {
+            intent?.getStringExtra("tuneros.debug.scheduled_url")
+                ?.takeIf { it.startsWith("http://") || it.startsWith("https://") }
+        } else {
+            null
+        }
 
     /** Debug-only: an http(s) URL the recorder service copies in an isolated CI launch. */
     private fun qaRecordUrl(): String? =
@@ -671,7 +681,7 @@ class MainActivity : Activity() {
         // Only one probe pass at once; use the app's existing serial worker.
         if (worker.isShutdown) return
         // The isolated service-stop launch must not share the process with the main pass.
-        if (isServiceStopLaunch() || isAlarmLaunch() || qaPlaybackUrl() != null || qaImportUrls() != null || isKeyLaunch() || isRotationLaunch() || qaRecordUrl() != null) return
+        if (isServiceStopLaunch() || isAlarmLaunch() || qaPlaybackUrl() != null || qaImportUrls() != null || isKeyLaunch() || isRotationLaunch() || qaRecordUrl() != null || qaScheduledUrl() != null) return
         if (selfTestsQueued) {
             // An import completed while a previous pass was running: do not lose its results.
             selfTestsDirty = true
