@@ -72,6 +72,8 @@ launch_self_test_pass() {
 # the document-tree picker. CI taps "Use this folder", then "Allow" if the system asks for it, and the persisted
 # tree must then make external-recording-storage PASS in the main pass. Nothing is tapped when the input is off.
 if [ "${EXTERNAL_STORAGE_CHECK:-false}" = "true" ]; then
+  # Run 43752762409 showed the Download folder refused ("Can't use this folder"), so use a standard media folder.
+  adb shell mkdir -p /sdcard/Movies || true
   adb shell am force-stop com.devtunasoft.tuneros
   adb shell am start -n com.devtunasoft.tuneros/.MainActivity --ez tuneros.debug.pick_folder true
   PICK_TAPPED=false
@@ -85,9 +87,9 @@ if [ "${EXTERNAL_STORAGE_CHECK:-false}" = "true" ]; then
     adb pull /sdcard/picker.xml picker.xml >/dev/null 2>&1 || true
     # A failed dump leaves no file to read, so wait for the next attempt.
     if [ ! -s picker.xml ]; then continue; fi
-    # The root of internal storage is refused ("Can't use this folder"), so open a normal folder first.
+    # The root of internal storage and the Download folder are refused ("Can't use this folder"), so open a media folder first.
     if [ "$PICK_TAPPED" = "false" ] && [ "$NAVIGATED" = "false" ]; then
-      NAV_BOUNDS=$(tr '>' '\n' < picker.xml 2>/dev/null | grep -E 'text="Download"' | head -1 | grep -oE 'bounds="\[[0-9]+,[0-9]+\]\[[0-9]+,[0-9]+\]"' | head -1 || true)
+      NAV_BOUNDS=$(tr '>' '\n' < picker.xml 2>/dev/null | grep -E 'text="(Movies|Music|Pictures)"' | head -1 | grep -oE 'bounds="\[[0-9]+,[0-9]+\]\[[0-9]+,[0-9]+\]"' | head -1 || true)
       if [ -n "$NAV_BOUNDS" ]; then
         X=$(echo "$NAV_BOUNDS" | sed -E 's/.*\[([0-9]+),([0-9]+)\]\[([0-9]+),([0-9]+)\].*/\1 \3/' | awk '{print int(($1+$2)/2)}')
         Y=$(echo "$NAV_BOUNDS" | sed -E 's/.*\[([0-9]+),([0-9]+)\]\[([0-9]+),([0-9]+)\].*/\2 \4/' | awk '{print int(($1+$2)/2)}')
