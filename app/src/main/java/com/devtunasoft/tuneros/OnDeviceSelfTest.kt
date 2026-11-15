@@ -984,6 +984,35 @@ internal object OnDeviceSelfTest {
         val report = File(context.filesDir, SCHEDULED_REPORT)
         report.writeText("RUNNING\n")
         val now = System.currentTimeMillis()
+        // Startup rearm: a stored future schedule must get an exact alarm again.
+        val rearmDb = "tuneros-selftest-rearm-" + now + ".db"
+        val rearmId = "qa-rearm-" + now
+        val rearm = check(
+            "qa-dvr-rearm",
+            "Startup rearm arms a stored future schedule with an exact alarm",
+        ) {
+            RecordingScheduleStore.qaDatabaseName = rearmDb
+            try {
+                RecordingScheduleStore(context).use { store ->
+                    store.insertIfAbsent(
+                        RecordingScheduleEntry(
+                            id = rearmId, title = "QA rearm", channelId = "qa-channel",
+                            secureSourceKey = "qa-rearm-key-" + now, startEpochSeconds = now / 1000L + 3600L,
+                            endEpochSeconds = now / 1000L + 3660L, state = "PREPARING",
+                            exactAlarm = false, lastError = null,
+                        ),
+                    )
+                    store.markScheduledIfPreparing(rearmId)
+                }
+                val visited = RecordingScheduler.rearmPending(context)
+                val row = RecordingScheduleStore(context).use { it.get(rearmId) }
+                RecordingScheduler.cancel(context, rearmId)
+                visited && row?.state == "SCHEDULED" && row.exactAlarm
+            } finally {
+                RecordingScheduleStore.qaDatabaseName = null
+            }
+        }
+        report.appendText(rearm.state.name + "\t" + rearm.id + "\t" + rearm.detail + "\n")
         val scheduleDb = "tuneros-selftest-schedule-" + now + ".db"
         val catalogDb = "tuneros-selftest-scheduled-catalog-" + now + ".db"
         val id = "qa-schedule-" + now
