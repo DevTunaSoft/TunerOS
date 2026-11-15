@@ -93,6 +93,31 @@ if ! grep -Fq "$(printf 'PASS\tqa-alarm-delivery\tExact alarm delivered, idle=tr
   exit 1
 fi
 adb shell dumpsys deviceidle unforce || true
+# Isolated launch for first decoded video frame. The runner generates a short test stream,
+# serves it on the host, and the emulator reaches it through the host alias 10.0.2.2.
+command -v ffmpeg >/dev/null || sudo apt-get install -y -qq ffmpeg
+mkdir -p ci-playback
+ffmpeg -y -loglevel error -f lavfi -i testsrc=duration=10:size=320x240:rate=25 \
+  -c:v libx264 -pix_fmt yuv420p -movflags +faststart ci-playback/test.mp4
+(cd ci-playback && python3 -m http.server 8765 --bind 0.0.0.0 >http-server.log 2>&1) &
+HTTP_PID=$!
+sleep 2
+adb shell am force-stop com.devtunasoft.tuneros
+adb shell am start -n com.devtunasoft.tuneros/.MainActivity --es tuneros.debug.playback_url http://10.0.2.2:8765/test.mp4
+for attempt in $(seq 1 90); do
+  adb shell run-as com.devtunasoft.tuneros cat files/tuneros-playback-report.txt > playback-report.txt 2>/dev/null || true
+  if grep -Fq "$(printf 'PASS\tqa-playback-first-frame\tfirst video frame rendered')" playback-report.txt; then
+    break
+  fi
+  sleep 2
+done
+kill "$HTTP_PID" 2>/dev/null || true
+if ! grep -Fq "$(printf 'PASS\tqa-playback-first-frame\tfirst video frame rendered')" playback-report.txt; then
+  echo "First video frame check failed or never completed"
+  cat playback-report.txt 2>/dev/null || echo "(no report file)"
+  cat ci-playback/http-server.log 2>/dev/null | tail -20 || true
+  exit 1
+fi
 if grep -q '^FAIL[[:space:]]' on-device-report.txt; then
   echo "Unexpected failure in the app's own self-test report"
   cat on-device-report.txt

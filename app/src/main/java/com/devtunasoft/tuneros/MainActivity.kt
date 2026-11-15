@@ -344,6 +344,53 @@ class MainActivity : Activity() {
         if (isAlarmLaunch()) {
             worker.execute { OnDeviceSelfTest.runAlarmOnly(applicationContext) }
         }
+        qaPlaybackUrl()?.let { url -> root.post { runQaPlayback(url) } }
+    }
+
+    /** Debug-only: an http(s) URL to decode in an isolated CI launch. Never set for users. */
+    private fun qaPlaybackUrl(): String? =
+        if ((applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0) {
+            intent?.getStringExtra("tuneros.debug.playback_url")
+                ?.takeIf { it.startsWith("http://") || it.startsWith("https://") }
+        } else {
+            null
+        }
+
+    /**
+     * Plays [url] with ExoPlayer into an off-screen ImageReader surface and waits for the first
+     * rendered video frame. Writes its own report file; a 60 second deadline makes it FAIL.
+     */
+    private fun runQaPlayback(url: String) {
+        val report = java.io.File(filesDir, "tuneros-playback-report.txt")
+        report.writeText("RUNNING\n")
+        val reader = android.media.ImageReader.newInstance(
+            320, 240, android.graphics.PixelFormat.RGBA_8888, 3,
+        )
+        // Keep images flowing so rendering never stalls waiting for the app to release them.
+        reader.setOnImageAvailableListener({ r -> r.acquireLatestImage()?.close() }, null)
+        val player = ExoPlayer.Builder(applicationContext).build()
+        var finished = false
+        fun finish(state: String, detail: String) {
+            if (finished) return
+            finished = true
+            report.appendText(state + "\tqa-playback-first-frame\t" + detail + "\n")
+            player.release()
+            reader.close()
+        }
+        player.setVideoSurface(reader.surface)
+        player.addListener(object : Player.Listener {
+            override fun onRenderedFirstFrame() {
+                finish("PASS", "first video frame rendered")
+            }
+
+            override fun onPlayerError(error: PlaybackException) {
+                finish("FAIL", "player error code " + error.errorCode)
+            }
+        })
+        player.setMediaItem(MediaItem.fromUri(url))
+        player.prepare()
+        player.playWhenReady = true
+        root.postDelayed({ finish("FAIL", "no first video frame within 60 seconds") }, 60_000)
     }
 
     private fun isAlarmLaunch(): Boolean =
@@ -502,7 +549,7 @@ class MainActivity : Activity() {
         // Only one probe pass at once; use the app's existing serial worker.
         if (worker.isShutdown) return
         // The isolated service-stop launch must not share the process with the main pass.
-        if (isServiceStopLaunch() || isAlarmLaunch()) return
+        if (isServiceStopLaunch() || isAlarmLaunch() || qaPlaybackUrl() != null) return
         if (selfTestsQueued) {
             // An import completed while a previous pass was running: do not lose its results.
             selfTestsDirty = true
