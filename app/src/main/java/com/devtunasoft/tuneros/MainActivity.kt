@@ -144,7 +144,7 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         if (isRotationLaunch()) recordRotationCreate(savedInstanceState != null)
-        if (isPickFolderLaunch()) root.post { chooseRecordingStorage() }
+        if (isPickFolderLaunch()) android.os.Handler(mainLooper).post { chooseRecordingStorage() }
         qaScheduledUrl()?.let { url -> worker.execute { OnDeviceSelfTest.runScheduledRecordingOnly(applicationContext, url) } }
         qaRecordUrl()?.let { url ->
             val deadline = intent?.getStringExtra("tuneros.debug.record_mode") == "deadline"
