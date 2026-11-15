@@ -487,12 +487,12 @@ if [ -n "${PUBLIC_PLAYLIST_URL:-}" ]; then
     sed -E 's#https?://[^[:space:]]*#<url>#g' public-import-report.txt 2>/dev/null || echo "(no report file)"
     exit 1
   fi
-  # Real-stream check from the public playlist (dispatch-only, no login): play up to the first three
+  # Real-stream check from the public playlist (dispatch-only, no login): play up to the first eight
   # http(s) streams in order. A stream counts only if it renders its own first video frame. At least one
   # must pass. Streams that are down are reported and skipped. Stream URLs are never printed.
   curl -fsSL --max-time 30 "$PUBLIC_PLAYLIST_URL" -o public-playlist.m3u8 || true
   grep -E '^https?://' public-playlist.m3u8 > public-streams.txt || true
-  head -n 3 public-streams.txt > first-streams.txt || true
+  head -n 8 public-streams.txt > first-streams.txt || true
   STREAM_PASSES=0
   STREAM_INDEX=0
   while IFS= read -r PUBLIC_STREAM <&3; do
@@ -508,7 +508,7 @@ if [ -n "${PUBLIC_PLAYLIST_URL:-}" ]; then
       sleep 2
     done
     RESULT=$(grep -E '^(PASS|FAIL)[[:space:]]qa-playback-first-frame' public-stream-report.txt 2>/dev/null || echo "NO RESULT")
-    echo "public stream $STREAM_INDEX of up to 3: $RESULT"
+    echo "public stream $STREAM_INDEX of up to 8: $RESULT"
     if grep -Eq '^PASS[[:space:]]qa-playback-first-frame' public-stream-report.txt 2>/dev/null; then
       STREAM_PASSES=$((STREAM_PASSES + 1))
     fi
