@@ -289,3 +289,15 @@ The Android 35 emulator job still runs the app's 15 automatic assertions. To mak
 - **Failed first:** dispatch [43768542867](https://github.com/DevTunaSoft/TunerOS/actions/runs/43768542867) on `7874972` failed at the new picked-folder step, which read `ci-playback/test.mp4` before the runner had generated it. The external-storage check itself had passed on that run: the picker accepted Movies with `usable=5139636224`. The stub test had created its own copy of the stream, so it could not show the ordering. `9e7deb5` generates the stream once, before that step.
 - **Merged:** PR [#13](https://github.com/DevTunaSoft/TunerOS/pull/13) was fast-forwarded into `main` at `9e7deb5` after its pull-request run and dispatch passed on that exact head. Its earlier head, `7874972`, was superseded by the fix commit.
 - **Still open:** the removable-drive stress check (NOT RUN in the external check), physical Android TV or phone hardware, real DVR acceptance, USB/SD removal, reboot, and real provider streams (not used, by decision).
+
+## 2026-11-15 — startup recovery check
+
+- **What changed:** the emulator harness now runs startup recovery, which the feature status listed as implemented but unverified in CI. Debug-only launch modes (`tuneros.debug.recovery_mode` set to `seed`, `check` or `bad`) use the loopback fixtures. The app's report holds PASS/FAIL, ids and counts, never a URL. The full self-test pass is not scheduled for these launches.
+- **Pull-request run [43773004810](https://github.com/DevTunaSoft/TunerOS/actions/runs/43773004810) on `e1a99da`** (PR [#15](https://github.com/DevTunaSoft/TunerOS/pull/15)): success, `25 PASS / 0 FAIL / 0 BLOCKED / 12 NOT RUN`. The section printed its success line, which the script prints only after every check in the section has passed:
+  - seed: `channels=3 programs=6 saved=true`;
+  - the app's `tuneros_alpha` preferences hold `playlist.secure` and `guide.secure`, and no plaintext source URL;
+  - after a force-stop and cold start: `channels=3 programs=6`;
+  - a failed import left the saved playlist unchanged, and a cold start after it restored `channels=3 programs=6`.
+- **Main push run [43773518879](https://github.com/DevTunaSoft/TunerOS/actions/runs/43773518879) on `e1a99da`:** success, `25 PASS / 0 FAIL / 0 BLOCKED / 12 NOT RUN`, with the same success line.
+- **Local stub tests of the new harness section** (not CI): the pass path exits 0. A failed seed, a plaintext source in the preferences, a cold start that does not restore the counts, and a failed import that changes the saved playlist each exit 1.
+- **Limits:** one emulator with loopback fixtures. Physical device recovery, real provider streams, empty imports and superseded imports are not covered by this check.
