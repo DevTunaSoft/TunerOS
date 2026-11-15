@@ -201,18 +201,29 @@ if [ -n "${PUBLIC_GUIDE_URL:-}" ]; then
   adb shell am start -n com.devtunasoft.tuneros/.MainActivity \
     --es tuneros.debug.import_playlist_url http://10.0.2.2:8766/playlist.m3u \
     --es tuneros.debug.import_guide_url "$PUBLIC_GUIDE_URL"
+  # Sample total PSS about once a second while the guide imports, so the peak is measured, not one
+  # snapshot. The samples are diagnostic only and never gate the result.
+  rm -f guide-mem-samples.txt
+  (
+    while true; do
+      adb shell dumpsys meminfo com.devtunasoft.tuneros 2>/dev/null | tr -d '\r' | grep -E 'TOTAL PSS' | tr -s ' ' >> guide-mem-samples.txt || true
+      sleep 1
+    done
+  ) &
+  GUIDE_MEM_PID=$!
   for attempt in $(seq 1 200); do
     adb shell run-as com.devtunasoft.tuneros cat files/tuneros-import-report.txt > public-guide-report.txt 2>/dev/null || true
     if grep -Eq '^(PASS|FAIL)[[:space:]]qa-loopback-import' public-guide-report.txt; then
       break
     fi
-    # Sample memory while the guide imports (diagnostic only).
-    if [ $((attempt % 5)) -eq 0 ]; then
-      echo "guide-mem t=$((attempt*2))s $(adb shell dumpsys meminfo com.devtunasoft.tuneros 2>/dev/null | tr -d '\r' | grep -E 'TOTAL PSS|Java Heap|Native Heap' | tr -s ' ' | tr '\n' ' ' || echo none) | $(adb shell cat /proc/meminfo 2>/dev/null | tr -d '\r' | grep -E '^MemAvailable' || true)"
-    fi
     sleep 2
   done
   kill "$GUIDE_HTTP_PID" 2>/dev/null || true
+  kill "$GUIDE_MEM_PID" 2>/dev/null || true
+  PEAK_PSS=$(sed -E 's/.*TOTAL PSS: ([0-9]+).*/\1/' guide-mem-samples.txt 2>/dev/null | sort -n | tail -1 || true)
+  SAMPLES=0
+  if [ -f guide-mem-samples.txt ]; then SAMPLES=$(wc -l < guide-mem-samples.txt); fi
+  echo "guide-mem peak TOTAL PSS KiB: ${PEAK_PSS:-none} from ${SAMPLES} samples"
   if ! grep -Eq '^PASS[[:space:]]qa-loopback-import[[:space:]]channels=3 programs=[1-9][0-9]*' public-guide-report.txt; then
     echo "Public guide import failed or never completed"
     sed -E 's#https?://[^[:space:]]*#<url>#g' public-guide-report.txt 2>/dev/null || echo "(no report file)"
