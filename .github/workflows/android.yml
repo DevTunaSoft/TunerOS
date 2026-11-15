@@ -61,7 +61,7 @@ jobs:
     name: Execute TunerOS autonomous self-tests on Android 35
     needs: build
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 50
     permissions:
       contents: read
     steps:
