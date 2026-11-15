@@ -92,6 +92,8 @@ if [ -n "${PUBLIC_GUIDE_URL:-}" ]; then
   if ! grep -Eq '^PASS[[:space:]]qa-loopback-import[[:space:]]channels=3 programs=[1-9][0-9]*' public-guide-report.txt; then
     echo "Public guide import failed or never completed"
     sed -E 's#https?://[^[:space:]]*#<url>#g' public-guide-report.txt 2>/dev/null || echo "(no report file)"
+    echo "app pid: $(adb shell pidof com.devtunasoft.tuneros 2>/dev/null || echo none)"
+    adb logcat -d -v brief 2>/dev/null | grep -E "FATAL|OutOfMemory|AndroidRuntime|GuideParser|ANR|lowmemory|Killing" | tail -60 || true
     exit 1
   fi
   echo "Public guide import result: $(grep -E '^PASS' public-guide-report.txt)"
