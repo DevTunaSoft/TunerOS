@@ -75,6 +75,11 @@ if [ "${EXTERNAL_STORAGE_CHECK:-false}" = "true" ]; then
   echo "picker top activity: $(adb shell dumpsys activity activities 2>/dev/null | tr -d '\r' | grep -E 'topResumedActivity' | head -1 | cut -c1-160)"
   echo "picker labels seen: $(tr '>' '\n' < picker.xml 2>/dev/null | grep -oE ' text="[^"]+"' | sed -E 's/ text="//; s/"$//' | awk 'NF && !seen[$0]++' | head -40 | tr '\n' '|')"
   echo "Folder picker: confirm tapped=$PICK_TAPPED, allow tapped=$ALLOW_TAPPED"
+  for wait_tick in $(seq 1 30); do
+    if ! adb shell dumpsys activity activities 2>/dev/null | tr -d '\r' | grep -q "documentsui.picker.PickActivity"; then break; fi
+    sleep 1
+  done
+  echo "Folder picker closed after ${wait_tick:-0} s of waiting"
   sleep 3
   adb shell am force-stop com.devtunasoft.tuneros
 fi
@@ -98,6 +103,9 @@ for check in $REQUIRED_EXTERNAL source-recovery-policy offline-m3u-parser offlin
   if ! grep -Fq "$(printf 'PASS\t%s\t' "$check")" on-device-report.txt; then
     echo "On-device QA assertion failed or never completed: $check"
     cat on-device-report.txt
+    echo "app files: $(adb shell run-as com.devtunasoft.tuneros ls files 2>/dev/null | tr -d '\r' | tr '\n' ' ' || echo none)"
+    echo "app pid: $(adb shell pidof com.devtunasoft.tuneros 2>/dev/null | tr -d '\r' || echo none)"
+    adb logcat -d -t 800 -v brief 2>/dev/null | grep -iE "tuneros|SelfTest|OnDevice|FATAL|AndroidRuntime" | tail -60 || true
     exit 1
   fi
 done
