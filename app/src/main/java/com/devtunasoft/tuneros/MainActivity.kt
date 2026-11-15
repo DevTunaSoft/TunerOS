@@ -145,6 +145,7 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         if (isRotationLaunch()) recordRotationCreate(savedInstanceState != null)
         if (isPickFolderLaunch()) android.os.Handler(mainLooper).post { chooseRecordingStorage() }
+        if (isInternalStorageLaunch()) recordingDestinations.clear()
         qaScheduledUrl()?.let { url -> worker.execute { OnDeviceSelfTest.runScheduledRecordingOnly(applicationContext, url) } }
         qaRecordUrl()?.let { url ->
             val deadline = intent?.getStringExtra("tuneros.debug.record_mode") == "deadline"
@@ -375,6 +376,11 @@ class MainActivity : Activity() {
     private fun isPickFolderLaunch(): Boolean =
         (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0 &&
             intent?.getBooleanExtra("tuneros.debug.pick_folder", false) == true
+
+    /** Debug-only: clears the saved recording folder so the checks after the external-storage check use internal storage. */
+    private fun isInternalStorageLaunch(): Boolean =
+        (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0 &&
+            intent?.getBooleanExtra("tuneros.debug.use_internal_storage", false) == true
 
     /** Debug-only: an http(s) URL used by an isolated scheduled-recording launch. */
     private fun qaScheduledUrl(): String? =
@@ -699,7 +705,7 @@ class MainActivity : Activity() {
         // Only one probe pass at once; use the app's existing serial worker.
         if (worker.isShutdown) return
         // The isolated service-stop launch must not share the process with the main pass.
-        if (isServiceStopLaunch() || isAlarmLaunch() || qaPlaybackUrl() != null || qaImportUrls() != null || isKeyLaunch() || isRotationLaunch() || qaRecordUrl() != null || qaScheduledUrl() != null || isPickFolderLaunch()) return
+        if (isServiceStopLaunch() || isAlarmLaunch() || qaPlaybackUrl() != null || qaImportUrls() != null || isKeyLaunch() || isRotationLaunch() || qaRecordUrl() != null || qaScheduledUrl() != null || isPickFolderLaunch() || isInternalStorageLaunch()) return
         if (selfTestsQueued) {
             // An import completed while a previous pass was running: do not lose its results.
             selfTestsDirty = true

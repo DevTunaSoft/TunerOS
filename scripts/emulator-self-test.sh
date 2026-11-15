@@ -223,6 +223,20 @@ if adb shell run-as com.devtunasoft.tuneros ls files/tuneros-selftest-in-progres
   echo "The self-test has not committed its report and cleared its run marker"
   exit 1
 fi
+# The picked folder stays saved in the app. The external-storage check above has verified it, so reset the
+# destination to internal storage before the checks that follow, which were written for internal storage.
+if [ "${EXTERNAL_STORAGE_CHECK:-false}" = "true" ]; then
+  adb shell am force-stop com.devtunasoft.tuneros
+  adb shell am start -W -n com.devtunasoft.tuneros/.MainActivity --ez tuneros.debug.use_internal_storage true >/dev/null 2>&1 || true
+  sleep 2
+  adb shell am force-stop com.devtunasoft.tuneros
+  adb shell run-as com.devtunasoft.tuneros cat shared_prefs/tuneros_recording_storage.xml > recording-prefs.xml 2>/dev/null || true
+  if grep -q 'recording_tree_uri' recording-prefs.xml 2>/dev/null; then
+    echo "The saved recording folder was not reset to internal storage"
+    exit 1
+  fi
+  echo "Recording destination reset to internal storage after the external-storage check"
+fi
 # Isolated launch for the foreground-service stop check. It runs separately so it
 # cannot disturb the main QA pass, and its own result file is required.
 adb shell am force-stop com.devtunasoft.tuneros
