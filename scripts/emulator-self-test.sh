@@ -413,6 +413,7 @@ if [ -n "${PUBLIC_GUIDE_URL:-}" ]; then
     sed -E 's#https?://[^[:space:]]*#<url>#g' public-guide-report.txt 2>/dev/null || echo "(no report file)"
     exit 1
   fi
+  echo "Public guide import result: $(grep -E '^PASS' public-guide-report.txt)"
 fi
 
 if grep -q '^FAIL[[:space:]]' on-device-report.txt; then
