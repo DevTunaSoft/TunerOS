@@ -31,11 +31,24 @@ if [ "${EXTERNAL_STORAGE_CHECK:-false}" = "true" ]; then
   adb shell am start -n com.devtunasoft.tuneros/.MainActivity --ez tuneros.debug.pick_folder true
   PICK_TAPPED=false
   ALLOW_TAPPED=false
+  NAVIGATED=false
   ALLOW_WAIT=0
   for attempt in $(seq 1 45); do
     sleep 2
     adb shell uiautomator dump /sdcard/picker.xml >/dev/null 2>&1 || true
     adb pull /sdcard/picker.xml picker.xml >/dev/null 2>&1 || true
+    # The root of internal storage is refused ("Can't use this folder"), so open a normal folder first.
+    if [ "$PICK_TAPPED" = "false" ] && [ "$NAVIGATED" = "false" ]; then
+      NAV_BOUNDS=$(tr '>' '\n' < picker.xml 2>/dev/null | grep -E 'text="Download"' | head -1 | grep -oE 'bounds="\[[0-9]+,[0-9]+\]\[[0-9]+,[0-9]+\]"' | head -1 || true)
+      if [ -n "$NAV_BOUNDS" ]; then
+        X=$(echo "$NAV_BOUNDS" | sed -E 's/.*\[([0-9]+),([0-9]+)\]\[([0-9]+),([0-9]+)\].*/\1 \3/' | awk '{print int(($1+$2)/2)}')
+        Y=$(echo "$NAV_BOUNDS" | sed -E 's/.*\[([0-9]+),([0-9]+)\]\[([0-9]+),([0-9]+)\].*/\2 \4/' | awk '{print int(($1+$2)/2)}')
+        adb shell input tap "$X" "$Y"
+        NAVIGATED=true
+        sleep 2
+        continue
+      fi
+    fi
     if [ "$PICK_TAPPED" = "false" ]; then
       PICK_BOUNDS=$(tr '>' '\n' < picker.xml 2>/dev/null | grep -iE 'text="(Use this folder|USE THIS FOLDER|Select|SELECT)"' | head -1 | grep -oE 'bounds="\[[0-9]+,[0-9]+\]\[[0-9]+,[0-9]+\]"' | head -1 || true)
       if [ -n "$PICK_BOUNDS" ]; then
