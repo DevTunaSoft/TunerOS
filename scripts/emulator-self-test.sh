@@ -227,6 +227,52 @@ if ! grep -Fq "$(printf 'PASS\tqa-rotation-recreate\trecreated after orientation
   cat rotation-report.txt 2>/dev/null || echo "(no report file)"
   exit 1
 fi
+# Isolated launch for a real recording: the recorder service copies a finite loopback stream
+# into app-private storage (scratch catalog) and must finish COMPLETED with the exact byte count.
+(cd ci-playback && python3 -m http.server 8767 --bind 0.0.0.0 >record-server.log 2>&1) &
+RECORD_HTTP_PID=$!
+sleep 2
+RECORD_BYTES=$(stat -c %s ci-playback/test.mp4)
+adb shell am force-stop com.devtunasoft.tuneros
+adb shell am start -n com.devtunasoft.tuneros/.MainActivity --es tuneros.debug.record_url http://10.0.2.2:8767/test.mp4
+for attempt in $(seq 1 90); do
+  adb shell run-as com.devtunasoft.tuneros cat files/tuneros-recording-report.txt > recording-report.txt 2>/dev/null || true
+  if grep -Eq '^(PASS|FAIL)[[:space:]]qa-recording-completion' recording-report.txt; then
+    break
+  fi
+  sleep 2
+done
+kill "$RECORD_HTTP_PID" 2>/dev/null || true
+if ! grep -Eq "^PASS[[:space:]]qa-recording-completion.* bytes=${RECORD_BYTES}\$" recording-report.txt; then
+  echo "Recording completion check failed or never completed (expected bytes=${RECORD_BYTES})"
+  cat recording-report.txt 2>/dev/null || echo "(no report file)"
+  exit 1
+fi
+
+# Optional real-feed import: a public playlist supplied at dispatch time (never committed). The
+# guide stays a runner fixture so the expected programme count is fixed. Channel count must be > 0.
+if [ -n "${PUBLIC_PLAYLIST_URL:-}" ]; then
+  (cd ci-import && python3 -m http.server 8768 --bind 0.0.0.0 >public-guide-server.log 2>&1) &
+  PUB_HTTP_PID=$!
+  sleep 2
+  adb shell am force-stop com.devtunasoft.tuneros
+  adb shell am start -n com.devtunasoft.tuneros/.MainActivity \
+    --es tuneros.debug.import_playlist_url "$PUBLIC_PLAYLIST_URL" \
+    --es tuneros.debug.import_guide_url http://10.0.2.2:8768/guide.xml
+  for attempt in $(seq 1 120); do
+    adb shell run-as com.devtunasoft.tuneros cat files/tuneros-import-report.txt > public-import-report.txt 2>/dev/null || true
+    if grep -Eq '^(PASS|FAIL)[[:space:]]qa-loopback-import' public-import-report.txt; then
+      break
+    fi
+    sleep 2
+  done
+  kill "$PUB_HTTP_PID" 2>/dev/null || true
+  if ! grep -Eq '^PASS[[:space:]]qa-loopback-import[[:space:]]channels=[1-9][0-9]* programs=6' public-import-report.txt; then
+    echo "Public playlist import failed or never completed"
+    sed -E 's#https?://[^[:space:]]*#<url>#g' public-import-report.txt 2>/dev/null || echo "(no report file)"
+    exit 1
+  fi
+fi
 if grep -q '^FAIL[[:space:]]' on-device-report.txt; then
   echo "Unexpected failure in the app's own self-test report"
   cat on-device-report.txt

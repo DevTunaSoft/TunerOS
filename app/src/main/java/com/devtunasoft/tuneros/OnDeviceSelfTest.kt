@@ -104,6 +104,7 @@ internal object OnDeviceSelfTest {
     private const val MAX_EVENTS_BYTES = 32 * 1024
     const val SERVICE_STOP_REPORT = "tuneros-service-stop-report.txt"
     const val ALARM_REPORT = "tuneros-alarm-report.txt"
+    const val RECORDING_REPORT = "tuneros-recording-report.txt"
     private const val MAX_SHARE_EVENTS = 8 * 1024
     private const val CANARY_KEY = "tuneros_selftest_canary_v1"
     private const val RUN_MARKER = "tuneros-selftest-in-progress"
@@ -899,6 +900,53 @@ internal object OnDeviceSelfTest {
                 connection.disconnect()
             }
         }
+    }
+
+    /**
+     * Isolated debug launch only: the real recorder service copies a finite loopback stream into
+     * app-private storage. It must finish COMPLETED with bytes written. Uses a scratch catalog
+     * and never touches recordings.db or the user's recordings.
+     */
+    fun runRecordingOnly(context: Context, url: String) {
+        val report = File(context.filesDir, RECORDING_REPORT)
+        report.writeText("RUNNING\n")
+        val database = "tuneros-selftest-recording-" + System.currentTimeMillis() + ".db"
+        val id = "qa-recording-" + System.currentTimeMillis()
+        val result = check(
+            "qa-recording-completion",
+            "Recorder service copies a finite loopback stream to COMPLETED (scratch catalog)",
+        ) {
+            DvrRecordingService.qaCatalogDatabaseName = database
+            try {
+                val end = System.currentTimeMillis() / 1000L + 600L
+                context.startForegroundService(
+                    Intent(context, DvrRecordingService::class.java)
+                        .setAction(DvrRecordingService.ACTION_START)
+                        .putExtra(DvrRecordingService.EXTRA_ID, id)
+                        .putExtra(DvrRecordingService.EXTRA_TITLE, "QA recording")
+                        .putExtra(DvrRecordingService.EXTRA_CHANNEL_ID, "qa-channel")
+                        .putExtra(DvrRecordingService.EXTRA_URL, url)
+                        .putExtra(DvrRecordingService.EXTRA_END_EPOCH_SECONDS, end),
+                )
+                val entry = waitUntilValue(120_000) {
+                    RecordingCatalog(context, database).use { catalog ->
+                        catalog.recent(10).firstOrNull { it.id == id }
+                    }?.takeIf { it.state != "RECORDING" }
+                }
+                if (entry == null) return@check false
+                report.appendText("DETAIL\tstate=" + entry.state + " bytes=" + entry.bytesWritten + "\n")
+                entry.state == "COMPLETED" && entry.bytesWritten > 0L && entry.storageLocation != null
+            } finally {
+                DvrRecordingService.qaCatalogDatabaseName = null
+            }
+        }
+        val bytes = report.readLines().firstOrNull { it.startsWith("DETAIL") }
+            ?.substringAfter("bytes=")
+            ?.trim()
+        report.appendText(
+            result.state.name + "\t" + result.id + "\t" + result.detail +
+                (if (bytes != null) " bytes=" + bytes else "") + "\n",
+        )
     }
 
     /**

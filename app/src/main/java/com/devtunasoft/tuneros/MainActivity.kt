@@ -144,6 +144,7 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         if (isRotationLaunch()) recordRotationCreate(savedInstanceState != null)
+        qaRecordUrl()?.let { url -> worker.execute { OnDeviceSelfTest.runRecordingOnly(applicationContext, url) } }
         val retained = lastNonConfigurationInstance as? RetainedGuideState
         if (retained != null) {
             channels = retained.channels
@@ -350,6 +351,15 @@ class MainActivity : Activity() {
         if (isKeyLaunch()) root.post { armQaKeyReport() }
     }
 
+    /** Debug-only: an http(s) URL the recorder service copies in an isolated CI launch. */
+    private fun qaRecordUrl(): String? =
+        if ((applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0) {
+            intent?.getStringExtra("tuneros.debug.record_url")
+                ?.takeIf { it.startsWith("http://") || it.startsWith("https://") }
+        } else {
+            null
+        }
+
     /** Debug-only: an isolated CI launch that checks the activity is recreated after rotation. */
     private fun isRotationLaunch(): Boolean =
         (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0 &&
@@ -402,7 +412,9 @@ class MainActivity : Activity() {
         if ((applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) == 0) return null
         val playlist = intent?.getStringExtra("tuneros.debug.import_playlist_url") ?: return null
         val guide = intent?.getStringExtra("tuneros.debug.import_guide_url") ?: return null
-        return if (playlist.startsWith("http://") && guide.startsWith("http://")) playlist to guide else null
+        val validPlaylist = playlist.startsWith("http://") || playlist.startsWith("https://")
+        val validGuide = guide.startsWith("http://") || guide.startsWith("https://")
+        return if (validPlaylist && validGuide) playlist to guide else null
     }
 
     /**
@@ -637,7 +649,7 @@ class MainActivity : Activity() {
         // Only one probe pass at once; use the app's existing serial worker.
         if (worker.isShutdown) return
         // The isolated service-stop launch must not share the process with the main pass.
-        if (isServiceStopLaunch() || isAlarmLaunch() || qaPlaybackUrl() != null || qaImportUrls() != null || isKeyLaunch() || isRotationLaunch()) return
+        if (isServiceStopLaunch() || isAlarmLaunch() || qaPlaybackUrl() != null || qaImportUrls() != null || isKeyLaunch() || isRotationLaunch() || qaRecordUrl() != null) return
         if (selfTestsQueued) {
             // An import completed while a previous pass was running: do not lose its results.
             selfTestsDirty = true

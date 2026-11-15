@@ -9,6 +9,11 @@ on:
       - 'README.md'
   pull_request:
   workflow_dispatch:
+    inputs:
+      public_playlist_url:
+        description: "Optional public https M3U/M3U8 playlist to import on the emulator. Not stored in the repo."
+        required: false
+        default: ""
 concurrency:
   group: tuneros-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -71,6 +76,8 @@ jobs:
           heap-size: 256M
           disable-animations: true
           script: bash scripts/emulator-self-test.sh
+        env:
+          PUBLIC_PLAYLIST_URL: ${{ inputs.public_playlist_url }}
       - name: Publish autonomous Android test evidence
         uses: actions/upload-artifact@v4
         if: always()
