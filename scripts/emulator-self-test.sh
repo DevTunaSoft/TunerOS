@@ -235,6 +235,53 @@ if [ -n "${PUBLIC_GUIDE_URL:-}" ]; then
   echo "guide-mem after pass: $(adb shell dumpsys meminfo com.devtunasoft.tuneros 2>/dev/null | tr -d '\r' | grep -E 'TOTAL PSS|Java Heap|Native Heap' | tr -s ' ' | tr '\n' ' ' || echo none)"
 fi
 
+# Soak (dispatch-only, same public guide, no login): three full imports in fresh launches, each with a
+# memory snapshot after its pass, then five minutes idle with the last import loaded. The gate is that every
+# import passes and the same app process survives the idle window. The snapshots are logged, not gated.
+if [ -n "${PUBLIC_GUIDE_URL:-}" ]; then
+  python3 -m http.server 8766 --bind 0.0.0.0 --directory ci-import >soak-server.log 2>&1 &
+  SOAK_HTTP_PID=$!
+  sleep 2
+  for soak_run in 1 2 3; do
+    adb shell run-as com.devtunasoft.tuneros rm -f files/tuneros-import-report.txt || true
+    adb shell am force-stop com.devtunasoft.tuneros
+    adb shell am start -n com.devtunasoft.tuneros/.MainActivity \
+      --es tuneros.debug.import_playlist_url http://10.0.2.2:8766/playlist.m3u \
+      --es tuneros.debug.import_guide_url "$PUBLIC_GUIDE_URL"
+    for attempt in $(seq 1 200); do
+      adb shell run-as com.devtunasoft.tuneros cat files/tuneros-import-report.txt > "soak-report-$soak_run.txt" 2>/dev/null || true
+      if grep -Eq '^(PASS|FAIL)[[:space:]]qa-loopback-import' "soak-report-$soak_run.txt"; then
+        break
+      fi
+      sleep 2
+    done
+    if ! grep -Eq '^PASS[[:space:]]qa-loopback-import[[:space:]]channels=3 programs=[1-9][0-9]*' "soak-report-$soak_run.txt"; then
+      echo "Soak import $soak_run failed or never completed"
+      sed -E 's#https?://[^[:space:]]*#<url>#g' "soak-report-$soak_run.txt" 2>/dev/null || echo "(no report file)"
+      exit 1
+    fi
+    echo "soak import $soak_run: $(grep -E '^PASS' "soak-report-$soak_run.txt")"
+    echo "soak snapshot $soak_run: $(adb shell dumpsys meminfo com.devtunasoft.tuneros 2>/dev/null | tr -d '\r' | grep -E 'TOTAL PSS' | tr -s ' ' || echo none)"
+  done
+  SOAK_PID=$(adb shell pidof com.devtunasoft.tuneros 2>/dev/null | tr -d '\r ' || true)
+  if [ -z "$SOAK_PID" ]; then
+    echo "Soak: the app process was not running after the last import"
+    exit 1
+  fi
+  for tick in $(seq 1 30); do
+    sleep 10
+    CUR_PID=$(adb shell pidof com.devtunasoft.tuneros 2>/dev/null | tr -d '\r ' || true)
+    if [ "$CUR_PID" != "$SOAK_PID" ]; then
+      echo "Soak: the app process changed or died during the idle window (was $SOAK_PID, now ${CUR_PID:-none}) at tick $tick"
+      exit 1
+    fi
+    if [ $((tick % 6)) -eq 0 ]; then
+      echo "soak idle tick $tick (about $((tick * 10)) s): $(adb shell dumpsys meminfo com.devtunasoft.tuneros 2>/dev/null | tr -d '\r' | grep -E 'TOTAL PSS' | tr -s ' ' || echo none)"
+    fi
+  done
+  kill "$SOAK_HTTP_PID" 2>/dev/null || true
+  echo "Soak result: three imports passed, and process $SOAK_PID stayed alive through five idle minutes"
+fi
 # Isolated launch for remote key input: keys are injected with adb after the app reports it
 # is armed. Each key must reach the activity's key dispatch, not a synthetic call.
 adb shell input keyevent 224 || true
@@ -432,11 +479,17 @@ if [ -n "${PUBLIC_PLAYLIST_URL:-}" ]; then
     sed -E 's#https?://[^[:space:]]*#<url>#g' public-import-report.txt 2>/dev/null || echo "(no report file)"
     exit 1
   fi
-  # Informational: play the first stream of the public playlist. Public streams go up and down,
-  # so this result is reported but does not gate the merge.
+  # Real-stream check from the public playlist (dispatch-only, no login): play up to the first three
+  # http(s) streams in order. A stream counts only if it renders its own first video frame. At least one
+  # must pass. Streams that are down are reported and skipped. Stream URLs are never printed.
   curl -fsSL --max-time 30 "$PUBLIC_PLAYLIST_URL" -o public-playlist.m3u8 || true
-  PUBLIC_STREAM=$(grep -m1 -E '^https?://' public-playlist.m3u8 2>/dev/null || true)
-  if [ -n "$PUBLIC_STREAM" ]; then
+  grep -E '^https?://' public-playlist.m3u8 > public-streams.txt || true
+  head -n 3 public-streams.txt > first-streams.txt || true
+  STREAM_PASSES=0
+  STREAM_INDEX=0
+  while IFS= read -r PUBLIC_STREAM <&3; do
+    STREAM_INDEX=$((STREAM_INDEX + 1))
+    adb shell run-as com.devtunasoft.tuneros rm -f files/tuneros-playback-report.txt || true
     adb shell am force-stop com.devtunasoft.tuneros
     adb shell am start -n com.devtunasoft.tuneros/.MainActivity --es tuneros.debug.playback_url "$PUBLIC_STREAM"
     for attempt in $(seq 1 60); do
@@ -446,11 +499,17 @@ if [ -n "${PUBLIC_PLAYLIST_URL:-}" ]; then
       fi
       sleep 2
     done
-    echo "INFORMATIONAL public stream first-frame result (not gated):"
-    sed -E 's#https?://[^[:space:]]*#<url>#g' public-stream-report.txt 2>/dev/null || echo "(no report file)"
-  else
-    echo "INFORMATIONAL: no http(s) stream found in the public playlist"
+    RESULT=$(grep -E '^(PASS|FAIL)[[:space:]]qa-playback-first-frame' public-stream-report.txt 2>/dev/null || echo "NO RESULT")
+    echo "public stream $STREAM_INDEX of up to 3: $RESULT"
+    if grep -Eq '^PASS[[:space:]]qa-playback-first-frame' public-stream-report.txt 2>/dev/null; then
+      STREAM_PASSES=$((STREAM_PASSES + 1))
+    fi
+  done 3< first-streams.txt
+  if [ "$STREAM_PASSES" -lt 1 ]; then
+    echo "Real stream check: no stream from the public playlist rendered a first frame"
+    exit 1
   fi
+  echo "Real stream check: $STREAM_PASSES of $STREAM_INDEX streams rendered a first frame"
 fi
 # Scheduled recording: a stored schedule is started by a real exact alarm through the receiver
 # and must complete at its stop, end STARTED, and delete its credentials. Runner-served slow stream.
