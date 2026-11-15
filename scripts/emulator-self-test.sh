@@ -116,6 +116,8 @@ if ! grep -Fq "$(printf 'PASS\tqa-playback-first-frame\tfirst video frame render
   echo "First video frame check failed or never completed"
   cat playback-report.txt 2>/dev/null || echo "(no report file)"
   cat ci-playback/http-server.log 2>/dev/null | tail -20 || true
+  echo "app pid: $(adb shell pidof com.devtunasoft.tuneros 2>/dev/null || echo none)"
+  adb logcat -d -v brief 2>/dev/null | grep -E "FATAL|AndroidRuntime|ExoPlayer|MediaCodec|ImageReader|tuneros|Playback|DecoderInit" | tail -120 || true
   exit 1
 fi
 if grep -q '^FAIL[[:space:]]' on-device-report.txt; then
