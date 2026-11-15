@@ -23,10 +23,6 @@ internal class RecordingScheduleStore(
     context: Context,
     databaseName: String = qaDatabaseName ?: "recording_schedules.db",
 ) : SQLiteOpenHelper(context.applicationContext, databaseName, null, 1) {
-    companion object {
-        /** Set only by the debug QA harness so scheduled-recording checks never touch the real schedules. */
-        @Volatile internal var qaDatabaseName: String? = null
-    }
 
 
     override fun onCreate(db: SQLiteDatabase) {
@@ -254,6 +250,9 @@ internal class RecordingScheduleStore(
         )
 
     companion object {
+        /** Set only by the debug QA harness so scheduled-recording checks never touch the real schedules. */
+        @Volatile internal var qaDatabaseName: String? = null
+
         private val COLUMNS = arrayOf(
             "id","title","channel_id","secure_source_key","start_epoch","end_epoch",
             "state","exact_alarm","last_error",
