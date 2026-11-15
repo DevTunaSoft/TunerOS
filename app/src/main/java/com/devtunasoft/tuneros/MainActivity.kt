@@ -144,6 +144,7 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         if (isRotationLaunch()) recordRotationCreate(savedInstanceState != null)
+        if (isPickFolderLaunch()) android.os.Handler(mainLooper).post { chooseRecordingStorage() }
         qaScheduledUrl()?.let { url -> worker.execute { OnDeviceSelfTest.runScheduledRecordingOnly(applicationContext, url) } }
         qaRecordUrl()?.let { url ->
             val deadline = intent?.getStringExtra("tuneros.debug.record_mode") == "deadline"
@@ -369,6 +370,11 @@ class MainActivity : Activity() {
         qaImportUrls()?.let { (playlist, guide) -> root.post { runQaImport(playlist, guide) } }
         if (isKeyLaunch()) root.post { armQaKeyReport() }
     }
+
+    /** Debug-only: opens the recording folder picker so CI can select a folder on the emulator. */
+    private fun isPickFolderLaunch(): Boolean =
+        (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0 &&
+            intent?.getBooleanExtra("tuneros.debug.pick_folder", false) == true
 
     /** Debug-only: an http(s) URL used by an isolated scheduled-recording launch. */
     private fun qaScheduledUrl(): String? =
@@ -693,7 +699,7 @@ class MainActivity : Activity() {
         // Only one probe pass at once; use the app's existing serial worker.
         if (worker.isShutdown) return
         // The isolated service-stop launch must not share the process with the main pass.
-        if (isServiceStopLaunch() || isAlarmLaunch() || qaPlaybackUrl() != null || qaImportUrls() != null || isKeyLaunch() || isRotationLaunch() || qaRecordUrl() != null || qaScheduledUrl() != null) return
+        if (isServiceStopLaunch() || isAlarmLaunch() || qaPlaybackUrl() != null || qaImportUrls() != null || isKeyLaunch() || isRotationLaunch() || qaRecordUrl() != null || qaScheduledUrl() != null || isPickFolderLaunch()) return
         if (selfTestsQueued) {
             // An import completed while a previous pass was running: do not lose its results.
             selfTestsDirty = true

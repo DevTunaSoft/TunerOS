@@ -23,6 +23,45 @@ sleep 10
 echo "uid-get: $(adb shell cmd appops get --uid "$APP_UID" SCHEDULE_EXACT_ALARM 2>&1 | tr -d '\r')"
 adb shell dumpsys appops com.devtunasoft.tuneros 2>&1 | grep -iE "EXACT|uid|mode" | head -20 || true
 adb shell dumpsys package com.devtunasoft.tuneros 2>&1 | grep -iE "userId|appId|SCHEDULE_EXACT" | head -10 || true
+# External recording storage (dispatch-only, see the external_storage_check input). An isolated launch opens
+# the document-tree picker. CI taps "Use this folder", then "Allow" if the system asks for it, and the persisted
+# tree must then make external-recording-storage PASS in the main pass. Nothing is tapped when the input is off.
+if [ "${EXTERNAL_STORAGE_CHECK:-false}" = "true" ]; then
+  adb shell am force-stop com.devtunasoft.tuneros
+  adb shell am start -n com.devtunasoft.tuneros/.MainActivity --ez tuneros.debug.pick_folder true
+  PICK_TAPPED=false
+  ALLOW_TAPPED=false
+  ALLOW_WAIT=0
+  for attempt in $(seq 1 45); do
+    sleep 2
+    adb shell uiautomator dump /sdcard/picker.xml >/dev/null 2>&1 || true
+    adb pull /sdcard/picker.xml picker.xml >/dev/null 2>&1 || true
+    if [ "$PICK_TAPPED" = "false" ]; then
+      PICK_BOUNDS=$(tr '>' '\n' < picker.xml 2>/dev/null | grep -iE 'text="(Use this folder|USE THIS FOLDER|Select|SELECT)"' | head -1 | grep -oE 'bounds="\[[0-9]+,[0-9]+\]\[[0-9]+,[0-9]+\]"' | head -1 || true)
+      if [ -n "$PICK_BOUNDS" ]; then
+        X=$(echo "$PICK_BOUNDS" | sed -E 's/.*\[([0-9]+),([0-9]+)\]\[([0-9]+),([0-9]+)\].*/\1 \3/' | awk '{print int(($1+$2)/2)}')
+        Y=$(echo "$PICK_BOUNDS" | sed -E 's/.*\[([0-9]+),([0-9]+)\]\[([0-9]+),([0-9]+)\].*/\2 \4/' | awk '{print int(($1+$2)/2)}')
+        adb shell input tap "$X" "$Y"
+        PICK_TAPPED=true
+      fi
+    else
+      ALLOW_WAIT=$((ALLOW_WAIT + 1))
+      ALLOW_BOUNDS=$(tr '>' '\n' < picker.xml 2>/dev/null | grep -E 'text="(Allow|ALLOW)"' | head -1 | grep -oE 'bounds="\[[0-9]+,[0-9]+\]\[[0-9]+,[0-9]+\]"' | head -1 || true)
+      if [ -n "$ALLOW_BOUNDS" ]; then
+        X=$(echo "$ALLOW_BOUNDS" | sed -E 's/.*\[([0-9]+),([0-9]+)\]\[([0-9]+),([0-9]+)\].*/\1 \3/' | awk '{print int(($1+$2)/2)}')
+        Y=$(echo "$ALLOW_BOUNDS" | sed -E 's/.*\[([0-9]+),([0-9]+)\]\[([0-9]+),([0-9]+)\].*/\2 \4/' | awk '{print int(($1+$2)/2)}')
+        adb shell input tap "$X" "$Y"
+        ALLOW_TAPPED=true
+        break
+      fi
+      # The Allow prompt is optional. Stop waiting for it after about ten seconds.
+      if [ "$ALLOW_WAIT" -ge 5 ]; then break; fi
+    fi
+  done
+  echo "Folder picker: confirm tapped=$PICK_TAPPED, allow tapped=$ALLOW_TAPPED"
+  sleep 3
+  adb shell am force-stop com.devtunasoft.tuneros
+fi
 adb shell am start -n com.devtunasoft.tuneros/.MainActivity --ez tuneros.debug.qa true
 # The app runs the checks itself; CI only collects/asserts its private
 # debug report. No human interaction, provider streams or credentials.
@@ -37,7 +76,9 @@ for attempt in $(seq 1 120); do
   fi
   sleep 2
 done
-for check in source-recovery-policy offline-m3u-parser offline-source-stall offline-xmltv-parser debug-xmltv-depth-limit offline-channel-filter offline-timeline offline-xmltv-dtd-block scratch-dvr-copy scratch-dvr-catalog scratch-dvr-schedule-reservation scratch-dvr-preparation-recovery android-keystore-roundtrip debug-large-guide-stress debug-hls-dvr-sequence debug-hls-response-length debug-loopback-hls-transport debug-connection-abort debug-internal-dvr-finalize debug-saf-storage-guard debug-ui-focus debug-empty-guide-dpad debug-now-marker; do
+REQUIRED_EXTERNAL=""
+if [ "${EXTERNAL_STORAGE_CHECK:-false}" = "true" ]; then REQUIRED_EXTERNAL="external-recording-storage"; fi
+for check in $REQUIRED_EXTERNAL source-recovery-policy offline-m3u-parser offline-source-stall offline-xmltv-parser debug-xmltv-depth-limit offline-channel-filter offline-timeline offline-xmltv-dtd-block scratch-dvr-copy scratch-dvr-catalog scratch-dvr-schedule-reservation scratch-dvr-preparation-recovery android-keystore-roundtrip debug-large-guide-stress debug-hls-dvr-sequence debug-hls-response-length debug-loopback-hls-transport debug-connection-abort debug-internal-dvr-finalize debug-saf-storage-guard debug-ui-focus debug-empty-guide-dpad debug-now-marker; do
   if ! grep -Fq "$(printf 'PASS\t%s\t' "$check")" on-device-report.txt; then
     echo "On-device QA assertion failed or never completed: $check"
     cat on-device-report.txt

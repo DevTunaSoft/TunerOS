@@ -18,6 +18,11 @@ on:
         description: "Optional public https XMLTV guide (.xml or .xml.gz) to import on the emulator. Not stored in the repo."
         required: false
         default: ""
+      external_storage_check:
+        description: "Optional: pick a recording folder on the emulator (tapping Allow if asked) and require external storage PASS. Dispatch only."
+        type: boolean
+        required: false
+        default: false
 concurrency:
   group: tuneros-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -83,6 +88,7 @@ jobs:
         env:
           PUBLIC_PLAYLIST_URL: ${{ inputs.public_playlist_url }}
           PUBLIC_GUIDE_URL: ${{ inputs.public_guide_url }}
+          EXTERNAL_STORAGE_CHECK: ${{ inputs.external_storage_check }}
       - name: Publish autonomous Android test evidence
         uses: actions/upload-artifact@v4
         if: always()
