@@ -171,6 +171,9 @@ fi
 # is armed. Each key must reach the activity's key dispatch, not a synthetic call.
 adb shell am force-stop com.devtunasoft.tuneros
 adb shell am start -n com.devtunasoft.tuneros/.MainActivity --ez tuneros.debug.keys true
+# The Doze step above sleeps the screen; wake it and dismiss the keyguard so input reaches the app.
+adb shell input keyevent 224 || true
+adb shell wm dismiss-keyguard || true
 for attempt in $(seq 1 60); do
   adb shell run-as com.devtunasoft.tuneros cat files/tuneros-key-report.txt > key-report.txt 2>/dev/null || true
   if grep -Fq "ARMED" key-report.txt; then
