@@ -81,7 +81,14 @@ if [ "${EXTERNAL_STORAGE_CHECK:-false}" = "true" ]; then
   done
   echo "Folder picker closed after ${wait_tick:-0} s of waiting"
   sleep 3
-  adb shell am force-stop com.devtunasoft.tuneros
+  # Stop the picker-launched instance and wait until the process is really gone. Otherwise the next
+  # launch is delivered to that instance as a new intent, and no self-test pass starts.
+  for stop_tick in $(seq 1 15); do
+    adb shell am force-stop com.devtunasoft.tuneros
+    sleep 1
+    if [ -z "$(adb shell pidof com.devtunasoft.tuneros 2>/dev/null | tr -d '\r ')" ]; then break; fi
+  done
+  echo "picker-launched app process gone after ${stop_tick:-0} stop attempts"
 fi
 adb shell am start -n com.devtunasoft.tuneros/.MainActivity --ez tuneros.debug.qa true
 # The app runs the checks itself; CI only collects/asserts its private
