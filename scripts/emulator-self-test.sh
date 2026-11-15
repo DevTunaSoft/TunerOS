@@ -389,6 +389,32 @@ if ! grep -Eq '^PASS[[:space:]]qa-dvr-rearm' scheduled-report.txt \
   exit 1
 fi
 
+# Optional real-guide import: a public XMLTV guide supplied at dispatch time (never committed).
+# The playlist stays a runner fixture (3 channels), so the guide is the variable. Programme count
+# must be above zero; the exact count depends on the public feed.
+if [ -n "${PUBLIC_GUIDE_URL:-}" ]; then
+  (cd ci-import && python3 -m http.server 8766 --bind 0.0.0.0 >guide-server.log 2>&1) &
+  GUIDE_HTTP_PID=$!
+  sleep 2
+  adb shell am force-stop com.devtunasoft.tuneros
+  adb shell am start -n com.devtunasoft.tuneros/.MainActivity \
+    --es tuneros.debug.import_playlist_url http://10.0.2.2:8766/playlist.m3u \
+    --es tuneros.debug.import_guide_url "$PUBLIC_GUIDE_URL"
+  for attempt in $(seq 1 150); do
+    adb shell run-as com.devtunasoft.tuneros cat files/tuneros-import-report.txt > public-guide-report.txt 2>/dev/null || true
+    if grep -Eq '^(PASS|FAIL)[[:space:]]qa-loopback-import' public-guide-report.txt; then
+      break
+    fi
+    sleep 2
+  done
+  kill "$GUIDE_HTTP_PID" 2>/dev/null || true
+  if ! grep -Eq '^PASS[[:space:]]qa-loopback-import[[:space:]]channels=3 programs=[1-9][0-9]*' public-guide-report.txt; then
+    echo "Public guide import failed or never completed"
+    sed -E 's#https?://[^[:space:]]*#<url>#g' public-guide-report.txt 2>/dev/null || echo "(no report file)"
+    exit 1
+  fi
+fi
+
 if grep -q '^FAIL[[:space:]]' on-device-report.txt; then
   echo "Unexpected failure in the app's own self-test report"
   cat on-device-report.txt

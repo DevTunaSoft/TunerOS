@@ -455,7 +455,8 @@ class MainActivity : Activity() {
         importPlaylist(playlistUrl, saveOnSuccess = false)
         importGuide(guideUrl, saveOnSuccess = false)
         val handler = android.os.Handler(mainLooper)
-        val deadline = android.os.SystemClock.elapsedRealtime() + 60_000
+        // Public guides can be large and slow on the emulator; allow several minutes.
+        val deadline = android.os.SystemClock.elapsedRealtime() + 300_000
         lateinit var poll: Runnable
         poll = Runnable {
             val channelCount = channels.size
