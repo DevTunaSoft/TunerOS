@@ -223,6 +223,12 @@ if adb shell run-as com.devtunasoft.tuneros ls files/tuneros-selftest-in-progres
   echo "The self-test has not committed its report and cleared its run marker"
   exit 1
 fi
+# The runner generates the short test stream once. The picked-folder recording below, the first-frame check and
+# the recording checks all read it.
+command -v ffmpeg >/dev/null || sudo apt-get install -y -qq ffmpeg
+mkdir -p ci-playback
+ffmpeg -y -loglevel error -f lavfi -i testsrc=duration=10:size=320x240:rate=25 \
+  -c:v libx264 -pix_fmt yuv420p -movflags +faststart ci-playback/test.mp4
 # External storage: the same finite loopback stream is recorded into the picked folder while it is still saved.
 # The report must say storage=saf, and the stored document must hold exactly the served bytes (sha256).
 if [ "${EXTERNAL_STORAGE_CHECK:-false}" = "true" ]; then
@@ -327,12 +333,8 @@ adb shell dumpsys deviceidle unforce || true
 adb shell input keyevent 224 || true
 adb shell wm dismiss-keyguard || true
 sleep 2
-# Isolated launch for first decoded video frame. The runner generates a short test stream,
-# serves it on the host, and the emulator reaches it through the host alias 10.0.2.2.
-command -v ffmpeg >/dev/null || sudo apt-get install -y -qq ffmpeg
-mkdir -p ci-playback
-ffmpeg -y -loglevel error -f lavfi -i testsrc=duration=10:size=320x240:rate=25 \
-  -c:v libx264 -pix_fmt yuv420p -movflags +faststart ci-playback/test.mp4
+# Isolated launch for first decoded video frame. The test stream generated earlier is served on the host,
+# and the emulator reaches it through the host alias 10.0.2.2.
 python3 -m http.server 8765 --bind 0.0.0.0 --directory ci-playback >http-server.log 2>&1 &
 HTTP_PID=$!
 sleep 2
