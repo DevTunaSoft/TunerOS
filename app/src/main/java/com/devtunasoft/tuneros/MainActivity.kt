@@ -369,6 +369,9 @@ class MainActivity : Activity() {
         }
         qaPlaybackUrl()?.let { url -> root.post { runQaPlayback(url) } }
         qaImportUrls()?.let { (playlist, guide) -> root.post { runQaImport(playlist, guide) } }
+        // Debug-only startup-recovery QA. Runs synchronously, so the field and import state are set before the
+        // startup restore callback that the worker posts to the UI thread.
+        qaRecoveryMode()?.let { mode -> runRecoveryQa(mode) }
         if (isKeyLaunch()) root.post { armQaKeyReport() }
     }
 
@@ -455,6 +458,98 @@ class MainActivity : Activity() {
         val validPlaylist = playlist.startsWith("http://") || playlist.startsWith("https://")
         val validGuide = guide.startsWith("http://") || guide.startsWith("https://")
         return if (validPlaylist && validGuide) playlist to guide else null
+    }
+
+    /** Debug-only startup-recovery QA: "seed" saves a user import, "bad" tries a failing import, "check" only cold-starts. */
+    private fun qaRecoveryMode(): String? =
+        if ((applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0) {
+            intent?.getStringExtra("tuneros.debug.recovery_mode")?.takeIf { it == "seed" || it == "bad" || it == "check" }
+        } else {
+            null
+        }
+
+    /** Debug-only: an http(s) URL for a startup-recovery QA launch. Never logged or written to a report. */
+    private fun qaRecoveryUrl(extra: String): String? =
+        if ((applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0) {
+            intent?.getStringExtra(extra)?.takeIf { it.startsWith("http://") || it.startsWith("https://") }
+        } else {
+            null
+        }
+
+    // Debug-only startup-recovery QA. Its report holds PASS/FAIL, ids and counts, never a URL.
+    private var recoveryBefore: String? = null
+
+    private fun appendRecoveryLine(state: String, id: String, detail: String) {
+        java.io.File(filesDir, "tuneros-recovery-report.txt").appendText("$state\t$id\t$detail\n")
+    }
+
+    /** Polls on the UI thread until [ready] holds, then calls [done] with true, or with false at the deadline. */
+    private fun awaitRecovery(ready: () -> Boolean, done: (Boolean) -> Unit) {
+        val deadline = SystemClock.elapsedRealtime() + 90_000L
+        lateinit var poll: Runnable
+        poll = Runnable {
+            if (isFinishing || isDestroyed) return@Runnable
+            when {
+                ready() -> done(true)
+                SystemClock.elapsedRealtime() >= deadline -> done(false)
+                else -> uiHandler.postDelayed(poll, 250L)
+            }
+        }
+        uiHandler.post(poll)
+    }
+
+    private fun loadedCounts(): String = "channels=${channels.size} programs=${guide?.programs?.size ?: 0}"
+
+    private fun runRecoveryQa(mode: String) {
+        when (mode) {
+            "seed" -> {
+                val playlist = qaRecoveryUrl("tuneros.debug.recovery_playlist_url")
+                val guideSource = qaRecoveryUrl("tuneros.debug.recovery_guide_url")
+                if (playlist == null || guideSource == null) {
+                    appendRecoveryLine("FAIL", "qa-startup-recovery-seed", "missing URL extras")
+                    return
+                }
+                importPlaylist(playlist, saveOnSuccess = true)
+                importGuide(guideSource, saveOnSuccess = true)
+                awaitRecovery(ready = { channels.isNotEmpty() && guide != null }) { loaded ->
+                    val counts = loadedCounts()
+                    worker.execute {
+                        val saved = secureSources.load("playlist") == playlist &&
+                            secureSources.load("guide") == guideSource
+                        appendRecoveryLine(
+                            if (loaded && saved) "PASS" else "FAIL",
+                            "qa-startup-recovery-seed",
+                            "$counts saved=$saved",
+                        )
+                    }
+                }
+            }
+            "check" -> awaitRecovery(ready = { channels.isNotEmpty() && guide != null }) { loaded ->
+                appendRecoveryLine(if (loaded) "PASS" else "FAIL", "qa-startup-recovery", loadedCounts())
+            }
+            "bad" -> {
+                val badPlaylist = qaRecoveryUrl("tuneros.debug.recovery_playlist_url")
+                if (badPlaylist == null) {
+                    appendRecoveryLine("FAIL", "qa-startup-recovery-bad-import", "missing URL extra")
+                    return
+                }
+                // Set the field and start the import before the startup restore callback can run, so the restore
+                // cannot start for this field. Read the saved playlist on the worker before the import starts.
+                playlistUrl.setText(badPlaylist)
+                worker.execute {
+                    recoveryBefore = runCatching { secureSources.load("playlist") }.getOrNull()
+                }
+                importPlaylist(badPlaylist, saveOnSuccess = true)
+                awaitRecovery(ready = { qaPlaylistFailure != null }) { failed ->
+                    worker.execute {
+                        val after = runCatching { secureSources.load("playlist") }.getOrNull()
+                        val unchanged = failed && recoveryBefore != null && recoveryBefore == after
+                        val detail = if (unchanged) "failed import left the saved playlist unchanged" else "failed=$failed unchanged=false"
+                        appendRecoveryLine(if (unchanged) "PASS" else "FAIL", "qa-startup-recovery-bad-import", detail)
+                    }
+                }
+            }
+        }
     }
 
     // Debug-only QA: the class name of the last failed import. Never a URL or an error message.
@@ -705,7 +800,7 @@ class MainActivity : Activity() {
         // Only one probe pass at once; use the app's existing serial worker.
         if (worker.isShutdown) return
         // The isolated service-stop launch must not share the process with the main pass.
-        if (isServiceStopLaunch() || isAlarmLaunch() || qaPlaybackUrl() != null || qaImportUrls() != null || isKeyLaunch() || isRotationLaunch() || qaRecordUrl() != null || qaScheduledUrl() != null || isPickFolderLaunch() || isInternalStorageLaunch()) return
+        if (isServiceStopLaunch() || isAlarmLaunch() || qaPlaybackUrl() != null || qaImportUrls() != null || isKeyLaunch() || isRotationLaunch() || qaRecordUrl() != null || qaScheduledUrl() != null || isPickFolderLaunch() || isInternalStorageLaunch() || qaRecoveryMode() != null) return
         if (selfTestsQueued) {
             // An import completed while a previous pass was running: do not lose its results.
             selfTestsDirty = true

@@ -808,6 +808,68 @@ if ! grep -Eq '^PASS[[:space:]]qa-dvr-rearm' scheduled-report.txt \
   exit 1
 fi
 
+# Startup recovery: a user import saves the playlist and guide URLs encrypted, a cold start restores both with the
+# fixture counts, and a failed import leaves the saved playlist unchanged. Loopback fixtures only. The app report
+# holds PASS/FAIL, ids and counts, never a URL.
+python3 -m http.server 8766 --bind 0.0.0.0 --directory ci-import >recovery-server.log 2>&1 &
+RECOVERY_HTTP_PID=$!
+sleep 2
+REC_PLAYLIST="http://10.0.2.2:8766/playlist.m3u"
+REC_GUIDE="http://10.0.2.2:8766/guide.xml"
+REC_MISSING="http://10.0.2.2:8766/missing-playlist.m3u"
+recovery_fail() {
+  kill "$RECOVERY_HTTP_PID" 2>/dev/null || true
+  echo "$1"
+  cat recovery-report.txt 2>/dev/null || echo "(no report file)"
+  exit 1
+}
+recovery_launch() { # $1 = mode, then any extra arguments for am start
+  local mode=$1
+  shift
+  adb shell run-as com.devtunasoft.tuneros rm -f files/tuneros-recovery-report.txt || true
+  adb shell am force-stop com.devtunasoft.tuneros
+  adb shell am start -n com.devtunasoft.tuneros/.MainActivity --es tuneros.debug.recovery_mode "$mode" "$@"
+}
+recovery_wait() { # $1 = check id; returns once that id has a PASS or FAIL line
+  for attempt in $(seq 1 60); do
+    adb shell run-as com.devtunasoft.tuneros cat files/tuneros-recovery-report.txt > recovery-report.txt 2>/dev/null || true
+    if grep -Eq "^(PASS|FAIL)[[:space:]]$1[[:space:]]" recovery-report.txt; then
+      return 0
+    fi
+    sleep 2
+  done
+  return 1
+}
+recovery_launch seed --es tuneros.debug.recovery_playlist_url "$REC_PLAYLIST" --es tuneros.debug.recovery_guide_url "$REC_GUIDE"
+recovery_wait qa-startup-recovery-seed || recovery_fail "Startup recovery seed did not complete"
+if ! grep -Fq "$(printf 'PASS\tqa-startup-recovery-seed\tchannels=3 programs=6 saved=true')" recovery-report.txt; then
+  recovery_fail "Startup recovery seed failed"
+fi
+# The saved sources must be encrypted records in the app's preferences, never plaintext URLs.
+adb shell run-as com.devtunasoft.tuneros cat shared_prefs/tuneros_alpha.xml > recovery-prefs.xml 2>/dev/null || true
+if ! grep -q 'name="playlist.secure"' recovery-prefs.xml || ! grep -q 'name="guide.secure"' recovery-prefs.xml \
+   || grep -q 'name="playlist"' recovery-prefs.xml || grep -q 'name="guide"' recovery-prefs.xml \
+   || grep -Fq "10.0.2.2:8766/playlist.m3u" recovery-prefs.xml || grep -Fq "10.0.2.2:8766/guide.xml" recovery-prefs.xml; then
+  recovery_fail "Saved sources are missing or stored as plaintext in the app's preferences"
+fi
+recovery_launch check
+recovery_wait qa-startup-recovery || recovery_fail "Startup recovery after a cold start did not complete"
+if ! grep -Fq "$(printf 'PASS\tqa-startup-recovery\tchannels=3 programs=6')" recovery-report.txt; then
+  recovery_fail "Startup recovery did not restore the fixture counts after a cold start"
+fi
+recovery_launch bad --es tuneros.debug.recovery_playlist_url "$REC_MISSING"
+recovery_wait qa-startup-recovery-bad-import || recovery_fail "Failed-import check did not complete"
+if ! grep -Fq "$(printf 'PASS\tqa-startup-recovery-bad-import\t')" recovery-report.txt; then
+  recovery_fail "A failed import changed the saved playlist"
+fi
+recovery_launch check
+recovery_wait qa-startup-recovery || recovery_fail "Startup recovery after the failed import did not complete"
+if ! grep -Fq "$(printf 'PASS\tqa-startup-recovery\tchannels=3 programs=6')" recovery-report.txt; then
+  recovery_fail "The saved playlist did not survive the failed import"
+fi
+kill "$RECOVERY_HTTP_PID" 2>/dev/null || true
+echo "Startup recovery: sources saved encrypted, restored after a cold start, unchanged by a failed import"
+
 if grep -q '^FAIL[[:space:]]' on-device-report.txt; then
   echo "Unexpected failure in the app's own self-test report"
   cat on-device-report.txt
