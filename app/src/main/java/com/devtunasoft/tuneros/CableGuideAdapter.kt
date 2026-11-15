@@ -27,6 +27,7 @@ internal class CableGuideAdapter(
     private val onChannelSelected: (Channel) -> Unit,
     private val onProgramFocused: (Channel, GuideProgram?) -> Unit,
     private val onWindowShift: (Int) -> Unit,
+    private val onChannelLongPressed: (Channel) -> Unit,
 ) : BaseAdapter() {
     companion object {
         private const val CHANNEL_WIDTH_DP = 190
@@ -41,6 +42,7 @@ internal class CableGuideAdapter(
     }
 
     private var channels: List<Channel> = emptyList()
+    private var favoriteIds: Set<String> = emptySet()
     private var guide: GuideSnapshot? = null
     private var fromEpochSeconds: Long = 0
     private var toEpochSeconds: Long = 1
@@ -57,9 +59,11 @@ internal class CableGuideAdapter(
         fromEpochSeconds: Long,
         toEpochSeconds: Long,
         nowEpochSeconds: Long,
+        favoriteIds: Set<String>,
     ) {
         require(toEpochSeconds > fromEpochSeconds)
         channels = visibleChannels
+        this.favoriteIds = favoriteIds
         guide = snapshot
         this.fromEpochSeconds = fromEpochSeconds
         this.toEpochSeconds = toEpochSeconds
@@ -114,6 +118,11 @@ internal class CableGuideAdapter(
         channelView.setOnClickListener {
             holder.boundChannel?.let(onChannelSelected)
         }
+        // A long press on the centre key toggles a favorite. The key listener above does not consume it.
+        channelView.setOnLongClickListener {
+            holder.boundChannel?.let(onChannelLongPressed)
+            true
+        }
         channelView.setOnFocusChangeListener { _, focused ->
             if (focused) holder.boundChannel?.let { onProgramFocused(it, null) }
         }
@@ -143,7 +152,7 @@ internal class CableGuideAdapter(
 
     private fun bind(holder: RowHolder, channel: Channel) {
         holder.boundChannel = channel
-        holder.channelView.text = channel.name
+        holder.channelView.text = if (channel.id in favoriteIds) "★ " + channel.name else channel.name
 
         val snapshot = guide
         val guideId = channel.guideId

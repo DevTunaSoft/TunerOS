@@ -208,7 +208,7 @@ for attempt in $(seq 1 120); do
 done
 REQUIRED_EXTERNAL=""
 if [ "${EXTERNAL_STORAGE_CHECK:-false}" = "true" ]; then REQUIRED_EXTERNAL="external-recording-storage"; fi
-for check in $REQUIRED_EXTERNAL source-recovery-policy offline-m3u-parser offline-source-stall offline-xmltv-parser debug-xmltv-depth-limit offline-channel-filter offline-timeline offline-xmltv-dtd-block scratch-dvr-copy scratch-dvr-catalog scratch-dvr-schedule-reservation scratch-dvr-preparation-recovery android-keystore-roundtrip debug-large-guide-stress debug-hls-dvr-sequence debug-hls-response-length debug-loopback-hls-transport debug-connection-abort debug-internal-dvr-finalize debug-saf-storage-guard debug-ui-focus debug-empty-guide-dpad debug-now-marker; do
+for check in $REQUIRED_EXTERNAL source-recovery-policy offline-m3u-parser offline-source-stall offline-xmltv-parser debug-xmltv-depth-limit offline-channel-filter offline-timeline offline-xmltv-dtd-block scratch-dvr-copy scratch-dvr-catalog scratch-dvr-schedule-reservation scratch-dvr-preparation-recovery android-keystore-roundtrip debug-large-guide-stress debug-hls-dvr-sequence debug-hls-response-length debug-loopback-hls-transport debug-connection-abort debug-internal-dvr-finalize debug-saf-storage-guard debug-ui-focus debug-empty-guide-dpad debug-now-marker debug-favorites; do
   if ! grep -Fq "$(printf 'PASS\t%s\t' "$check")" on-device-report.txt; then
     echo "On-device QA assertion failed or never completed: $check"
     cat on-device-report.txt

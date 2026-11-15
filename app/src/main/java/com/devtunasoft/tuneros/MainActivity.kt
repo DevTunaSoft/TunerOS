@@ -42,6 +42,7 @@ import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.PlayerView
 import com.devtunasoft.tuneros.core.Channel
 import com.devtunasoft.tuneros.core.ChannelVisibility
+import com.devtunasoft.tuneros.core.FavoriteChannels
 import com.devtunasoft.tuneros.core.GuideParser
 import com.devtunasoft.tuneros.core.GuideSnapshot
 import com.devtunasoft.tuneros.core.GuideProgram
@@ -110,6 +111,11 @@ class MainActivity : Activity() {
     private var filteredHideNoGuide = false
     private var activityStarted = false
     private var filteredChannels: List<Channel> = emptyList()
+    private var filteredFavorites: Set<String>? = null
+    private var filteredFavoritesOnly = false
+    private var favorites: Set<String> = emptySet()
+    private lateinit var favoriteStore: FavoriteChannelStore
+    private lateinit var favoritesOnly: CheckBox
     private var player: ExoPlayer? = null
     // Reuse a single decoder for channels with identical provider request headers.
     private var playerHeaders: Map<String, String>? = null
@@ -238,6 +244,21 @@ class MainActivity : Activity() {
             }
         }
         root.addView(hideNoGuide)
+        favoriteStore = FavoriteChannelStore(this)
+        favorites = favoriteStore.load()
+        favoritesOnly = CheckBox(this).apply {
+            text = "Favorites only"
+            setTextColor(Color.WHITE)
+            isChecked = prefs.getBoolean("favorites_only", false)
+            setOnCheckedChangeListener { _, checked ->
+                prefs.edit().putBoolean("favorites_only", checked).apply()
+                if (checked && favorites.isEmpty()) {
+                    showStatus("No favorites yet. Long-press a channel to add it.")
+                }
+                renderChannels()
+            }
+        }
+        root.addView(favoritesOnly)
         playerView = PlayerView(this).apply {
             useController = true
             setBackgroundColor(Color.BLACK)
@@ -282,6 +303,7 @@ class MainActivity : Activity() {
             onWindowShift = { direction ->
                 shiftGuideWindow(direction * guideStepSeconds)
             },
+            onChannelLongPressed = ::toggleFavorite,
         )
         recordingAdapter = RecordingLibraryAdapter(
             this,
@@ -973,18 +995,39 @@ class MainActivity : Activity() {
         }
     }
 
+    /** Long press on a channel row adds or removes a favorite. The guide and playback are unchanged. */
+    private fun toggleFavorite(channel: Channel) {
+        favorites = FavoriteChannels.toggle(favorites, channel.id)
+        val saved = favoriteStore.save(favorites)
+        val added = channel.id in favorites
+        showStatus(
+            (if (added) "Added " else "Removed ") + channel.name +
+                (if (added) " to favorites" else " from favorites") +
+                (if (saved) "" else "; not saved"),
+        )
+        renderChannels()
+    }
+
     private fun renderChannels() {
         if (!::channelAdapter.isInitialized || !::search.isInitialized) return
         val query = search.text.toString().trim()
         val hide = hideNoGuide.isChecked
+        val favoritesOnlyNow = favoritesOnly.isChecked
         if (filteredSource !== channels || filteredGuide !== guide ||
-            filteredQuery != query || filteredHideNoGuide != hide
+            filteredQuery != query || filteredHideNoGuide != hide ||
+            filteredFavorites !== favorites || filteredFavoritesOnly != favoritesOnlyNow
         ) {
-            filteredChannels = ChannelVisibility.filter(channels, guide, query, hide)
+            filteredChannels = FavoriteChannels.filter(
+                ChannelVisibility.filter(channels, guide, query, hide),
+                favorites,
+                favoritesOnlyNow,
+            )
             filteredSource = channels
             filteredGuide = guide
             filteredQuery = query
             filteredHideNoGuide = hide
+            filteredFavorites = favorites
+            filteredFavoritesOnly = favoritesOnlyNow
         }
         val now = System.currentTimeMillis() / 1000
         if (guideWindowStart == 0L) {
@@ -997,6 +1040,7 @@ class MainActivity : Activity() {
             guideWindowStart,
             guideWindowStart + guideWindowSeconds,
             now,
+            favorites,
         )
     }
 
