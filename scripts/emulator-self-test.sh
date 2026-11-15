@@ -120,6 +120,53 @@ if ! grep -Fq "$(printf 'PASS\tqa-playback-first-frame\tfirst video frame render
   adb logcat -d -v brief 2>/dev/null | grep -E "FATAL|AndroidRuntime|ExoPlayer|MediaCodec|ImageReader|tuneros|Playback|DecoderInit" | tail -120 || true
   exit 1
 fi
+# Isolated launch for the real import path. Fixtures are generated on the runner and served to
+# the emulator; the app imports them without saving the URLs. Counts must match exactly.
+mkdir -p ci-import
+cat > ci-import/playlist.m3u <<'M3U'
+#EXTM3U
+#EXTINF:-1 tvg-id="qa.one" group-title="QA",QA One
+http://10.0.2.2:8766/stream-one.m3u8
+#EXTINF:-1 tvg-id="qa.two" group-title="QA",QA Two
+http://10.0.2.2:8766/stream-two.m3u8
+#EXTINF:-1 tvg-id="qa.three" group-title="QA",QA Three
+http://10.0.2.2:8766/stream-three.m3u8
+M3U
+cat > ci-import/guide.xml <<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<tv>
+<channel id="qa.one"><display-name>QA One</display-name></channel>
+<channel id="qa.two"><display-name>QA Two</display-name></channel>
+<channel id="qa.three"><display-name>QA Three</display-name></channel>
+<programme start="20991115000000 +0000" stop="20991115010000 +0000" channel="qa.one"><title>Show One</title></programme>
+<programme start="20991115010000 +0000" stop="20991115020000 +0000" channel="qa.one"><title>Show Two</title></programme>
+<programme start="20991115000000 +0000" stop="20991115010000 +0000" channel="qa.two"><title>Show Three</title></programme>
+<programme start="20991115010000 +0000" stop="20991115020000 +0000" channel="qa.two"><title>Show Four</title></programme>
+<programme start="20991115000000 +0000" stop="20991115010000 +0000" channel="qa.three"><title>Show Five</title></programme>
+<programme start="20991115010000 +0000" stop="20991115020000 +0000" channel="qa.three"><title>Show Six</title></programme>
+</tv>
+XML
+(cd ci-import && python3 -m http.server 8766 --bind 0.0.0.0 >http-server.log 2>&1) &
+IMPORT_HTTP_PID=$!
+sleep 2
+adb shell am force-stop com.devtunasoft.tuneros
+adb shell am start -n com.devtunasoft.tuneros/.MainActivity \
+  --es tuneros.debug.import_playlist_url http://10.0.2.2:8766/playlist.m3u \
+  --es tuneros.debug.import_guide_url http://10.0.2.2:8766/guide.xml
+for attempt in $(seq 1 90); do
+  adb shell run-as com.devtunasoft.tuneros cat files/tuneros-import-report.txt > import-report.txt 2>/dev/null || true
+  if grep -Eq '^(PASS|FAIL)[[:space:]]qa-loopback-import' import-report.txt; then
+    break
+  fi
+  sleep 2
+done
+kill "$IMPORT_HTTP_PID" 2>/dev/null || true
+if ! grep -Fq "$(printf 'PASS\tqa-loopback-import\tchannels=3 programs=6')" import-report.txt; then
+  echo "Loopback import check failed or never completed"
+  cat import-report.txt 2>/dev/null || echo "(no report file)"
+  cat ci-import/http-server.log 2>/dev/null | tail -20 || true
+  exit 1
+fi
 if grep -q '^FAIL[[:space:]]' on-device-report.txt; then
   echo "Unexpected failure in the app's own self-test report"
   cat on-device-report.txt

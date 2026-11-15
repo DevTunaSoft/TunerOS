@@ -345,6 +345,43 @@ class MainActivity : Activity() {
             worker.execute { OnDeviceSelfTest.runAlarmOnly(applicationContext) }
         }
         qaPlaybackUrl()?.let { url -> root.post { runQaPlayback(url) } }
+        qaImportUrls()?.let { (playlist, guide) -> root.post { runQaImport(playlist, guide) } }
+    }
+
+    /** Debug-only: playlist and guide URLs imported by an isolated CI launch. Never saved. */
+    private fun qaImportUrls(): Pair<String, String>? {
+        if ((applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) == 0) return null
+        val playlist = intent?.getStringExtra("tuneros.debug.import_playlist_url") ?: return null
+        val guide = intent?.getStringExtra("tuneros.debug.import_guide_url") ?: return null
+        return if (playlist.startsWith("http://") && guide.startsWith("http://")) playlist to guide else null
+    }
+
+    /**
+     * Runs the real playlist and guide imports (without saving the URLs) and reports the parsed
+     * counts once both are loaded, or FAIL at the deadline. Counts are checked by the CI script.
+     */
+    private fun runQaImport(playlistUrl: String, guideUrl: String) {
+        val report = java.io.File(filesDir, "tuneros-import-report.txt")
+        report.writeText("RUNNING\n")
+        importPlaylist(playlistUrl, saveOnSuccess = false)
+        importGuide(guideUrl, saveOnSuccess = false)
+        val handler = android.os.Handler(mainLooper)
+        val deadline = android.os.SystemClock.elapsedRealtime() + 60_000
+        lateinit var poll: Runnable
+        poll = Runnable {
+            val channelCount = channels.size
+            val programCount = guide?.programs?.size ?: 0
+            when {
+                channelCount > 0 && programCount > 0 -> report.appendText(
+                    "PASS\tqa-loopback-import\tchannels=" + channelCount + " programs=" + programCount + "\n",
+                )
+                android.os.SystemClock.elapsedRealtime() > deadline -> report.appendText(
+                    "FAIL\tqa-loopback-import\tchannels=" + channelCount + " programs=" + programCount + "\n",
+                )
+                else -> handler.postDelayed(poll, 500)
+            }
+        }
+        handler.postDelayed(poll, 500)
     }
 
     /** Debug-only: an http(s) URL to decode in an isolated CI launch. Never set for users. */
@@ -551,7 +588,7 @@ class MainActivity : Activity() {
         // Only one probe pass at once; use the app's existing serial worker.
         if (worker.isShutdown) return
         // The isolated service-stop launch must not share the process with the main pass.
-        if (isServiceStopLaunch() || isAlarmLaunch() || qaPlaybackUrl() != null) return
+        if (isServiceStopLaunch() || isAlarmLaunch() || qaPlaybackUrl() != null || qaImportUrls() != null) return
         if (selfTestsQueued) {
             // An import completed while a previous pass was running: do not lose its results.
             selfTestsDirty = true
