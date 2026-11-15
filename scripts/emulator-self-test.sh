@@ -287,17 +287,37 @@ ffmpeg -y -loglevel error -f lavfi -i testsrc=duration=10:size=320x240:rate=25 \
 python3 -m http.server 8765 --bind 0.0.0.0 --directory ci-playback >http-server.log 2>&1 &
 HTTP_PID=$!
 sleep 2
-adb shell am force-stop com.devtunasoft.tuneros
-adb shell am start -n com.devtunasoft.tuneros/.MainActivity --es tuneros.debug.playback_url http://10.0.2.2:8765/test.mp4
-for attempt in $(seq 1 90); do
-  adb shell run-as com.devtunasoft.tuneros cat files/tuneros-playback-report.txt > playback-report.txt 2>/dev/null || true
-  if grep -Fq "$(printf 'PASS\tqa-playback-first-frame\tfirst video frame rendered')" playback-report.txt; then
-    break
-  fi
-  sleep 2
+# The server must answer on the runner before the emulator is asked to play from it.
+if ! curl -fsS --max-time 10 -o /dev/null http://127.0.0.1:8765/test.mp4; then
+  echo "Local test stream server did not answer on the runner"
+  tail -20 http-server.log 2>/dev/null || true
+  kill "$HTTP_PID" 2>/dev/null || true
+  exit 1
+fi
+FRAME_PASS="$(printf 'PASS\tqa-playback-first-frame\tfirst video frame rendered')"
+# A connection failure (Media3 codes 2000-2002) is reported at once. Launch again, up to three times, so one
+# dropped connection between the emulator and the runner does not decide the check. The PASS line is still required.
+for frame_try in 1 2 3; do
+  adb shell run-as com.devtunasoft.tuneros rm -f files/tuneros-playback-report.txt 2>/dev/null || true
+  adb shell am force-stop com.devtunasoft.tuneros
+  adb shell am start -n com.devtunasoft.tuneros/.MainActivity --es tuneros.debug.playback_url http://10.0.2.2:8765/test.mp4
+  for attempt in $(seq 1 90); do
+    adb shell run-as com.devtunasoft.tuneros cat files/tuneros-playback-report.txt > playback-report.txt 2>/dev/null || true
+    if grep -Fq "$FRAME_PASS" playback-report.txt; then
+      break
+    fi
+    if grep -Eq 'player error code 200[0-2]' playback-report.txt; then
+      break
+    fi
+    sleep 2
+  done
+  if grep -Fq "$FRAME_PASS" playback-report.txt; then break; fi
+  if ! grep -Eq 'player error code 200[0-2]' playback-report.txt; then break; fi
+  echo "First-frame launch $frame_try lost its connection to the local stream; launching again"
+  sleep 3
 done
 kill "$HTTP_PID" 2>/dev/null || true
-if ! grep -Fq "$(printf 'PASS\tqa-playback-first-frame\tfirst video frame rendered')" playback-report.txt; then
+if ! grep -Fq "$FRAME_PASS" playback-report.txt; then
   echo "First video frame check failed or never completed"
   cat playback-report.txt 2>/dev/null || echo "(no report file)"
   cat ci-playback/http-server.log 2>/dev/null | tail -20 || true
