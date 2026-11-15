@@ -86,6 +86,10 @@ if [ -n "${PUBLIC_GUIDE_URL:-}" ]; then
     if grep -Eq '^(PASS|FAIL)[[:space:]]qa-loopback-import' public-guide-report.txt; then
       break
     fi
+    # Sample memory while the guide imports (diagnostic only).
+    if [ $((attempt % 5)) -eq 0 ]; then
+      echo "guide-mem t=$((attempt*2))s $(adb shell dumpsys meminfo com.devtunasoft.tuneros 2>/dev/null | tr -d '\r' | grep -E 'TOTAL PSS|Java Heap|Native Heap' | tr -s ' ' | tr '\n' ' ' || echo none) | $(adb shell cat /proc/meminfo 2>/dev/null | tr -d '\r' | grep -E '^MemAvailable' || true)"
+    fi
     sleep 2
   done
   kill "$GUIDE_HTTP_PID" 2>/dev/null || true
