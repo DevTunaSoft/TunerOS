@@ -256,3 +256,10 @@ The Android 35 emulator job still runs the app's 15 automatic assertions. To mak
 - **Programme count:** 36443 in this run, 36613 in earlier guide runs. The public feed changes over time, so each run records its own count and the count is not asserted.
 - **Public playlist dispatch** (run [43742632381](https://github.com/DevTunaSoft/TunerOS/actions/runs/43742632381) on `a9e2ec3`, Free-TV playlist, no guide input): success. The public playlist import gate passed (channels at least 1). The informational stream check rendered a first video frame. The exact channel count is not printed on the success path.
 - **Still open:** peak and sustained memory on the full guide, physical Android TV or phone hardware, real provider streams, and replacing the window-dump probe, which still does not match on this image.
+
+## 2026-11-15 — guide memory peak (sampled during the import)
+
+- **Guide dispatch on `5a17ca5`** (run [43744935420](https://github.com/DevTunaSoft/TunerOS/actions/runs/43744935420)): success. Guide gate `PASS qa-loopback-import channels=3 programs=36443`. Focus `true (top-activity)`. Summary `25 PASS / 0 FAIL / 0 BLOCKED / 12 NOT RUN`.
+- **Peak total PSS during the import:** `72897` KiB (about 71 MiB), from **7 samples** taken about once a second by a background sampler. The sampler reads `dumpsys meminfo`, so the 7 samples cover the import window only, not the whole run.
+- **After the pass** (one snapshot): `TOTAL PSS: 68157` KiB, Java heap PSS 15692 KiB, native heap PSS 13572 KiB.
+- **Limits:** this is a short sampled window on a 2 GiB emulator, with a single guide. It is not a sustained soak, not a measurement on physical hardware, and not a proof of the peak between samples.
