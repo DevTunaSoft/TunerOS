@@ -928,7 +928,8 @@ internal object OnDeviceSelfTest {
             )
             // The CI script forces Doze after this marker; the alarm must still arrive.
             report.appendText("SCHEDULED\t" + id + "\n")
-            waitUntil(90_000) { RecordingAlarmReceiver.qaDeliveries.containsKey(id) }
+            // Doze defers alarms to maintenance windows, so allow several minutes.
+            waitUntil(600_000) { RecordingAlarmReceiver.qaDeliveries.containsKey(id) }
         }
         // The check passes on delivery; the idle flag is reported so the gate can require Doze.
         val delivered = RecordingAlarmReceiver.qaDeliveries[id]

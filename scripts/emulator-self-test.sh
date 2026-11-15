@@ -79,9 +79,9 @@ for attempt in $(seq 1 60); do
 done
 adb shell dumpsys deviceidle force-idle || true
 adb shell input keyevent 223 || true
-for attempt in $(seq 1 60); do
+for attempt in $(seq 1 330); do
   adb shell run-as com.devtunasoft.tuneros cat files/tuneros-alarm-report.txt > alarm-report.txt 2>/dev/null || true
-  if grep -Fq "$(printf 'PASS\tqa-alarm-delivery\t')" alarm-report.txt; then
+  if grep -Eq "$(printf '^(PASS|FAIL)\tqa-alarm-delivery\t')" alarm-report.txt; then
     break
   fi
   sleep 2
