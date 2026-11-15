@@ -58,6 +58,9 @@ if [ "${EXTERNAL_STORAGE_CHECK:-false}" = "true" ]; then
       if [ "$ALLOW_WAIT" -ge 5 ]; then break; fi
     fi
   done
+  # Diagnostics for the next attempt: the foreground activity and the UI labels the picker showed (labels only).
+  echo "picker top activity: $(adb shell dumpsys activity activities 2>/dev/null | tr -d '\r' | grep -E 'topResumedActivity' | head -1 | cut -c1-160)"
+  echo "picker labels seen: $(tr '>' '\n' < picker.xml 2>/dev/null | grep -oE ' text="[^"]+"' | sed -E 's/ text="//; s/"$//' | awk 'NF && !seen[$0]++' | head -40 | tr '\n' '|')"
   echo "Folder picker: confirm tapped=$PICK_TAPPED, allow tapped=$ALLOW_TAPPED"
   sleep 3
   adb shell am force-stop com.devtunasoft.tuneros
