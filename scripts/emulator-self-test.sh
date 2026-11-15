@@ -79,6 +79,7 @@ if [ "${EXTERNAL_STORAGE_CHECK:-false}" = "true" ]; then
   PICK_TAPPED=false
   ALLOW_TAPPED=false
   NAVIGATED=false
+  NAV_NAME=""
   ALLOW_WAIT=0
   for attempt in $(seq 1 45); do
     sleep 2
@@ -87,20 +88,28 @@ if [ "${EXTERNAL_STORAGE_CHECK:-false}" = "true" ]; then
     adb pull /sdcard/picker.xml picker.xml >/dev/null 2>&1 || true
     # A failed dump leaves no file to read, so wait for the next attempt.
     if [ ! -s picker.xml ]; then continue; fi
-    # The root of internal storage and the Download folder are refused ("Can't use this folder"), so open a media folder first.
-    if [ "$PICK_TAPPED" = "false" ] && [ "$NAVIGATED" = "false" ]; then
-      NAV_BOUNDS=$(tr '>' '\n' < picker.xml 2>/dev/null | grep -E 'text="(Movies|Music|Pictures)"' | head -1 | grep -oE 'bounds="\[[0-9]+,[0-9]+\]\[[0-9]+,[0-9]+\]"' | head -1 || true)
+    # The storage root and the Download folder are refused ("Can't use this folder"), so never confirm there. Open
+    # Movies, Music or Pictures first, and keep waiting until the list shows one: the list can load after this dump.
+    if [ "$NAVIGATED" = "false" ]; then
+      NAV_LINE=$(tr '>' '\n' < picker.xml 2>/dev/null | grep -E 'text="(Movies|Music|Pictures)"' | head -1 || true)
+      NAV_BOUNDS=$(echo "$NAV_LINE" | grep -oE 'bounds="\[[0-9]+,[0-9]+\]\[[0-9]+,[0-9]+\]"' | head -1 || true)
       if [ -n "$NAV_BOUNDS" ]; then
+        NAV_NAME=$(echo "$NAV_LINE" | grep -oE 'text="(Movies|Music|Pictures)"' | head -1 | sed -E 's/text="//; s/"$//' || true)
         X=$(echo "$NAV_BOUNDS" | sed -E 's/.*\[([0-9]+),([0-9]+)\]\[([0-9]+),([0-9]+)\].*/\1 \3/' | awk '{print int(($1+$2)/2)}')
         Y=$(echo "$NAV_BOUNDS" | sed -E 's/.*\[([0-9]+),([0-9]+)\]\[([0-9]+),([0-9]+)\].*/\2 \4/' | awk '{print int(($1+$2)/2)}')
         adb shell input tap "$X" "$Y"
         NAVIGATED=true
+        echo "Opened the $NAV_NAME folder in the picker"
         sleep 2
-        continue
       fi
+      continue
     fi
     if [ "$PICK_TAPPED" = "false" ]; then
-      PICK_BOUNDS=$(tr '>' '\n' < picker.xml 2>/dev/null | grep -iE 'text="(Use this folder|USE THIS FOLDER|Select|SELECT)"' | head -1 | grep -oE 'bounds="\[[0-9]+,[0-9]+\]\[[0-9]+,[0-9]+\]"' | head -1 || true)
+      # Confirm only inside the folder that was opened; its header reads "Files in <name>".
+      PICK_BOUNDS=""
+      if grep -Fq "text=\"Files in $NAV_NAME\"" picker.xml; then
+        PICK_BOUNDS=$(tr '>' '\n' < picker.xml 2>/dev/null | grep -iE 'text="(Use this folder|USE THIS FOLDER|Select|SELECT)"' | head -1 | grep -oE 'bounds="\[[0-9]+,[0-9]+\]\[[0-9]+,[0-9]+\]"' | head -1 || true)
+      fi
       if [ -n "$PICK_BOUNDS" ]; then
         X=$(echo "$PICK_BOUNDS" | sed -E 's/.*\[([0-9]+),([0-9]+)\]\[([0-9]+),([0-9]+)\].*/\1 \3/' | awk '{print int(($1+$2)/2)}')
         Y=$(echo "$PICK_BOUNDS" | sed -E 's/.*\[([0-9]+),([0-9]+)\]\[([0-9]+),([0-9]+)\].*/\2 \4/' | awk '{print int(($1+$2)/2)}')
@@ -125,6 +134,10 @@ if [ "${EXTERNAL_STORAGE_CHECK:-false}" = "true" ]; then
   echo "picker top activity: $(adb shell dumpsys activity activities 2>/dev/null | tr -d '\r' | grep -E 'topResumedActivity' | head -1 | cut -c1-160)"
   echo "picker labels seen: $(tr '>' '\n' < picker.xml 2>/dev/null | grep -oE ' text="[^"]+"' | sed -E 's/ text="//; s/"$//' | awk 'NF && !seen[$0]++' | head -40 | tr '\n' '|')"
   echo "Folder picker: confirm tapped=$PICK_TAPPED, allow tapped=$ALLOW_TAPPED"
+  if [ "$NAVIGATED" != "true" ]; then
+    echo "The picker never showed Movies, Music or Pictures to open; external-recording-storage cannot be checked"
+    exit 1
+  fi
   # The picker is closed only when this app's activity is top resumed again, which happens once the result has
   # been delivered. Use this folder can open an Allow confirmation, and a tap can miss while a dialog animates,
   # so read the screen again each round and tap the visible confirm button, up to four taps in total.
@@ -138,7 +151,7 @@ if [ "${EXTERNAL_STORAGE_CHECK:-false}" = "true" ]; then
       adb pull /sdcard/picker.xml picker.xml >/dev/null 2>&1 || true
       if [ -s picker.xml ]; then
         CONFIRM_BOUNDS=$(tr '>' '\n' < picker.xml | grep -E 'text="(Allow|ALLOW)"' | head -1 | grep -oE 'bounds="\[[0-9]+,[0-9]+\]\[[0-9]+,[0-9]+\]"' | head -1 || true)
-        if [ -z "$CONFIRM_BOUNDS" ]; then
+        if [ -z "$CONFIRM_BOUNDS" ] && grep -Fq "text=\"Files in $NAV_NAME\"" picker.xml; then
           CONFIRM_BOUNDS=$(tr '>' '\n' < picker.xml | grep -iE 'text="(Use this folder|USE THIS FOLDER)"' | head -1 | grep -oE 'bounds="\[[0-9]+,[0-9]+\]\[[0-9]+,[0-9]+\]"' | head -1 || true)
         fi
         if [ -n "$CONFIRM_BOUNDS" ]; then
