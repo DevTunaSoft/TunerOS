@@ -221,6 +221,7 @@ if [ -n "${PUBLIC_GUIDE_URL:-}" ]; then
     exit 1
   fi
   echo "Public guide import result: $(grep -E '^PASS' public-guide-report.txt)"
+  echo "guide-mem after pass: $(adb shell dumpsys meminfo com.devtunasoft.tuneros 2>/dev/null | tr -d '\r' | grep -E 'TOTAL PSS|Java Heap|Native Heap' | tr -s ' ' | tr '\n' ' ' || echo none)"
 fi
 
 # Isolated launch for remote key input: keys are injected with adb after the app reports it
@@ -243,13 +244,17 @@ done
 adb shell svc power stayon true || true
 adb shell settings put system screen_off_timeout 600000 || true
 FOCUSED=false
+FOCUSED_BY=none
 for attempt in $(seq 1 30); do
-  adb shell dumpsys window windows 2>/dev/null | grep -E 'mCurrentFocus' | grep -q 'com.devtunasoft.tuneros' && { FOCUSED=true; break; }
+  adb shell dumpsys window windows 2>/dev/null > focus-window.txt || true
+  adb shell dumpsys activity activities 2>/dev/null > focus-activity.txt || true
+  if grep -q 'mCurrentFocus.*com.devtunasoft.tuneros' focus-window.txt; then FOCUSED=true; FOCUSED_BY=window; break; fi
+  if grep -Eq '(topResumedActivity|mResumedActivity).*com.devtunasoft.tuneros' focus-activity.txt; then FOCUSED=true; FOCUSED_BY=top-activity; break; fi
   adb shell input keyevent 224 || true
   adb shell wm dismiss-keyguard || true
   sleep 2
 done
-echo "Key test window focused: $FOCUSED"
+echo "Key test window focused: $FOCUSED ($FOCUSED_BY)"
 adb shell input keyevent 22
 sleep 1
 adb shell input keyevent 22
