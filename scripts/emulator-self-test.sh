@@ -125,18 +125,42 @@ if [ "${EXTERNAL_STORAGE_CHECK:-false}" = "true" ]; then
   echo "picker top activity: $(adb shell dumpsys activity activities 2>/dev/null | tr -d '\r' | grep -E 'topResumedActivity' | head -1 | cut -c1-160)"
   echo "picker labels seen: $(tr '>' '\n' < picker.xml 2>/dev/null | grep -oE ' text="[^"]+"' | sed -E 's/ text="//; s/"$//' | awk 'NF && !seen[$0]++' | head -40 | tr '\n' '|')"
   echo "Folder picker: confirm tapped=$PICK_TAPPED, allow tapped=$ALLOW_TAPPED"
-  # Poll a saved dump, not a pipe: under pipefail, grep -q exiting early can make the pipe look like a close.
+  # The picker is closed only when this app's activity is top resumed again, which happens once the result has
+  # been delivered. Use this folder can open an Allow confirmation, and a tap can miss while a dialog animates,
+  # so read the screen again each round and tap the visible confirm button, up to four taps in total.
   PICKER_CLOSED=false
-  for wait_tick in $(seq 1 30); do
+  CONFIRM_TAPS=0
+  for close_check in $(seq 1 25); do
     adb shell dumpsys activity activities > picker-activities.txt 2>/dev/null || true
-    if ! grep -q "documentsui.picker.PickActivity" picker-activities.txt; then PICKER_CLOSED=true; break; fi
-    sleep 1
+    if grep -q 'topResumedActivity=.*com.devtunasoft.tuneros/' picker-activities.txt; then PICKER_CLOSED=true; break; fi
+    if [ "$CONFIRM_TAPS" -lt 4 ]; then
+      adb shell uiautomator dump /sdcard/picker.xml >/dev/null 2>&1 || true
+      adb pull /sdcard/picker.xml picker.xml >/dev/null 2>&1 || true
+      if [ -s picker.xml ]; then
+        CONFIRM_BOUNDS=$(tr '>' '\n' < picker.xml | grep -E 'text="(Allow|ALLOW)"' | head -1 | grep -oE 'bounds="\[[0-9]+,[0-9]+\]\[[0-9]+,[0-9]+\]"' | head -1 || true)
+        if [ -z "$CONFIRM_BOUNDS" ]; then
+          CONFIRM_BOUNDS=$(tr '>' '\n' < picker.xml | grep -iE 'text="(Use this folder|USE THIS FOLDER)"' | head -1 | grep -oE 'bounds="\[[0-9]+,[0-9]+\]\[[0-9]+,[0-9]+\]"' | head -1 || true)
+        fi
+        if [ -n "$CONFIRM_BOUNDS" ]; then
+          X=$(echo "$CONFIRM_BOUNDS" | sed -E 's/.*\[([0-9]+),([0-9]+)\]\[([0-9]+),([0-9]+)\].*/\1 \3/' | awk '{print int(($1+$2)/2)}')
+          Y=$(echo "$CONFIRM_BOUNDS" | sed -E 's/.*\[([0-9]+),([0-9]+)\]\[([0-9]+),([0-9]+)\].*/\2 \4/' | awk '{print int(($1+$2)/2)}')
+          adb shell input tap "$X" "$Y"
+          CONFIRM_TAPS=$((CONFIRM_TAPS + 1))
+          echo "confirm tap $CONFIRM_TAPS sent"
+        fi
+      fi
+    fi
+    sleep 3
   done
   if [ "$PICKER_CLOSED" != "true" ]; then
-    echo "Folder picker still open after 30 s; external-recording-storage cannot be checked"
+    adb shell uiautomator dump /sdcard/picker.xml >/dev/null 2>&1 || true
+    adb pull /sdcard/picker.xml picker.xml >/dev/null 2>&1 || true
+    echo "picker labels after the wait: $(tr '>' '\n' < picker.xml 2>/dev/null | grep -oE ' text="[^"]+"' | sed -E 's/ text="//; s/"$//' | awk 'NF && !seen[$0]++' | head -40 | tr '\n' '|')"
+    echo "picker top activity after the wait: $(adb shell dumpsys activity activities 2>/dev/null | tr -d '\r' | grep -E 'topResumedActivity' | head -1 | cut -c1-160)"
+    echo "Folder picker still open after $CONFIRM_TAPS confirm tap(s); external-recording-storage cannot be checked"
     exit 1
   fi
-  echo "Folder picker closed after ${wait_tick} s of waiting"
+  echo "Folder picker closed after $CONFIRM_TAPS confirm tap(s) and $close_check check(s)"
   sleep 3
   # Stop the picker-launched instance and wait until the process is really gone. Otherwise the next
   # launch is delivered to that instance as a new intent, and no self-test pass starts.
