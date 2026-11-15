@@ -105,7 +105,8 @@ for check in $REQUIRED_EXTERNAL source-recovery-policy offline-m3u-parser offlin
     cat on-device-report.txt
     echo "app files: $(adb shell run-as com.devtunasoft.tuneros ls files 2>/dev/null | tr -d '\r' | tr '\n' ' ' || echo none)"
     echo "app pid: $(adb shell pidof com.devtunasoft.tuneros 2>/dev/null | tr -d '\r' || echo none)"
-    adb logcat -d -t 800 -v brief 2>/dev/null | grep -iE "tuneros|SelfTest|OnDevice|FATAL|AndroidRuntime" | tail -60 || true
+    echo "package: $(adb shell pm list packages 2>/dev/null | tr -d '\r' | grep -i tuneros || echo none)"
+    adb logcat -d -v brief 2>/dev/null | grep -E "FATAL EXCEPTION|AndroidRuntime|Process: com.devtunasoft|SafStorage|RecordingDestination|OnDeviceSelfTest|SecurityException|IllegalStateException|lowmemorykiller.*tuneros|Killing.*tuneros" | tail -120 || true
     exit 1
   fi
 done
