@@ -344,6 +344,25 @@ if [ -n "${PUBLIC_PLAYLIST_URL:-}" ]; then
     sed -E 's#https?://[^[:space:]]*#<url>#g' public-import-report.txt 2>/dev/null || echo "(no report file)"
     exit 1
   fi
+  # Informational: play the first stream of the public playlist. Public streams go up and down,
+  # so this result is reported but does not gate the merge.
+  curl -fsSL --max-time 30 "$PUBLIC_PLAYLIST_URL" -o public-playlist.m3u8 || true
+  PUBLIC_STREAM=$(grep -m1 -E '^https?://' public-playlist.m3u8 2>/dev/null || true)
+  if [ -n "$PUBLIC_STREAM" ]; then
+    adb shell am force-stop com.devtunasoft.tuneros
+    adb shell am start -n com.devtunasoft.tuneros/.MainActivity --es tuneros.debug.playback_url "$PUBLIC_STREAM"
+    for attempt in $(seq 1 60); do
+      adb shell run-as com.devtunasoft.tuneros cat files/tuneros-playback-report.txt > public-stream-report.txt 2>/dev/null || true
+      if grep -Eq '^(PASS|FAIL)[[:space:]]qa-playback-first-frame' public-stream-report.txt; then
+        break
+      fi
+      sleep 2
+    done
+    echo "INFORMATIONAL public stream first-frame result (not gated):"
+    sed -E 's#https?://[^[:space:]]*#<url>#g' public-stream-report.txt 2>/dev/null || echo "(no report file)"
+  else
+    echo "INFORMATIONAL: no http(s) stream found in the public playlist"
+  fi
 fi
 if grep -q '^FAIL[[:space:]]' on-device-report.txt; then
   echo "Unexpected failure in the app's own self-test report"
