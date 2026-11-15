@@ -238,10 +238,15 @@ for attempt in $(seq 1 60); do
   sleep 2
 done
 # Keys must go to the app's window: wait until the app holds focus before injecting them.
+# A timed-out screen or a lock screen takes focus and drops keys, so keep the device awake and
+# unlocked for the whole run. The focus check itself stays strict.
+adb shell svc power stayon true || true
+adb shell settings put system screen_off_timeout 600000 || true
 FOCUSED=false
 for attempt in $(seq 1 30); do
   adb shell dumpsys window windows 2>/dev/null | grep -E 'mCurrentFocus' | grep -q 'com.devtunasoft.tuneros' && { FOCUSED=true; break; }
   adb shell input keyevent 224 || true
+  adb shell wm dismiss-keyguard || true
   sleep 2
 done
 echo "Key test window focused: $FOCUSED"
@@ -262,7 +267,12 @@ done
 if ! grep -Eq "$(printf '^PASS\tqa-remote-key-input\tkeys=4 focusChanged=(true|false)$')" key-report.txt; then
   echo "Remote key input check failed or never completed"
   cat key-report.txt 2>/dev/null || echo "(no report file)"
-  adb shell dumpsys window windows 2>/dev/null | grep -E 'mCurrentFocus|mFocusedApp' | head -4 || true
+  # Snapshot focus, keyguard and power state so a dropped-key failure can be diagnosed from the log.
+  adb shell dumpsys window windows 2>/dev/null > key-window-dump.txt || true
+  echo "window dump lines: $(wc -l < key-window-dump.txt 2>/dev/null || echo 0)"
+  grep -E 'mCurrentFocus|mFocusedApp|isKeyguardShowing|mKeyguard' key-window-dump.txt | head -6 || true
+  adb shell dumpsys activity activities 2>/dev/null | tr -d '\r' | grep -E 'topResumedActivity|mResumedActivity' | head -2 || true
+  adb shell dumpsys power 2>/dev/null | tr -d '\r' | grep -E 'mWakefulness=|Display Power: state=' | head -2 || true
   exit 1
 fi
 # Isolated launch for rotation: the activity must be recreated with its saved state after the
