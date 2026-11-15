@@ -396,6 +396,8 @@ if [ -n "${PUBLIC_GUIDE_URL:-}" ]; then
   (cd ci-import && python3 -m http.server 8766 --bind 0.0.0.0 >guide-server.log 2>&1) &
   GUIDE_HTTP_PID=$!
   sleep 2
+  # Remove any earlier import report so the result can only come from this launch.
+  adb shell run-as com.devtunasoft.tuneros rm -f files/tuneros-import-report.txt || true
   adb shell am force-stop com.devtunasoft.tuneros
   adb shell am start -n com.devtunasoft.tuneros/.MainActivity \
     --es tuneros.debug.import_playlist_url http://10.0.2.2:8766/playlist.m3u \
