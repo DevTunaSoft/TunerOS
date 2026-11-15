@@ -390,7 +390,9 @@ class MainActivity : Activity() {
         player.setMediaItem(MediaItem.fromUri(url))
         player.prepare()
         player.playWhenReady = true
-        root.postDelayed({ finish("FAIL", "no first video frame within 60 seconds") }, 60_000)
+        android.os.Handler(mainLooper).postDelayed(
+            { finish("FAIL", "no first video frame within 60 seconds") }, 60_000,
+        )
     }
 
     private fun isAlarmLaunch(): Boolean =
