@@ -1027,7 +1027,7 @@ class MainActivity : Activity() {
         val suggestions = GuideDoctor.suggestions(
             channel, loadedGuide.channelNames, loadedGuide::hasSchedule, limit = 8,
         )
-        val hasSaved = guideMappings.containsKey(channel.id)
+        val hasSaved = guideMappings.containsKey(channel.storageKey)
         if (suggestions.isEmpty() && !hasSaved) {
             showStatus("No guide channel with a schedule matches ${channel.name}.")
             return
@@ -1048,14 +1048,14 @@ class MainActivity : Activity() {
     }
 
     private fun setGuideMapping(channel: Channel, guideId: String) {
-        guideMappings = guideMappings + (channel.id to guideId)
+        guideMappings = guideMappings + (channel.storageKey to guideId)
         val saved = guideMappingStore.save(guideMappings)
         showStatus("Mapped ${channel.name} to its guide channel" + (if (saved) "" else "; not saved"))
         renderChannels()
     }
 
     private fun clearGuideMapping(channel: Channel) {
-        guideMappings = guideMappings - channel.id
+        guideMappings = guideMappings - channel.storageKey
         val saved = guideMappingStore.save(guideMappings)
         showStatus("Removed the saved guide mapping for ${channel.name}" + (if (saved) "" else "; not saved"))
         renderChannels()

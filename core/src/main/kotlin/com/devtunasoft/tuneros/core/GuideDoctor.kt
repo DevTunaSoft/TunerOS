@@ -26,7 +26,7 @@ object GuideDoctor {
     fun applyMappings(channels: List<Channel>, mappings: Map<String, String>): List<Channel> {
         if (mappings.isEmpty()) return channels
         return channels.map { channel ->
-            val mapped = mappings[channel.id]
+            val mapped = mappings[channel.storageKey]
             if (mapped == null || mapped == channel.guideId) channel else channel.copy(guideId = mapped)
         }
     }

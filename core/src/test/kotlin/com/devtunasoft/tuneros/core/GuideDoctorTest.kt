@@ -17,6 +17,12 @@ class GuideDoctorTest {
         assertSame(channels, GuideDoctor.applyMappings(channels, emptyMap()))
     }
 
+    @Test fun aMappingFollowsTheStableKeyNotTheChannelId() {
+        val rotated = Channel("new-url-id", "Alpha", "https://example.org/a?token=new", stableKey = "k-alpha")
+        val result = GuideDoctor.applyMappings(listOf(rotated), mapOf("k-alpha" to "g-alpha"))
+        assertEquals("g-alpha", result.single().guideId)
+    }
+
     @Test fun aMappingChangesOnlyTheMappedChannel() {
         val mapped = Channel("a", "Alpha", "https://example.org/a")
         val untouched = Channel("b", "Beta", "https://example.org/b", guideId = "g-beta")
