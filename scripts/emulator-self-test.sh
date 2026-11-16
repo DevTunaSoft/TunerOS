@@ -758,6 +758,94 @@ for HLS_CASE in aes fmp4 dash dash-timeline; do
 done
 kill "$HLS_HTTP_PID" 2>/dev/null || true
 
+# HTTP fault telemetry for recording. The real service records a playlist whose second segment fails in one of three
+# ways: an HTTP 503, an HTTP 404, or a body cut short after half its declared length. Each recording must stop as PARTIAL
+# with exactly the bytes written before the fault: the first segment, and for a body cut short, the bytes that arrived.
+# No later segment may be written, so no gap appears. The runner computes each expected file from the served segments and
+# compares its size and SHA-256 with the report.
+rm -rf ci-faults && mkdir -p ci-faults
+cp ci-hls/plain/index.m3u8 ci-faults/index.m3u8
+cp ci-hls/plain/seg*.ts ci-faults/
+cat > ci-faults/fault_server.py <<'PY'
+import http.server
+import os
+import sys
+
+ROOT = sys.argv[1]
+PORT = int(sys.argv[2])
+CASES = ("f503", "f404", "ftrunc")
+FAULT_SEGMENT = "seg1.ts"  # the second segment fails in every case
+
+
+class Handler(http.server.BaseHTTPRequestHandler):
+    def do_GET(self):
+        parts = self.path.split("?", 1)[0].strip("/").split("/")
+        if len(parts) != 2:
+            return self.send_error(404)
+        case, name = parts
+        allowed = name == "index.m3u8" or (name.startswith("seg") and name.endswith(".ts"))
+        path = os.path.join(ROOT, name)
+        if case not in CASES or not allowed or not os.path.isfile(path):
+            return self.send_error(404)
+        if name == FAULT_SEGMENT and case == "f503":
+            return self.send_error(503)
+        if name == FAULT_SEGMENT and case == "f404":
+            return self.send_error(404)
+        with open(path, "rb") as f:
+            body = f.read()
+        self.send_response(200)
+        self.send_header("Content-Type", "application/vnd.apple.mpegurl" if name.endswith(".m3u8") else "video/mp2t")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        if name == FAULT_SEGMENT and case == "ftrunc":
+            # The declared length is the full body; only half is sent before the connection closes.
+            self.wfile.write(body[: len(body) // 2])
+            self.wfile.flush()
+            return
+        self.wfile.write(body)
+
+    def log_message(self, format, *args):
+        sys.stderr.write("fault-server " + (format % args) + "\n")
+
+
+http.server.ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()
+PY
+python3 ci-faults/fault_server.py ci-faults 8774 >fault-server.log 2>&1 &
+FAULT_HTTP_PID=$!
+sleep 2
+for FAULT_CASE in f503 f404 ftrunc; do
+  case "$FAULT_CASE" in
+    ftrunc)
+      { cat ci-faults/seg0.ts; head -c "$(( $(stat -c %s ci-faults/seg1.ts) / 2 ))" ci-faults/seg1.ts; } > "ci-faults/expected-${FAULT_CASE}.bin"
+      ;;
+    *)
+      cat ci-faults/seg0.ts > "ci-faults/expected-${FAULT_CASE}.bin"
+      ;;
+  esac
+  FAULT_EXPECT=$(stat -c %s "ci-faults/expected-${FAULT_CASE}.bin")
+  FAULT_EXPECT_SHA=$(sha256sum "ci-faults/expected-${FAULT_CASE}.bin" | cut -d' ' -f1)
+  adb shell run-as com.devtunasoft.tuneros rm -f files/tuneros-recording-report.txt 2>/dev/null || true
+  adb shell am force-stop com.devtunasoft.tuneros
+  adb shell am start -n com.devtunasoft.tuneros/.MainActivity --es tuneros.debug.record_url "http://10.0.2.2:8774/${FAULT_CASE}/index.m3u8"
+  for attempt in $(seq 1 90); do
+    adb shell run-as com.devtunasoft.tuneros cat files/tuneros-recording-report.txt > "fault-${FAULT_CASE}-report.txt" 2>/dev/null || true
+    if grep -Eq '^(PASS|FAIL)[[:space:]]qa-recording-partial-eof' "fault-${FAULT_CASE}-report.txt"; then
+      break
+    fi
+    sleep 2
+  done
+  if ! grep -Eq "^PASS[[:space:]]qa-recording-partial-eof.* bytes=${FAULT_EXPECT}\$" "fault-${FAULT_CASE}-report.txt" \
+     || ! grep -Fq "storage=file sha256=${FAULT_EXPECT_SHA} disk=${FAULT_EXPECT}" "fault-${FAULT_CASE}-report.txt"; then
+    echo "${FAULT_CASE} recording did not keep exactly the bytes written before the fault (expected ${FAULT_EXPECT} bytes, sha256 ${FAULT_EXPECT_SHA})"
+    cat "fault-${FAULT_CASE}-report.txt" 2>/dev/null || echo "(no report file)"
+    tail -20 fault-server.log 2>/dev/null || true
+    kill "$FAULT_HTTP_PID" 2>/dev/null || true
+    exit 1
+  fi
+  echo "${FAULT_CASE} recording stopped as PARTIAL with the ${FAULT_EXPECT} bytes written before the fault"
+done
+kill "$FAULT_HTTP_PID" 2>/dev/null || true
+
 # Refused start on the device: the recorder must enter the foreground before it refuses a request. Otherwise Android
 # crashes the calling app, and the report below is never written.
 adb shell run-as com.devtunasoft.tuneros rm -f files/tuneros-invalid-start-report.txt 2>/dev/null || true
