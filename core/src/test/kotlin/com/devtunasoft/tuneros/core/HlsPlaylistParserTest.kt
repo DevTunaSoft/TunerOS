@@ -145,7 +145,7 @@ variant.m3u8
         }
     }
 
-    @Test fun mapByteRangeIsRecordedSoAnEngineCanFailClosed() {
+    @Test fun mapByteRangeIsRecordedWithItsLengthAndOffset() {
         val text = """#EXTM3U
 #EXT-X-TARGETDURATION:4
 #EXT-X-MAP:URI="init.mp4",BYTERANGE="720@0"
@@ -155,7 +155,7 @@ variant.m3u8
 """
         val segment = (HlsPlaylistParserCore.parse(text.reader()) as HlsMediaPlaylist).segments.single()
         assertEquals("init.mp4", segment.initializationMapUri)
-        assertTrue(segment.initializationMapHasByteRange)
+        assertEquals(HlsByteRange(length = 720, offset = 0), segment.initializationMapByteRange)
         val plain = """#EXTM3U
 #EXT-X-TARGETDURATION:4
 #EXT-X-MAP:URI="init.mp4"
@@ -163,7 +163,19 @@ variant.m3u8
 1.m4s
 #EXT-X-ENDLIST
 """
-        assertEquals(false, (HlsPlaylistParserCore.parse(plain.reader()) as HlsMediaPlaylist).segments.single().initializationMapHasByteRange)
+        val plainSegment = (HlsPlaylistParserCore.parse(plain.reader()) as HlsMediaPlaylist).segments.single()
+        assertEquals(null, plainSegment.initializationMapByteRange)
+    }
+
+    @Test fun mapByteRangeWithoutAnOffsetIsRejected() {
+        val text = """#EXTM3U
+#EXT-X-TARGETDURATION:4
+#EXT-X-MAP:URI="init.mp4",BYTERANGE="720"
+#EXTINF:4,
+1.m4s
+#EXT-X-ENDLIST
+"""
+        assertFailsWith<IllegalArgumentException> { HlsPlaylistParserCore.parse(text.reader()) }
     }
     @Test fun aes128IvAndKeyFormatArePreservedOnEachSegment() {
         val text = """#EXTM3U

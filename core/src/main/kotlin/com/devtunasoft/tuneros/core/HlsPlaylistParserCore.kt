@@ -32,7 +32,7 @@ data class HlsSegment(
     val keyMethod: String,
     val keyUri: String?,
     val initializationMapUri: String?,
-    val initializationMapHasByteRange: Boolean = false,
+    val initializationMapByteRange: HlsByteRange? = null,
     val keyIv: String? = null,
     val keyFormat: String? = null,
 )
@@ -86,7 +86,7 @@ object HlsPlaylistParserCore {
         var currentKeyIv: String? = null
         var currentKeyFormat: String? = null
         var currentMapUri: String? = null
-        var currentMapHasByteRange = false
+        var currentMapByteRange: HlsByteRange? = null
         var pendingVariantBandwidth: Long? = null
         var pendingVariantAudioGroup: String? = null
         var pendingVariantVideoGroup: String? = null
@@ -184,7 +184,13 @@ object HlsPlaylistParserCore {
                     require(!sawMasterTag) { "Mixed HLS master and media playlist" }
                     currentMapUri = attribute(line, "URI")
                         ?: throw IllegalArgumentException("EXT-X-MAP missing URI")
-                    currentMapHasByteRange = attribute(line, "BYTERANGE") != null
+                    currentMapByteRange = attribute(line, "BYTERANGE")?.let { value ->
+                        val range = parseRange(value)
+                        HlsByteRange(
+                            range.length,
+                            range.offset ?: throw IllegalArgumentException("EXT-X-MAP byte range needs an offset"),
+                        )
+                    }
                     sawMediaTag = true
                 }
                 line.equals("#EXT-X-ENDLIST", ignoreCase = true) -> {
@@ -250,7 +256,7 @@ object HlsPlaylistParserCore {
                             keyMethod = currentKeyMethod,
                             keyUri = currentKeyUri,
                             initializationMapUri = currentMapUri,
-                            initializationMapHasByteRange = currentMapHasByteRange,
+                            initializationMapByteRange = currentMapByteRange,
                             keyIv = currentKeyIv,
                             keyFormat = currentKeyFormat,
                         )
