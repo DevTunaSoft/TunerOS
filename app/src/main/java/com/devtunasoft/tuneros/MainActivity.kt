@@ -688,11 +688,11 @@ class MainActivity : Activity() {
                     timeshiftBack()
                     qaAwait(report, "qa-timeshift-back", 15_000L, {
                         (player?.currentPosition ?: Long.MAX_VALUE) < before - 5_000L
-                    }) {
+                    }, { playerDiagnostics() }) {
                         timeshiftLive()
                         qaAwait(report, "qa-timeshift-live", 15_000L, {
                             (player?.currentLiveOffset ?: Long.MAX_VALUE) in 0L..8_000L
-                        }) {
+                        }, { playerDiagnostics() }) {
                             toggleTimeshift()
                             qaAwait(report, "qa-timeshift-off", 15_000L, { isLiveHttp(player) }) {
                                 qaAwait(report, "qa-timeshift-cleanup", 20_000L, {
@@ -712,6 +712,7 @@ class MainActivity : Activity() {
         checkId: String,
         timeoutMillis: Long,
         condition: () -> Boolean,
+        detail: () -> String = { "" },
         then: () -> Unit,
     ) {
         val deadline = System.currentTimeMillis() + timeoutMillis
@@ -722,12 +723,17 @@ class MainActivity : Activity() {
                     then()
                 }
                 System.currentTimeMillis() > deadline ->
-                    report.appendText("FAIL\t$checkId\tnot met within ${timeoutMillis / 1000} seconds\n")
+                    report.appendText("FAIL\t$checkId\tnot met within ${timeoutMillis / 1000} seconds; ${detail()}\n")
                 else -> uiHandler.postDelayed({ poll() }, 500L)
             }
         }
         poll()
     }
+
+    /** The player's live state, written when a timeshift control check does not pass. */
+    private fun playerDiagnostics(): String =
+        "live=${player?.isCurrentMediaItemLive} offset=${player?.currentLiveOffset} position=${player?.currentPosition} " +
+            "state=${player?.playbackState} playing=${player?.isPlaying} ring=${isShowingRing(player)}"
 
     /** Debug-only: an http(s) URL for the timeshift check in an isolated CI launch. Never set for users. */
     private fun qaTimeshiftUrl(): String? =
