@@ -43,6 +43,7 @@ import androidx.media3.ui.PlayerView
 import com.devtunasoft.tuneros.core.Channel
 import com.devtunasoft.tuneros.core.ChannelVisibility
 import com.devtunasoft.tuneros.core.FavoriteChannels
+import com.devtunasoft.tuneros.core.GuideDoctor
 import com.devtunasoft.tuneros.core.GuideParser
 import com.devtunasoft.tuneros.core.GuideSnapshot
 import com.devtunasoft.tuneros.core.GuideProgram
@@ -116,6 +117,14 @@ class MainActivity : Activity() {
     private var favorites: Set<String> = emptySet()
     private lateinit var favoriteStore: FavoriteChannelStore
     private lateinit var favoritesOnly: CheckBox
+    // Guide Doctor: the user's channel-to-guide mappings, applied to the channel list before filtering.
+    private var guideMappings: Map<String, String> = emptyMap()
+    private lateinit var guideMappingStore: GuideMappingStore
+    private lateinit var guideDoctorButton: Button
+    private var mappedSource: List<Channel>? = null
+    private var mappedFor: Map<String, String>? = null
+    private var mappedChannels: List<Channel> = emptyList()
+    private val guideDoctorListLimit = 300
     private var player: ExoPlayer? = null
     // Reuse a single decoder for channels with identical provider request headers.
     private var playerHeaders: Map<String, String>? = null
@@ -259,6 +268,10 @@ class MainActivity : Activity() {
             }
         }
         root.addView(favoritesOnly)
+        guideMappingStore = GuideMappingStore(this)
+        guideMappings = guideMappingStore.load()
+        guideDoctorButton = button("Guide Doctor") { openGuideDoctor() }
+        root.addView(guideDoctorButton)
         playerView = PlayerView(this).apply {
             useController = true
             setBackgroundColor(Color.BLACK)
@@ -1008,21 +1021,97 @@ class MainActivity : Activity() {
         renderChannels()
     }
 
+    /** Channels with the user's guide mappings applied. Rebuilt only when the playlist or the mappings change. */
+    private fun effectiveChannels(): List<Channel> {
+        if (mappedSource !== channels || mappedFor !== guideMappings) {
+            mappedChannels = GuideDoctor.applyMappings(channels, guideMappings)
+            mappedSource = channels
+            mappedFor = guideMappings
+        }
+        return mappedChannels
+    }
+
+    /** Guide Doctor, step 1: the channels that have no schedule. Choosing one opens its guide suggestions. */
+    private fun openGuideDoctor() {
+        val loadedGuide = guide
+        if (loadedGuide == null) {
+            showStatus("Load an XMLTV guide first. Guide Doctor compares channels with the guide.")
+            return
+        }
+        val missing = GuideDoctor.channelsWithoutSchedule(effectiveChannels(), loadedGuide)
+        if (missing.isEmpty()) {
+            showStatus("Every channel already has a schedule.")
+            return
+        }
+        val shown = missing.take(guideDoctorListLimit)
+        val title = if (missing.size > shown.size) {
+            "Channels without a schedule (${missing.size}; first ${shown.size})"
+        } else {
+            "Channels without a schedule (${missing.size})"
+        }
+        AlertDialog.Builder(this)
+            .setTitle(title)
+            .setItems(shown.map { it.name }.toTypedArray()) { _, which -> openGuideSuggestions(shown[which]) }
+            .setNegativeButton("Close", null)
+            .show()
+    }
+
+    /** Guide Doctor, step 2: guide channels that have a schedule and match the name, or removal of a saved mapping. */
+    private fun openGuideSuggestions(channel: Channel) {
+        val loadedGuide = guide ?: return
+        val suggestions = GuideDoctor.suggestions(
+            channel, loadedGuide.channelNames, loadedGuide::hasSchedule, limit = 8,
+        )
+        val hasSaved = guideMappings.containsKey(channel.storageKey)
+        if (suggestions.isEmpty() && !hasSaved) {
+            showStatus("No guide channel with a schedule matches ${channel.name}.")
+            return
+        }
+        val removeLabel = if (hasSaved) listOf("Remove the saved guide mapping") else emptyList<String>()
+        val labels = suggestions.map { it.displayName } + removeLabel
+        AlertDialog.Builder(this)
+            .setTitle("Guide for ${channel.name}")
+            .setItems(labels.toTypedArray()) { _, which ->
+                if (which < suggestions.size) {
+                    setGuideMapping(channel, suggestions[which].guideId)
+                } else {
+                    clearGuideMapping(channel)
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun setGuideMapping(channel: Channel, guideId: String) {
+        guideMappings = guideMappings + (channel.storageKey to guideId)
+        val saved = guideMappingStore.save(guideMappings)
+        showStatus("Mapped ${channel.name} to its guide channel" + (if (saved) "" else "; not saved"))
+        renderChannels()
+    }
+
+    private fun clearGuideMapping(channel: Channel) {
+        guideMappings = guideMappings - channel.storageKey
+        val saved = guideMappingStore.save(guideMappings)
+        showStatus("Removed the saved guide mapping for ${channel.name}" + (if (saved) "" else "; not saved"))
+        renderChannels()
+    }
+
     private fun renderChannels() {
         if (!::channelAdapter.isInitialized || !::search.isInitialized) return
         val query = search.text.toString().trim()
         val hide = hideNoGuide.isChecked
         val favoritesOnlyNow = favoritesOnly.isChecked
-        if (filteredSource !== channels || filteredGuide !== guide ||
+        val source = effectiveChannels()
+        if (filteredSource !== source || filteredGuide !== guide ||
             filteredQuery != query || filteredHideNoGuide != hide ||
             filteredFavorites !== favorites || filteredFavoritesOnly != favoritesOnlyNow
         ) {
             filteredChannels = FavoriteChannels.filter(
-                ChannelVisibility.filter(channels, guide, query, hide),
+                ChannelVisibility.filter(source, guide, query, hide),
                 favorites,
                 favoritesOnlyNow,
             )
-            filteredSource = channels
+            filteredSource = source
             filteredGuide = guide
             filteredQuery = query
             filteredHideNoGuide = hide
