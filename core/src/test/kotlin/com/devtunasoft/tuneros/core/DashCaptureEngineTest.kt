@@ -617,4 +617,74 @@ ${(first..last).joinToString("\n") { "          <SegmentURL media=\"chunk-v1-%05
         assertEquals(listOf(9, 9, 3), out.toByteArray().map { it.toInt() })
         assertEquals(listOf(initUrl, chunk(3)), source.copied, "the listing read at 1002 is not fetched")
     }
+
+    /** Irregular segments addressed by start time. Each start serves one byte, in the order the starts are listed. */
+    private fun irregularUrl(start: Long): String = "https://example.test/dash/chunk-$start.m4s"
+
+    private val irregularSegments: Map<String, ByteArray> = mapOf(initUrl to byteArrayOf(9, 9)) +
+        listOf(0L, 2_000L, 5_000L, 8_000L, 10_000L, 13_000L).mapIndexed { index, start ->
+            irregularUrl(start) to byteArrayOf((index + 1).toByte())
+        }
+
+    /** A dynamic manifest whose SegmentTimeline is [timeline], addressed by start time. */
+    private fun liveTimeline(timeline: String): String = mpd(type = "dynamic", availabilityStart = liveStart, body = timelineSet(timeline))
+
+    @Test fun liveIrregularTimelineFollowsEachSegmentByItsStartTime() {
+        // Each window lists the segments the recorder needs. A segment is fetched once its end time has passed, so the
+        // recorder waits for segment 1 (complete at 1002) before fetching it, and so on through segment 4 (complete at 1010).
+        val clock = FakeClock(1_000)
+        val source = ScheduledManifestSource(
+            clock,
+            listOf(
+                1_000L to liveTimeline("""<S t="0" d="2000"/><S d="3000"/><S d="3000"/>"""),
+                1_002L to liveTimeline("""<S t="0" d="2000"/><S d="3000"/><S d="3000"/><S d="2000"/>"""),
+                1_004L to liveTimeline("""<S t="2000" d="3000"/><S d="3000"/><S d="2000"/>"""),
+                1_006L to liveTimeline("""<S t="2000" d="3000"/><S d="3000"/><S d="2000"/><S d="3000"/>"""),
+                1_008L to liveTimeline("""<S t="5000" d="3000"/><S d="2000"/><S d="3000"/>"""),
+                1_010L to liveTimeline("""<S t="8000" d="2000"/><S d="3000"/><S d="2000"/>"""),
+            ),
+            manifestUrl, irregularSegments,
+        )
+        val out = ByteArrayOutputStream()
+        val result = record(source, out, end = 1_012, clock = clock)
+        assertEquals(DashCaptureEngine.StopReason.DEADLINE, result.stopReason)
+        assertEquals(listOf(9, 9, 1, 2, 3, 4), out.toByteArray().map { it.toInt() })
+        assertEquals(listOf(initUrl, irregularUrl(0), irregularUrl(2_000), irregularUrl(5_000), irregularUrl(8_000)), source.copied)
+    }
+
+    @Test fun aLiveTimelineThatNoLongerContinuesTheRecordedSegmentsStopsWithTheBytesKept() {
+        // After segment 1 is fetched, the next listing re-partitions the timeline: a segment at 1000 runs past 2000, so no
+        // listed segment starts where the recorder expects one.
+        val clock = FakeClock(1_000)
+        val source = ScheduledManifestSource(
+            clock,
+            listOf(
+                1_000L to liveTimeline("""<S t="0" d="2000"/><S d="3000"/><S d="3000"/>"""),
+                1_004L to liveTimeline("""<S t="1000" d="2000"/><S d="2000"/>"""),
+            ),
+            manifestUrl, irregularSegments,
+        )
+        val out = ByteArrayOutputStream()
+        val result = record(source, out, end = 1_100, clock = clock)
+        assertEquals(DashCaptureEngine.StopReason.UNSUPPORTED, result.stopReason)
+        assertEquals("DASH live timeline does not continue the recorded segments", result.detail)
+        assertEquals(listOf(9, 9, 1), out.toByteArray().map { it.toInt() })
+        assertEquals(listOf(initUrl, irregularUrl(0)), source.copied)
+    }
+
+    @Test fun staticIrregularTimelineWritesEverySegmentInOrderAddressedByTime() {
+        val byTime = mapOf(
+            initUrl to byteArrayOf(9, 9),
+            irregularUrl(0) to byteArrayOf(1),
+            irregularUrl(3_000) to byteArrayOf(2),
+            irregularUrl(5_000) to byteArrayOf(3),
+            irregularUrl(9_000) to byteArrayOf(4),
+        )
+        val source = FakeDashSource(mpd(body = timelineSet("""<S t="0" d="3000"/><S d="2000"/><S d="4000" r="1"/>""")), byTime, manifestUrl)
+        val out = ByteArrayOutputStream()
+        val result = record(source, out)
+        assertEquals(DashCaptureEngine.StopReason.END_LIST, result.stopReason)
+        assertEquals(listOf(9, 9, 1, 2, 3, 4), out.toByteArray().map { it.toInt() })
+        assertEquals(listOf(initUrl, irregularUrl(0), irregularUrl(3_000), irregularUrl(5_000), irregularUrl(9_000)), source.copied)
+    }
 }

@@ -140,7 +140,8 @@ class DashCaptureEngine {
      * fetched, starting at the live edge, and the manifest is then read again at its minimum update period. The
      * recording stops when the listing moves past the next segment, when it stops advancing or goes unanswered for the
      * stall limit, when the representation changes, when a listed segment stays unpublished through the grace window, or
-     * at the scheduled stop.
+     * at the scheduled stop. A timed listing (a live timeline) starts at its newest complete segment and fetches each
+     * segment once it is complete.
      */
     private fun recordListedLive(
         initialUrl: String,
@@ -170,7 +171,7 @@ class DashCaptureEngine {
             val listed = plan.listedSegments ?: return Result(totalBytes, StopReason.UNSUPPORTED, LIVE_LISTING_MISSING)
             val startId = nextId
             var index = if (startId == null) {
-                listed.lastIndex
+                if (plan.listedTimed) lastCompletedIndex(plan, listed, nowEpochSeconds()) else listed.lastIndex
             } else {
                 if (listed.first().id > startId) return Result(totalBytes, StopReason.UNSUPPORTED, LIVE_FELL_BEHIND)
                 listed.indexOfFirst { it.id >= startId }
@@ -179,6 +180,12 @@ class DashCaptureEngine {
                 if (cancelled()) return Result(totalBytes, StopReason.CANCELLED)
                 if (nowEpochSeconds() >= endEpochSeconds) return Result(totalBytes, StopReason.DEADLINE)
                 val entry = listed[index]
+                // Listed segments follow one another: the next one must start where the last one ended.
+                if (nextId != null && entry.id != nextId) {
+                    return Result(totalBytes, StopReason.UNSUPPORTED, LIVE_TIMELINE_MISALIGNED)
+                }
+                // A timed segment is fetched once it is complete. The listing is read again until then.
+                if (plan.listedTimed && listedCompleteAt(plan, entry) > nowEpochSeconds().toDouble()) break
                 val request = listedRequest(base, entry)
                 if (request.url.isEmpty()) return Result(totalBytes, StopReason.UNSUPPORTED, UNSUPPORTED_RESOURCE)
                 val before = totalBytes
@@ -333,6 +340,21 @@ class DashCaptureEngine {
         return Request(resolveOrNull(base, expanded) ?: "", null)
     }
 
+    /** A timed listed segment is complete at availabilityStart plus its end time, on the presentation clock. */
+    private fun listedCompleteAt(plan: DashPlan, entry: DashListedSegment): Double {
+        // Only a live presentation lists timed segments, so its timing is always live.
+        val timing = plan.timing as DashTiming.Live
+        return timing.availabilityStartEpochSeconds +
+            (entry.endId - plan.presentationTimeOffsetTicks).toDouble() / plan.timescale.toDouble()
+    }
+
+    /** The last listed segment that is complete at [nowEpochSeconds], or -1 when none is. */
+    private fun lastCompletedIndex(plan: DashPlan, listed: List<DashListedSegment>, nowEpochSeconds: Long): Int {
+        var index = listed.lastIndex
+        while (index >= 0 && listedCompleteAt(plan, listed[index]) > nowEpochSeconds.toDouble()) index--
+        return index
+    }
+
     /** How often a listed live manifest is read again, within bounds. */
     private fun refreshMillisOf(plan: DashPlan): Long {
         val seconds = (plan.timing as? DashTiming.Live)?.minimumUpdatePeriodSeconds
@@ -409,6 +431,7 @@ class DashCaptureEngine {
         const val LIVE_FELL_BEHIND = "DASH live listing moved past the next segment"
         const val LIVE_STALLED = "DASH live listing stopped advancing"
         const val LIVE_MANIFEST_UNAVAILABLE = "DASH live manifest could not be read"
+        const val LIVE_TIMELINE_MISALIGNED = "DASH live timeline does not continue the recorded segments"
         const val LIVE_CHANGED = "DASH live manifest changed during recording"
     }
 }
