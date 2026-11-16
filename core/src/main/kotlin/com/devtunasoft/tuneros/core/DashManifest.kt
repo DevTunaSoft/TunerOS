@@ -10,6 +10,7 @@ import org.xml.sax.InputSource
 
 /** What a DASH recording needs from a manifest. Only the fields the recorder reads. */
 data class DashPlan(
+    /** The manifest's own BaseURL, resolved against the manifest address. */
     val baseUrl: String?,
     val representationId: String,
     val bandwidth: Long,
@@ -25,10 +26,21 @@ data class DashPlan(
     /** Static presentations only: the number of media segments. Null for live, which the clock ends. */
     val segmentCount: Long?,
     val timing: DashTiming,
+    /** The representation's own BaseURL, resolved after [baseUrl]. */
+    val representationBaseUrl: String? = null,
+    /** SegmentList addressing: the initialization, and the listed segments in order. Null for a SegmentTemplate. */
+    val listedInitialization: DashListedInitialization? = null,
+    val listedSegments: List<DashListedSegment>? = null,
 ) {
     val segmentDurationSeconds: Double
         get() = segmentDurationTicks.toDouble() / timescale.toDouble()
 }
+
+/** A SegmentList's initialization: a source (default the base URL) and an optional byte range. */
+data class DashListedInitialization(val source: String?, val range: HlsByteRange?)
+
+/** One SegmentList entry: a media URL (default the base URL) and an optional byte range. */
+data class DashListedSegment(val media: String?, val range: HlsByteRange?)
 
 /** How segment numbers relate to time. */
 sealed class DashTiming {
@@ -51,19 +63,21 @@ sealed class DashPlanOutcome {
 
 /**
  * Bounded DASH planner for static and live manifests. It accepts one period with one video track, muxed or
- * video-only, whose representation uses a SegmentTemplate addressed by `$Number$`, or by `$Time$` when a
- * SegmentTimeline gives each segment its start. A timeline must be regular: its entries share one duration and
- * follow one another. A static manifest carries a presentation duration or a timeline, and the recorder counts its
- * segments from it. A live manifest carries an availabilityStartTime with an offset, and the recorder follows that
- * clock. It refuses everything else with a fixed reason: separate audio or text renditions, protection, irregular
- * timelines, segment lists and bases, DTDs and unknown template tokens. No manifest text, URL or exception message
- * is kept.
+ * video-only. Its representation is addressed by a SegmentTemplate, with `$Number$` or, with a SegmentTimeline,
+ * `$Time$`; or by a static SegmentList of URLs and byte ranges. A timeline must be regular: its entries share one
+ * duration and follow one another. A static manifest carries a presentation duration or a timeline or list, and the
+ * recorder counts its segments from it. A live manifest carries an availabilityStartTime with an offset, and the
+ * recorder follows that clock; a live SegmentList needs a manifest refresh and is refused. It refuses everything else
+ * with a fixed reason: separate audio or text renditions, protection, SegmentBase, irregular timelines, DTDs and
+ * unknown template tokens. No manifest text, URL or exception message is kept.
  */
 object DashManifest {
     const val MAX_MANIFEST_CHARS = 1_000_000
     private const val MAX_TEMPLATE_CHARS = 512
     private const val MAX_TIMELINE_ENTRIES = 1_000
     private const val MAX_TIMELINE_TICKS = 1_000_000_000_000L
+    private const val MAX_LIST_SEGMENTS = 10_000
+    private const val MAX_RANGE_BYTE = 1_000_000_000_000_000L
     private const val MAX_SEGMENTS = 100_000L
 
     /** Counts whole segments, so a duration a few milliseconds past a segment boundary adds no segment. */
@@ -83,10 +97,16 @@ object DashManifest {
         for (name in UNSUPPORTED_ELEMENTS) {
             if (root.getElementsByTagName(name).length > 0) return refuse("DASH $name is not supported")
         }
-        val topBaseUrls = root.childElements("BaseURL")
-        if (topBaseUrls.size > 1 || root.getElementsByTagName("BaseURL").length != topBaseUrls.size) {
-            return refuse("Nested or repeated DASH BaseURL is not supported")
+        // A BaseURL may sit on the MPD or on a Representation, and at most once on each.
+        val baseUrls = root.getElementsByTagName("BaseURL")
+        for (index in 0 until baseUrls.length) {
+            val parent = baseUrls.item(index).parentNode.nodeName
+            if (parent != "MPD" && parent != "Representation") {
+                return refuse("Nested or repeated DASH BaseURL is not supported")
+            }
         }
+        val topBaseUrls = root.childElements("BaseURL")
+        if (topBaseUrls.size > 1) return refuse("Nested or repeated DASH BaseURL is not supported")
         val timing: DashTiming = if (live) {
             val start = root.attr("availabilityStartTime")?.let { epochSeconds(it) }
                 ?: return refuse("Live DASH manifest needs a valid availabilityStartTime")
@@ -114,21 +134,32 @@ object DashManifest {
 
         val set = videoSets[0]
         val setTemplate = set.childElements("SegmentTemplate").firstOrNull()
+        val setList = set.childElements("SegmentList").firstOrNull()
         var chosen: Element? = null
-        var chosenTemplate: Element? = null
+        var chosenAddressing: Element? = null
         var chosenBandwidth = -1L
         for (representation in set.childElements("Representation")) {
-            val template = representation.childElements("SegmentTemplate").firstOrNull() ?: setTemplate ?: continue
+            // A representation's own addressing wins over the AdaptationSet's, and a template over a list.
+            val addressing = representation.childElements("SegmentTemplate").firstOrNull()
+                ?: representation.childElements("SegmentList").firstOrNull()
+                ?: setTemplate ?: setList ?: continue
             val bandwidth = representation.attr("bandwidth")?.toLongOrNull() ?: 0L
             if (bandwidth > chosenBandwidth) {
                 chosen = representation
-                chosenTemplate = template
+                chosenAddressing = addressing
                 chosenBandwidth = bandwidth
             }
         }
-        val representation = chosen ?: return refuse("No DASH representation has a SegmentTemplate")
-        val template = chosenTemplate ?: return refuse("No DASH representation has a SegmentTemplate")
+        val representation = chosen
+            ?: return refuse("No DASH representation has a SegmentTemplate or SegmentList")
+        val addressing = chosenAddressing
+            ?: return refuse("No DASH representation has a SegmentTemplate or SegmentList")
+        if (representation.childElements("BaseURL").size > 1) return refuse("Nested or repeated DASH BaseURL is not supported")
         val id = representation.attr("id") ?: return refuse("DASH representation has no id")
+        if (addressing.nodeName == "SegmentList") {
+            return planList(live, timing, topBaseUrls, representation, id, chosenBandwidth, addressing)
+        }
+        val template = addressing
         val media = template.attr("media") ?: return refuse("DASH SegmentTemplate has no media template")
         val initialization = template.attr("initialization")
         val timescale = template.attr("timescale")?.let { raw ->
@@ -150,10 +181,12 @@ object DashManifest {
         val startTicks = timeline?.startTicks ?: 0L
         // $Time$ names a segment by its start time, which only a SegmentTimeline provides.
         val firstTime = if (timeline != null) startTicks else null
-        if (expand(media, id, chosenBandwidth, startNumber, firstTime) == null) {
+        if (expand(media, id, bandwidth = chosenBandwidth, number = startNumber, timeTicks = firstTime) == null) {
             return refuse("DASH media template uses a token that is not supported")
         }
-        if (initialization != null && expand(initialization, id, chosenBandwidth, startNumber, firstTime) == null) {
+        if (initialization != null &&
+            expand(initialization, id, bandwidth = chosenBandwidth, number = startNumber, timeTicks = firstTime) == null
+        ) {
             return refuse("DASH initialization template uses a token that is not supported")
         }
         val segmentCount: Long? = when (timing) {
@@ -181,8 +214,81 @@ object DashManifest {
                 segmentDurationTicks = durationTicks,
                 segmentCount = segmentCount,
                 timing = timing,
+                representationBaseUrl = representationBaseUrl(representation),
             ),
         )
+    }
+
+    /** A static SegmentList: the listed URLs and byte ranges, in order. A live list needs a refresh, so it is refused. */
+    private fun planList(
+        live: Boolean,
+        timing: DashTiming,
+        topBaseUrls: List<Element>,
+        representation: Element,
+        id: String,
+        bandwidth: Long,
+        list: Element,
+    ): DashPlanOutcome {
+        if (live) return refuse("Live DASH SegmentList needs a manifest refresh, which is not supported yet")
+        val timescale = list.attr("timescale")?.let { raw ->
+            raw.toLongOrNull()?.takeIf { it > 0 } ?: return refuse("DASH timescale is not a positive number")
+        } ?: 1L
+        val durationTicks = list.attr("duration")?.toLongOrNull()?.takeIf { it > 0 } ?: 1L
+        val startNumber = list.attr("startNumber")?.let { raw ->
+            raw.toLongOrNull()?.takeIf { it >= 0 } ?: return refuse("DASH startNumber is not a valid number")
+        } ?: 1L
+        val initElement = list.childElements("Initialization").firstOrNull()
+        val initialization = if (initElement == null) {
+            null
+        } else {
+            DashListedInitialization(
+                source = initElement.attr("sourceURL"),
+                range = initElement.attr("range")?.let { parseRange(it) ?: return refuse("DASH byte range is not valid") },
+            )
+        }
+        val entries = list.childElements("SegmentURL")
+        if (entries.isEmpty()) return refuse("DASH SegmentList has no segments")
+        if (entries.size > MAX_LIST_SEGMENTS) return refuse("DASH SegmentList has too many segments")
+        val hasBase = topBaseUrls.isNotEmpty() || representationBaseUrl(representation) != null
+        val segments = ArrayList<DashListedSegment>(entries.size)
+        for (entry in entries) {
+            val media = entry.attr("media")
+            val range = entry.attr("mediaRange")?.let { parseRange(it) ?: return refuse("DASH SegmentURL byte range is not valid") }
+            if (media == null && range == null) return refuse("DASH SegmentURL has no media URL or byte range")
+            if (media == null && !hasBase) return refuse("DASH SegmentURL has no media URL and no BaseURL")
+            segments += DashListedSegment(media = media, range = range)
+        }
+        return DashPlanOutcome.Planned(
+            DashPlan(
+                baseUrl = topBaseUrls.firstOrNull()?.textContent?.trim()?.takeIf { it.isNotEmpty() },
+                representationId = id,
+                bandwidth = bandwidth,
+                initializationTemplate = null,
+                mediaTemplate = "",
+                startNumber = startNumber,
+                timescale = timescale,
+                startTimeTicks = 0L,
+                segmentDurationTicks = durationTicks,
+                segmentCount = segments.size.toLong(),
+                timing = timing,
+                representationBaseUrl = representationBaseUrl(representation),
+                listedInitialization = initialization,
+                listedSegments = segments,
+            ),
+        )
+    }
+
+    private fun representationBaseUrl(representation: Element): String? =
+        representation.childElements("BaseURL").firstOrNull()?.textContent?.trim()?.takeIf { it.isNotEmpty() }
+
+    /** Parses "first-last", both inclusive, into a byte range. Null for anything else. */
+    private fun parseRange(text: String): HlsByteRange? {
+        val parts = text.trim().split('-')
+        if (parts.size != 2) return null
+        val first = parts[0].toLongOrNull() ?: return null
+        val last = parts[1].toLongOrNull() ?: return null
+        if (first < 0 || last < first || last > MAX_RANGE_BYTE) return null
+        return HlsByteRange(length = last - first + 1, offset = first)
     }
 
     /**
@@ -294,7 +400,7 @@ object DashManifest {
         return TimelineOutcome.Regular(Timeline(start, duration, listed))
     }
 
-    private val UNSUPPORTED_ELEMENTS = listOf("ContentProtection", "SegmentList", "SegmentBase")
+    private val UNSUPPORTED_ELEMENTS = listOf("ContentProtection", "SegmentBase")
 
     private fun refuse(reason: String): DashPlanOutcome = DashPlanOutcome.Unsupported(reason)
 

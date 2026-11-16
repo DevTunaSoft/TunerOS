@@ -860,6 +860,86 @@ for FAULT_CASE in f503 f404 ftrunc; do
 done
 kill "$FAULT_HTTP_PID" 2>/dev/null || true
 
+# Single-file DASH on the device: ffmpeg writes one MP4 and a SegmentList of byte ranges into it. The recorder fetches the
+# initialization range and then each media range in order, so the stored file must equal the MP4 exactly. The server
+# answers Range requests with 206, as a CDN does. The manifest ends, so the recording is PARTIAL with every byte.
+rm -rf ci-single && mkdir -p ci-single
+ffmpeg -y -loglevel error -f lavfi -i testsrc=duration=9:size=160x120:rate=10 -c:v libx264 -pix_fmt yuv420p -g 10 \
+  -f dash -seg_duration 3 -use_template 0 -use_timeline 0 -single_file 1 ci-single/manifest.mpd
+SINGLE_MP4=$(basename "$(ls ci-single/*.mp4)")
+SINGLE_BYTES=$(stat -c %s "ci-single/${SINGLE_MP4}")
+SINGLE_SHA=$(sha256sum "ci-single/${SINGLE_MP4}" | cut -d' ' -f1)
+cat > ci-single/range_server.py <<'PY'
+import http.server
+import os
+import re
+import sys
+
+ROOT = sys.argv[1]
+PORT = int(sys.argv[2])
+MP4 = sys.argv[3]
+
+
+class Handler(http.server.BaseHTTPRequestHandler):
+    def do_GET(self):
+        parts = self.path.split("?", 1)[0].strip("/").split("/")
+        if len(parts) != 2 or parts[0] != "single" or parts[1] not in ("manifest.mpd", MP4):
+            return self.send_error(404)
+        name = parts[1]
+        with open(os.path.join(ROOT, name), "rb") as f:
+            body = f.read()
+        total = len(body)
+        requested = self.headers.get("Range")
+        if requested and name == MP4:
+            match = re.fullmatch(r"bytes=(\d+)-(\d+)", requested.strip())
+            if not match:
+                return self.send_error(416)
+            first, last = int(match.group(1)), int(match.group(2))
+            if first > last or last >= total:
+                return self.send_error(416)
+            chunk = body[first:last + 1]
+            self.send_response(206)
+            self.send_header("Content-Type", "video/mp4")
+            self.send_header("Content-Range", "bytes %d-%d/%d" % (first, last, total))
+            self.send_header("Content-Length", str(len(chunk)))
+            self.end_headers()
+            self.wfile.write(chunk)
+            return
+        self.send_response(200)
+        self.send_header("Content-Type", "application/dash+xml" if name.endswith(".mpd") else "video/mp4")
+        self.send_header("Content-Length", str(total))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def log_message(self, format, *args):
+        sys.stderr.write("range-server " + (format % args) + "\n")
+
+
+http.server.ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()
+PY
+python3 ci-single/range_server.py ci-single 8775 "$SINGLE_MP4" >range-server.log 2>&1 &
+SINGLE_HTTP_PID=$!
+sleep 2
+adb shell run-as com.devtunasoft.tuneros rm -f files/tuneros-recording-report.txt 2>/dev/null || true
+adb shell am force-stop com.devtunasoft.tuneros
+adb shell am start -n com.devtunasoft.tuneros/.MainActivity --es tuneros.debug.record_url "http://10.0.2.2:8775/single/manifest.mpd"
+for attempt in $(seq 1 90); do
+  adb shell run-as com.devtunasoft.tuneros cat files/tuneros-recording-report.txt > single-report.txt 2>/dev/null || true
+  if grep -Eq '^(PASS|FAIL)[[:space:]]qa-recording-partial-eof' single-report.txt; then
+    break
+  fi
+  sleep 2
+done
+kill "$SINGLE_HTTP_PID" 2>/dev/null || true
+if ! grep -Eq "^PASS[[:space:]]qa-recording-partial-eof.* bytes=${SINGLE_BYTES}\$" single-report.txt \
+   || ! grep -Fq "storage=file sha256=${SINGLE_SHA} disk=${SINGLE_BYTES}" single-report.txt; then
+  echo "Single-file DASH recording is not the MP4 byte for byte (expected ${SINGLE_BYTES} bytes, sha256 ${SINGLE_SHA})"
+  cat single-report.txt 2>/dev/null || echo "(no report file)"
+  tail -20 range-server.log 2>/dev/null || true
+  exit 1
+fi
+echo "single-file DASH recording matches the MP4 byte for byte: ${SINGLE_BYTES} bytes"
+
 # Refused start on the device: the recorder must enter the foreground before it refuses a request. Otherwise Android
 # crashes the calling app, and the report below is never written.
 adb shell run-as com.devtunasoft.tuneros rm -f files/tuneros-invalid-start-report.txt 2>/dev/null || true

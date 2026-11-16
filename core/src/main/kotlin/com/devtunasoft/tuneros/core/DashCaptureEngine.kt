@@ -11,7 +11,8 @@ data class LoadedDashManifest(
 
 /**
  * Network access for DASH recording. Implementations keep provider headers, never log URLs or bodies, and
- * never follow a redirect to another scheme. A 404 answered before any body byte must be reported as
+ * never follow a redirect to another scheme. A byte range, when given, is requested with a Range header and must
+ * come back as exactly that range. A 404 answered before any body byte must be reported as
  * [DashSegmentNotPublishedException]: nothing has been written for that segment.
  */
 interface DashCaptureSource {
@@ -19,6 +20,7 @@ interface DashCaptureSource {
 
     fun copySegment(
         url: String,
+        byteRange: HlsByteRange?,
         output: OutputStream,
         cancelled: () -> Boolean,
         onProgress: (Long) -> Unit,
@@ -34,8 +36,9 @@ class DashSegmentNotPublishedException : IOException("DASH segment is not publis
  * A static presentation stops after the last segment its manifest lists or its duration implies. A live presentation
  * follows the clock: it starts at the newest complete segment, waits until each following segment has elapsed, and
  * runs to the scheduled stop. A live segment the origin has not published yet is retried within a bounded grace
- * window. After that the recording stops with the bytes it has, so a gap is never written silently. Anything the
- * planner refuses is reported as UNSUPPORTED before any byte is written.
+ * window. After that the recording stops with the bytes it has, so a gap is never written silently. A byte range that
+ * arrives short stops the recording the same way. Anything the planner refuses is reported as UNSUPPORTED before any
+ * byte is written.
  */
 class DashCaptureEngine {
     enum class StopReason { END_LIST, CANCELLED, DEADLINE, LOW_STORAGE, UNSUPPORTED }
@@ -45,6 +48,9 @@ class DashCaptureEngine {
         val stopReason: StopReason,
         val detail: String? = null,
     )
+
+    /** One request for a segment: its absolute address and, for a SegmentList, its byte range. */
+    private class Request(val url: String, val range: HlsByteRange?)
 
     fun record(
         initialUrl: String,
@@ -69,23 +75,32 @@ class DashCaptureEngine {
         // A static presentation ends at its last listed segment. A live one never does; the scheduled stop ends it.
         val lastNumber = plan.segmentCount?.let { plan.startNumber + it - 1 } ?: Long.MAX_VALUE
 
-        val base = if (plan.baseUrl == null) {
-            loaded.effectiveUrl
-        } else {
-            resolveOrNull(loaded.effectiveUrl, plan.baseUrl)
-                ?: return Result(0, StopReason.UNSUPPORTED, UNSUPPORTED_RESOURCE)
+        // The manifest's BaseURL, then the representation's, each relative to the one before.
+        var base = loaded.effectiveUrl
+        for (relative in listOfNotNull(plan.baseUrl, plan.representationBaseUrl)) {
+            base = resolveOrNull(base, relative) ?: return Result(0, StopReason.UNSUPPORTED, UNSUPPORTED_RESOURCE)
         }
 
         var totalBytes = 0L
+        val listedInitialization = plan.listedInitialization
         val initializationTemplate = plan.initializationTemplate
-        if (initializationTemplate != null) {
-            val expanded = DashManifest.expand(
-                initializationTemplate, plan.representationId, plan.bandwidth, plan.startNumber, plan.startTimeTicks,
-            ) ?: return Result(0, StopReason.UNSUPPORTED, UNSUPPORTED_TOKEN)
-            val url = resolveOrNull(base, expanded) ?: return Result(0, StopReason.UNSUPPORTED, UNSUPPORTED_RESOURCE)
+        if (listedInitialization != null || initializationTemplate != null) {
+            val request = if (listedInitialization != null) {
+                val source = listedInitialization.source
+                val url = if (source == null) base else resolveOrNull(base, source)
+                    ?: return Result(0, StopReason.UNSUPPORTED, UNSUPPORTED_RESOURCE)
+                Request(url, listedInitialization.range)
+            } else {
+                val expanded = DashManifest.expand(
+                    initializationTemplate ?: "", plan.representationId, plan.bandwidth, plan.startNumber,
+                    plan.startTimeTicks,
+                ) ?: return Result(0, StopReason.UNSUPPORTED, UNSUPPORTED_TOKEN)
+                val url = resolveOrNull(base, expanded) ?: return Result(0, StopReason.UNSUPPORTED, UNSUPPORTED_RESOURCE)
+                Request(url, null)
+            }
             val before = totalBytes
             val init = try {
-                source.copySegment(url, output, cancelled) { bytes -> onProgress(before + bytes) }
+                source.copySegment(request.url, request.range, output, cancelled) { bytes -> onProgress(before + bytes) }
             } catch (missing: DashSegmentNotPublishedException) {
                 return Result(totalBytes, StopReason.UNSUPPORTED, UNAVAILABLE_INITIALIZATION)
             }
@@ -94,6 +109,9 @@ class DashCaptureEngine {
                 StreamRecorder.StopReason.END_OF_STREAM -> {
                     if (init.bytesWritten == 0L) {
                         return Result(totalBytes, StopReason.UNSUPPORTED, "DASH initialization segment is empty")
+                    }
+                    if (request.range != null && init.bytesWritten != request.range.length) {
+                        return Result(totalBytes, StopReason.UNSUPPORTED, incompleteRange(request.range, init.bytesWritten))
                     }
                     onProgress(totalBytes)
                 }
@@ -116,13 +134,12 @@ class DashCaptureEngine {
                 sleepMillis(LIVE_POLL_MILLIS)
                 continue
             }
-            val expanded = DashManifest.expand(
-                plan.mediaTemplate, plan.representationId, plan.bandwidth, number, timeTicks(plan, number),
-            ) ?: return Result(totalBytes, StopReason.UNSUPPORTED, UNSUPPORTED_TOKEN)
-            val url = resolveOrNull(base, expanded) ?: return Result(totalBytes, StopReason.UNSUPPORTED, UNSUPPORTED_RESOURCE)
+            val request = mediaRequest(plan, base, number)
+                ?: return Result(totalBytes, StopReason.UNSUPPORTED, UNSUPPORTED_TOKEN)
+            if (request.url.isEmpty()) return Result(totalBytes, StopReason.UNSUPPORTED, UNSUPPORTED_RESOURCE)
             val before = totalBytes
             val copy = try {
-                source.copySegment(url, output, cancelled) { bytes -> onProgress(before + bytes) }
+                source.copySegment(request.url, request.range, output, cancelled) { bytes -> onProgress(before + bytes) }
             } catch (missing: DashSegmentNotPublishedException) {
                 if (timing is DashTiming.Live && withinPublishGrace(timing, plan, number, nowEpochSeconds())) {
                     sleepMillis(LIVE_POLL_MILLIS)
@@ -133,13 +150,38 @@ class DashCaptureEngine {
             }
             totalBytes = Math.addExact(totalBytes, copy.bytesWritten)
             when (copy.stopReason) {
-                StreamRecorder.StopReason.END_OF_STREAM -> onProgress(totalBytes)
+                StreamRecorder.StopReason.END_OF_STREAM -> {
+                    if (request.range != null && copy.bytesWritten != request.range.length) {
+                        return Result(totalBytes, StopReason.UNSUPPORTED, incompleteRange(request.range, copy.bytesWritten))
+                    }
+                    onProgress(totalBytes)
+                }
                 StreamRecorder.StopReason.CANCELLED -> return Result(totalBytes, StopReason.CANCELLED)
                 StreamRecorder.StopReason.LOW_STORAGE -> return Result(totalBytes, StopReason.LOW_STORAGE)
             }
             number++
         }
     }
+
+    /**
+     * The request for media segment [number]: a SegmentList entry with its byte range, or a SegmentTemplate expansion.
+     * Returns null when a template token cannot be expanded. A URL that cannot be resolved has an empty [Request.url].
+     */
+    private fun mediaRequest(plan: DashPlan, base: String, number: Long): Request? {
+        val listed = plan.listedSegments
+        if (listed != null) {
+            val entry = listed[(number - plan.startNumber).toInt()]
+            val url = if (entry.media == null) base else resolveOrNull(base, entry.media) ?: ""
+            return Request(url, entry.range)
+        }
+        val expanded = DashManifest.expand(
+            plan.mediaTemplate, plan.representationId, plan.bandwidth, number, timeTicks(plan, number),
+        ) ?: return null
+        return Request(resolveOrNull(base, expanded) ?: "", null)
+    }
+
+    private fun incompleteRange(range: HlsByteRange, received: Long): String =
+        "DASH byte range incomplete: expected ${range.length} bytes, received $received"
 
     /** Start time of segment [number] in timescale units: the first segment's start plus whole durations. */
     private fun timeTicks(plan: DashPlan, number: Long): Long =

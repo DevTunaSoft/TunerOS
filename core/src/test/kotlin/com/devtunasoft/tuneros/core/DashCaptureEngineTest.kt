@@ -77,6 +77,7 @@ $body
 
         override fun copySegment(
             url: String,
+            byteRange: HlsByteRange?,
             output: OutputStream,
             cancelled: () -> Boolean,
             onProgress: (Long) -> Unit,
@@ -119,7 +120,7 @@ $body
     private fun publishedOnTimeByTime(): Map<String, Long> = (1..12).associate { timeUrl(it) to 1_000L + 3L * it }
 
     private fun record(
-        source: FakeDashSource,
+        source: DashCaptureSource,
         out: ByteArrayOutputStream = ByteArrayOutputStream(),
         cancelled: () -> Boolean = { false },
         now: Long = 100,
@@ -358,5 +359,82 @@ $body
         assertEquals(DashCaptureEngine.StopReason.DEADLINE, result.stopReason)
         assertEquals(listOf(9, 9, 3, 4, 5, 6, 7, 8), out.toByteArray().map { it.toInt() })
         assertEquals(listOf(initUrl) + (3..8).map { chunk(it) }, source.copied)
+    }
+
+    /** Serves byte ranges of named resources and records every request with its range. */
+    private class RangeDashSource(
+        private val manifest: String,
+        private val manifestUrl: String,
+        private val resources: Map<String, ByteArray>,
+    ) : DashCaptureSource {
+        val requests = ArrayList<Pair<String, HlsByteRange?>>()
+
+        override fun loadManifest(url: String): LoadedDashManifest = LoadedDashManifest(manifestUrl, manifest)
+
+        override fun copySegment(
+            url: String,
+            byteRange: HlsByteRange?,
+            output: OutputStream,
+            cancelled: () -> Boolean,
+            onProgress: (Long) -> Unit,
+        ): StreamRecorder.Result {
+            requests += url to byteRange
+            if (cancelled()) return StreamRecorder.Result(0, StreamRecorder.StopReason.CANCELLED)
+            val resource = resources[url] ?: error("No resource for $url")
+            val from = byteRange?.offset?.toInt() ?: 0
+            val to = if (byteRange == null) resource.size else minOf(resource.size, from + byteRange.length.toInt())
+            val bytes = resource.copyOfRange(from, to)
+            output.write(bytes)
+            onProgress(bytes.size.toLong())
+            return StreamRecorder.Result(bytes.size.toLong(), StreamRecorder.StopReason.END_OF_STREAM)
+        }
+    }
+
+    private val singleFileUrl = "https://example.test/dash/single.mp4"
+    private val singleFile = ByteArray(30) { it.toByte() }
+
+    private fun singleFileManifest(initialization: String, ranges: String): String = mpd(body = """    <AdaptationSet mimeType="video/mp4">
+      <Representation id="v1" bandwidth="500000" codecs="avc1.64000a" width="160" height="120">
+        <BaseURL>single.mp4</BaseURL>
+        <SegmentList timescale="1000" duration="3000" startNumber="1">
+          $initialization
+          $ranges
+        </SegmentList>
+      </Representation>
+    </AdaptationSet>""")
+
+    @Test fun staticSegmentListCopiesTheInitializationAndEachRangeInOrder() {
+        val source = RangeDashSource(
+            singleFileManifest("""<Initialization range="0-9"/>""", """<SegmentURL mediaRange="10-19"/><SegmentURL mediaRange="20-29"/>"""),
+            manifestUrl, mapOf(singleFileUrl to singleFile),
+        )
+        val out = ByteArrayOutputStream()
+        val result = record(source, out)
+        assertEquals(DashCaptureEngine.StopReason.END_LIST, result.stopReason)
+        assertEquals((0 until 30).toList(), out.toByteArray().map { it.toInt() })
+        assertEquals(30L, result.bytesWritten)
+        assertEquals<List<Pair<String, HlsByteRange?>>>(
+            listOf(
+                singleFileUrl to HlsByteRange(length = 10, offset = 0),
+                singleFileUrl to HlsByteRange(length = 10, offset = 10),
+                singleFileUrl to HlsByteRange(length = 10, offset = 20),
+            ),
+            source.requests,
+        )
+    }
+
+    @Test fun aShortRangeStopsAsUnsupportedKeepingTheBytesWritten() {
+        // The second range asks for ten bytes at 20, but the resource ends at 25: five arrive, and no later range is read.
+        val source = RangeDashSource(
+            singleFileManifest("""<Initialization range="0-9"/>""", """<SegmentURL mediaRange="10-19"/><SegmentURL mediaRange="20-29"/><SegmentURL mediaRange="0-4"/>"""),
+            manifestUrl, mapOf(singleFileUrl to singleFile.copyOf(25)),
+        )
+        val out = ByteArrayOutputStream()
+        val result = record(source, out)
+        assertEquals(DashCaptureEngine.StopReason.UNSUPPORTED, result.stopReason)
+        assertTrue(result.detail.orEmpty().contains("byte range"))
+        assertEquals(25L, result.bytesWritten)
+        assertEquals((0 until 25).toList(), out.toByteArray().map { it.toInt() })
+        assertEquals(3, source.requests.size, "initialization and the first two ranges, not the third")
     }
 }

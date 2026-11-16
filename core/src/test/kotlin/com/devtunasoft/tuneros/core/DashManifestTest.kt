@@ -144,10 +144,20 @@ $body
         assertTrue(refusalOf(mpd(body = protected)).contains("ContentProtection"))
     }
 
-    @Test fun segmentListsAreRefused() {
-        val list = videoSet.replace("<Representation", "<SegmentList/>\n      <Representation")
-        assertTrue(refusalOf(mpd(body = list)).contains("SegmentList"))
-    }
+    /** A video set addressed by SegmentList. [base] adds the representation's own BaseURL. */
+    private fun listSet(
+        body: String,
+        base: String? = null,
+        initialization: String = """<Initialization range="0-814"/>""",
+    ): String = """    <AdaptationSet mimeType="video/mp4">
+      <Representation id="v1" bandwidth="500000" codecs="avc1.64000a" width="160" height="120">
+        ${base?.let { "<BaseURL>$it</BaseURL>" }.orEmpty()}
+        <SegmentList timescale="1000" duration="3000" startNumber="1">
+          $initialization
+          $body
+        </SegmentList>
+      </Representation>
+    </AdaptationSet>"""
 
     @Test fun aDocumentTypeIsRejectedBeforeAnyParserSeesIt() {
         val text = "<!DOCTYPE MPD [ <!ENTITY x \"y\"> ]>\n" + mpd()
@@ -244,5 +254,50 @@ $body
         )
         assertEquals(DashTiming.Live(1_000.0), plan.timing)
         assertEquals("chunk-00002.m4s", DashManifest.expand(plan.mediaTemplate, plan.representationId, plan.bandwidth, 2))
+    }
+
+    @Test fun staticSegmentListIsPlannedWithItsByteRanges() {
+        val plan = planned(mpd(body = listSet(base = "single.mp4", body = """<SegmentURL mediaRange="815-13589"/><SegmentURL mediaRange="13590-26479"/>""")))
+        assertEquals(DashTiming.Static(9.0), plan.timing)
+        assertEquals(2L, plan.segmentCount)
+        assertEquals("single.mp4", plan.representationBaseUrl)
+        assertEquals(HlsByteRange(length = 815, offset = 0), plan.listedInitialization?.range)
+        assertEquals(HlsByteRange(length = 12775, offset = 815), plan.listedSegments?.get(0)?.range)
+        assertEquals(HlsByteRange(length = 12890, offset = 13590), plan.listedSegments?.get(1)?.range)
+    }
+
+    @Test fun segmentListEntriesCanNameTheirOwnMediaUrl() {
+        val plan = planned(mpd(body = listSet(body = """<SegmentURL media="a.m4s"/><SegmentURL media="b.m4s"/>""")))
+        assertEquals("a.m4s", plan.listedSegments?.get(0)?.media)
+        assertNull(plan.listedSegments?.get(0)?.range)
+        assertEquals(2L, plan.segmentCount)
+    }
+
+    @Test fun liveSegmentListIsRefusedUntilARefreshIsSupported() {
+        val text = mpd(type = "dynamic", availabilityStart = "1970-01-01T00:16:40Z", body = listSet(base = "x.mp4", body = """<SegmentURL mediaRange="0-9"/>"""))
+        assertTrue(refusalOf(text).contains("refresh"))
+    }
+
+    @Test fun segmentListRangeMustBeOrderedAndNumeric() {
+        assertTrue(refusalOf(mpd(body = listSet(base = "x.mp4", body = """<SegmentURL mediaRange="10-5"/>"""))).contains("byte range"))
+        assertTrue(refusalOf(mpd(body = listSet(base = "x.mp4", body = """<SegmentURL mediaRange="ten-20"/>"""))).contains("byte range"))
+    }
+
+    @Test fun segmentURLWithoutAnyLocationIsRefused() {
+        assertTrue(refusalOf(mpd(body = listSet(body = """<SegmentURL/>"""))).contains("media"))
+    }
+
+    @Test fun emptySegmentListIsRefused() {
+        assertTrue(refusalOf(mpd(body = listSet(body = ""))).contains("no segments"))
+    }
+
+    @Test fun aFfmpegSingleFileManifestIsPlannedAsByteRanges() {
+        // Real output of ffmpeg -single_file 1: one MP4 whose SegmentList names its initialization and fragments by range.
+        val text = DashManifestTest::class.java.getResource("/dash/ffmpeg-single-file.mpd")!!.readText()
+        val plan = planned(text)
+        assertEquals(3L, plan.segmentCount)
+        assertEquals("single-stream0.mp4", plan.representationBaseUrl)
+        assertEquals(HlsByteRange(length = 815, offset = 0), plan.listedInitialization?.range)
+        assertEquals(HlsByteRange(length = 12775, offset = 815), plan.listedSegments?.get(0)?.range)
     }
 }

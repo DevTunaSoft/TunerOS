@@ -33,11 +33,12 @@ internal class AndroidDashCaptureSource(
 
     override fun copySegment(
         url: String,
+        byteRange: HlsByteRange?,
         output: OutputStream,
         cancelled: () -> Boolean,
         onProgress: (Long) -> Unit,
     ): StreamRecorder.Result = try {
-        segments.copySegment(url, null, output, cancelled, onProgress)
+        segments.copySegment(url, byteRange, output, cancelled, onProgress)
     } catch (status: HttpStatusException) {
         // A 404 is answered before the body, so nothing has been written for this segment.
         if (status.code == HttpURLConnection.HTTP_NOT_FOUND) throw DashSegmentNotPublishedException() else throw status
