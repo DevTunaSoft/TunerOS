@@ -130,6 +130,9 @@ class MainActivity : Activity() {
     private var player: ExoPlayer? = null
     // Reuse a single decoder for channels with identical provider request headers.
     private var playerHeaders: Map<String, String>? = null
+    /** The timeshift running for the channel in the player, and that channel's live URL. Null while timeshift is off. */
+    private var timeshift: TimeshiftRecorder? = null
+    private var timeshiftLiveUri: String? = null
     private var playbackEvidence: FirstResponseRecorder? = null
     private var activeChannelName: String? = null
     private var focusedChannel: Channel? = null
@@ -295,6 +298,9 @@ class MainActivity : Activity() {
             addView(button("Cancel scheduled recording") { cancelFocusedSchedule() })
             addView(button("Exact DVR timing") { openExactAlarmSettings() })
             addView(button("Stop recording") { stopRecording() })
+            addView(button("Timeshift on / off") { toggleTimeshift() })
+            addView(button("Back 10 s") { timeshiftBack() })
+            addView(button("Live") { timeshiftLive() })
             addView(button("Guide / Recordings") { toggleRecordings() })
             addView(button("Protect / Unprotect") { toggleFocusedRecordingProtection() })
             addView(button("Delete recording") { deleteFocusedRecording() })
@@ -410,6 +416,7 @@ class MainActivity : Activity() {
         }
         qaPlaybackUrl()?.let { url -> root.post { runQaPlayback(url) } }
         qaTimeshiftUrl()?.let { url -> root.post { runQaTimeshift(url) } }
+        qaTimeshiftControlsUrl()?.let { url -> root.post { runQaTimeshiftControls(url) } }
         qaImportUrls()?.let { (playlist, guide) -> root.post { runQaImport(playlist, guide) } }
         // Debug-only startup-recovery QA. Runs synchronously, so the field and import state are set before the
         // startup restore callback that the worker posts to the UI thread.
@@ -643,6 +650,75 @@ class MainActivity : Activity() {
             null
         }
 
+    /** Debug-only: an http(s) channel URL for the timeshift controls check in an isolated CI launch. Never set for users. */
+    private fun qaTimeshiftControlsUrl(): String? =
+        if ((applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0) {
+            intent?.getStringExtra("tuneros.debug.timeshift_controls_url")
+                ?.takeIf { it.startsWith("http://") || it.startsWith("https://") }
+        } else {
+            null
+        }
+
+    /**
+     * Debug-only timeshift controls check on scratch data. It plays a live channel, turns timeshift on, and then checks in
+     * turn that the player switches to the ring, advances, steps back, returns to the live edge, turns timeshift off, and
+     * that the ring is removed. Each step writes one PASS or FAIL line to the timeshift controls report.
+     */
+    private fun runQaTimeshiftControls(url: String) {
+        val report = java.io.File(filesDir, "tuneros-timeshift-controls-report.txt")
+        report.writeText("RUNNING\n")
+        play(Channel(id = "qa-timeshift-controls", name = "qa-timeshift-controls", streamUrl = url))
+        qaAwait(report, "qa-timeshift-first-frame", 60_000L, {
+            player?.isPlaying == true && (player?.currentPosition ?: 0L) > 1_000L
+        }) {
+            toggleTimeshift()
+            qaAwait(report, "qa-timeshift-on", 60_000L, { isShowingRing(player) }) {
+                qaAwait(report, "qa-timeshift-advances", 60_000L, { (player?.currentPosition ?: 0L) > 12_000L }) {
+                    val before = player?.currentPosition ?: 0L
+                    timeshiftBack()
+                    qaAwait(report, "qa-timeshift-back", 15_000L, {
+                        (player?.currentPosition ?: Long.MAX_VALUE) < before - 5_000L
+                    }) {
+                        timeshiftLive()
+                        qaAwait(report, "qa-timeshift-live", 15_000L, {
+                            (player?.currentLiveOffset ?: Long.MAX_VALUE) in 0L..8_000L
+                        }) {
+                            toggleTimeshift()
+                            qaAwait(report, "qa-timeshift-off", 15_000L, { isLiveHttp(player) }) {
+                                qaAwait(report, "qa-timeshift-cleanup", 20_000L, {
+                                    !java.io.File(cacheDir, "timeshift").exists()
+                                }) {}
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /** Polls [condition] twice a second. Writes PASS and runs [then] once it holds, or writes FAIL after [timeoutMillis]. */
+    private fun qaAwait(
+        report: java.io.File,
+        checkId: String,
+        timeoutMillis: Long,
+        condition: () -> Boolean,
+        then: () -> Unit,
+    ) {
+        val deadline = System.currentTimeMillis() + timeoutMillis
+        fun poll() {
+            when {
+                condition() -> {
+                    report.appendText("PASS\t$checkId\tmet\n")
+                    then()
+                }
+                System.currentTimeMillis() > deadline ->
+                    report.appendText("FAIL\t$checkId\tnot met within ${timeoutMillis / 1000} seconds\n")
+                else -> uiHandler.postDelayed({ poll() }, 500L)
+            }
+        }
+        poll()
+    }
+
     /** Debug-only: an http(s) URL for the timeshift check in an isolated CI launch. Never set for users. */
     private fun qaTimeshiftUrl(): String? =
         if ((applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0) {
@@ -657,14 +733,12 @@ class MainActivity : Activity() {
      * fills it.
      */
     private fun runQaTimeshift(url: String) {
-        val connections = com.devtunasoft.tuneros.core.AbortableSlot<java.net.HttpURLConnection> { it.disconnect() }
         val maxSegments = (intent?.getIntExtra("tuneros.debug.timeshift_segments", 6) ?: 6).coerceIn(2, 20)
         val report = java.io.File(filesDir, "tuneros-timeshift-report.txt")
         TimeshiftQa(
             report = report,
             ringDirectory = java.io.File(cacheDir, "timeshift-qa"),
             handler = android.os.Handler(mainLooper),
-            openConnection = { value, range -> openSourceConnection(value, null, null, range, connections) },
             playLocal = { uri, onFinished ->
                 runQaPlayback(uri, report, "qa-timeshift-playback", reset = false, onFinished = onFinished)
             },
@@ -1204,6 +1278,7 @@ class MainActivity : Activity() {
     }
 
     private fun play(channel: Channel) {
+        stopTimeshift(restoreLive = false)
         val headers = mutableMapOf<String, String>()
         channel.userAgent?.let { headers["User-Agent"] = it }
         channel.referer?.let { if (isHttpUrl(it)) headers["Referer"] = it }
@@ -1677,6 +1752,7 @@ class MainActivity : Activity() {
     }
 
     private fun playRecording(entry: RecordingCatalogEntry) {
+        stopTimeshift(restoreLive = false)
         if (entry.state != "COMPLETED") {
             showStatus("Only completed recordings can be played")
             return
@@ -1855,7 +1931,120 @@ class MainActivity : Activity() {
         else window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
     }
 
+    /** Starts or stops a timeshift of the live channel in the player. While it runs, the player plays the recorded window. */
+    private fun toggleTimeshift() {
+        if (timeshift == null) startTimeshift() else stopTimeshift(restoreLive = true)
+    }
+
+    private fun startTimeshift() {
+        val livePlayer = player ?: run {
+            showStatus("Play a live channel before starting a timeshift")
+            return
+        }
+        val liveUri = livePlayer.currentMediaItem?.localConfiguration?.uri?.toString()
+        if (liveUri == null || !(liveUri.startsWith("http://") || liveUri.startsWith("https://"))) {
+            showStatus("Timeshift needs a live http or https channel")
+            return
+        }
+        val headers = playerHeaders.orEmpty()
+        val recorder = TimeshiftRecorder(
+            directory = java.io.File(cacheDir, "timeshift"),
+            maxSegments = timeshiftWindowSegments(),
+            userAgent = headers["User-Agent"],
+            referer = headers["Referer"],
+        )
+        timeshift = recorder
+        timeshiftLiveUri = liveUri
+        recorder.start(liveUri)
+        showStatus("Timeshift starting: the picture switches to the recorded window in a few seconds")
+        awaitTimeshiftStart(recorder, livePlayer, System.currentTimeMillis() + TimeshiftRecorder.STARTUP_DEADLINE_MILLIS)
+    }
+
+    /** Waits until a few segments are listed, then switches the same player to the ring's local playlist. */
+    private fun awaitTimeshiftStart(recorder: TimeshiftRecorder, livePlayer: ExoPlayer, deadlineMillis: Long) {
+        if (timeshift !== recorder || player !== livePlayer) return
+        val state = recorder.state
+        if (state is TimeshiftRecorder.State.Stopped || state is TimeshiftRecorder.State.Failed) {
+            stopTimeshift(restoreLive = true)
+            showStatus("Timeshift stopped: ${describeTimeshift(state)}")
+            return
+        }
+        if (recorder.completedSegments < TimeshiftRecorder.STARTUP_SEGMENTS) {
+            if (System.currentTimeMillis() > deadlineMillis) {
+                stopTimeshift(restoreLive = true)
+                showStatus("Timeshift did not start: no segments were recorded in time")
+                return
+            }
+            uiHandler.postDelayed({ awaitTimeshiftStart(recorder, livePlayer, deadlineMillis) }, 500L)
+            return
+        }
+        livePlayer.setMediaItem(MediaItem.fromUri(android.net.Uri.fromFile(recorder.playlist).toString()))
+        livePlayer.prepare()
+        livePlayer.playWhenReady = true
+        showStatus("Timeshift on: Back and Live move inside the recorded window")
+    }
+
+    /**
+     * Ends the timeshift. With [restoreLive], the player first returns to the live channel, and then the recorder stops and
+     * deletes its ring. Without it, the caller is about to replace the player's source and needs no restore.
+     */
+    private fun stopTimeshift(restoreLive: Boolean) {
+        val recorder = timeshift ?: return
+        val liveUri = timeshiftLiveUri
+        timeshift = null
+        timeshiftLiveUri = null
+        val livePlayer = player
+        if (restoreLive && livePlayer != null && liveUri != null && isShowingRing(livePlayer)) {
+            livePlayer.setMediaItem(MediaItem.fromUri(liveUri))
+            livePlayer.prepare()
+            livePlayer.playWhenReady = true
+        }
+        recorder.stop()
+    }
+
+    private fun timeshiftBack() {
+        val livePlayer = player
+        if (timeshift == null || livePlayer == null || !isShowingRing(livePlayer)) {
+            showStatus("Turn timeshift on first")
+            return
+        }
+        livePlayer.seekTo(maxOf(0L, livePlayer.currentPosition - TimeshiftRecorder.BACK_MILLIS))
+        showStatus("Back ${TimeshiftRecorder.BACK_MILLIS / 1000} seconds in the recorded window")
+    }
+
+    private fun timeshiftLive() {
+        val livePlayer = player
+        if (timeshift == null || livePlayer == null || !isShowingRing(livePlayer)) {
+            showStatus("Turn timeshift on first")
+            return
+        }
+        livePlayer.seekToDefaultPosition()
+        showStatus("Live in the recorded window")
+    }
+
+    private fun isShowingRing(livePlayer: ExoPlayer?): Boolean =
+        livePlayer?.currentMediaItem?.localConfiguration?.uri?.scheme == "file"
+
+    private fun isLiveHttp(livePlayer: ExoPlayer?): Boolean {
+        val scheme = livePlayer?.currentMediaItem?.localConfiguration?.uri?.scheme
+        return scheme == "http" || scheme == "https"
+    }
+
+    private fun describeTimeshift(state: TimeshiftRecorder.State): String = when (state) {
+        is TimeshiftRecorder.State.Stopped -> "stopped (${state.reason})"
+        is TimeshiftRecorder.State.Failed -> "failed (${state.error})"
+        else -> "running"
+    }
+
+    /** The window in segments. A debug extra can shorten it so a CI run fills it quickly; release builds ignore it. */
+    private fun timeshiftWindowSegments(): Int {
+        val requested = intent?.getIntExtra("tuneros.debug.timeshift_segments", 0) ?: 0
+        val debuggable = (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
+        return if (debuggable && requested > 0) requested.coerceIn(2, 900) else TimeshiftRecorder.DEFAULT_MAX_SEGMENTS
+    }
+
     private fun releasePlayer() {
+        stopTimeshift(restoreLive = false)
         clearPlaybackTimeout()
         updateKeepScreenOn(false)
         playerView.player = null

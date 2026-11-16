@@ -1032,7 +1032,7 @@ echo "SegmentBase DASH recording matches the MP4 byte for byte: ${SINGLE_BYTES} 
 # recorded into the app's scratch ring with a six-segment window. The ring must stay bounded and evict its oldest
 # segments, the local playlist must play through ExoPlayer, and stopping must leave no segment file behind.
 rm -rf ci-timeshift && mkdir -p ci-timeshift/live
-ffmpeg -y -loglevel error -f lavfi -i testsrc=duration=40:size=160x120:rate=10 -c:v libx264 -pix_fmt yuv420p -g 10 \
+ffmpeg -y -loglevel error -f lavfi -i testsrc=duration=150:size=160x120:rate=10 -c:v libx264 -pix_fmt yuv420p -g 10 \
   -f hls -hls_time 1 -hls_list_size 0 -hls_playlist_type vod -hls_segment_filename ci-timeshift/live/seg%d.ts \
   ci-timeshift/live/source.m3u8
 cat > ci-timeshift/live_server.py <<'PY'
@@ -1108,6 +1108,34 @@ for check in qa-timeshift-bounded qa-timeshift-playback qa-timeshift-cleanup; do
 done
 cat timeshift-report.txt
 echo "timeshift on the device: window bounded at six segments, local playlist plays, stop leaves no segment files"
+
+# Timeshift controls on the device: the same live fixture, served on a second port with a 30-segment window. The player must
+# switch to the recorded window, advance, step back ten seconds, return to the live edge, switch back to the live channel,
+# and leave no ring behind. Every step writes its own line to the controls report.
+adb shell run-as com.devtunasoft.tuneros rm -f files/tuneros-timeshift-controls-report.txt 2>/dev/null || true
+python3 ci-timeshift/live_server.py ci-timeshift/live 8782 >timeshift-controls-server.log 2>&1 &
+CONTROLS_HTTP_PID=$!
+sleep 2
+adb shell am force-stop com.devtunasoft.tuneros
+adb shell am start -n com.devtunasoft.tuneros/.MainActivity --es tuneros.debug.timeshift_controls_url "http://10.0.2.2:8782/live/index.m3u8" --ei tuneros.debug.timeshift_segments 30
+for attempt in $(seq 1 90); do
+  adb shell run-as com.devtunasoft.tuneros cat files/tuneros-timeshift-controls-report.txt > timeshift-controls-report.txt 2>/dev/null || true
+  if grep -Eq '^(PASS|FAIL)[[:space:]]qa-timeshift-cleanup' timeshift-controls-report.txt; then
+    break
+  fi
+  sleep 3
+done
+kill "$CONTROLS_HTTP_PID" 2>/dev/null || true
+for check in qa-timeshift-first-frame qa-timeshift-on qa-timeshift-advances qa-timeshift-back qa-timeshift-live qa-timeshift-off qa-timeshift-cleanup; do
+  if ! grep -Fq "$(printf 'PASS\t%s\t' "$check")" timeshift-controls-report.txt; then
+    echo "Timeshift control $check did not pass on the device"
+    cat timeshift-controls-report.txt 2>/dev/null || echo "(no report file)"
+    tail -20 timeshift-controls-server.log 2>/dev/null || true
+    exit 1
+  fi
+done
+cat timeshift-controls-report.txt
+echo "timeshift controls on the device: switch to the ring, advance, back ten seconds, live edge, off, ring removed"
 
 # Refused start on the device: the recorder must enter the foreground before it refuses a request. Otherwise Android
 # crashes the calling app, and the report below is never written.

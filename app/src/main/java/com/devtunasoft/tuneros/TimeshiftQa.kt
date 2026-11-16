@@ -1,9 +1,7 @@
 package com.devtunasoft.tuneros
 
 import android.os.Handler
-import com.devtunasoft.tuneros.core.HlsByteRange
 import java.io.File
-import java.net.HttpURLConnection
 
 /**
  * Debug-only timeshift check on scratch data. It records a live HLS channel into a scratch ring with a small window, waits
@@ -14,12 +12,11 @@ internal class TimeshiftQa(
     private val report: File,
     private val ringDirectory: File,
     private val handler: Handler,
-    private val openConnection: (String, HlsByteRange?) -> HttpURLConnection,
     private val playLocal: (String, (String) -> Unit) -> Unit,
 ) {
     fun run(url: String, maxSegments: Int) {
         report.writeText("RUNNING\n")
-        val recorder = TimeshiftRecorder(ringDirectory, maxSegments, TimeshiftRecorder.DEFAULT_MAX_BYTES, openConnection)
+        val recorder = TimeshiftRecorder(ringDirectory, maxSegments, TimeshiftRecorder.DEFAULT_MAX_BYTES)
         recorder.start(url)
         awaitFullWindow(recorder, maxSegments, System.currentTimeMillis() + RECORD_DEADLINE_MILLIS)
     }

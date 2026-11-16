@@ -1,6 +1,6 @@
 package com.devtunasoft.tuneros
 
-import com.devtunasoft.tuneros.core.HlsByteRange
+import com.devtunasoft.tuneros.core.AbortableSlot
 import com.devtunasoft.tuneros.core.HlsCaptureEngine
 import com.devtunasoft.tuneros.core.HlsSegmentListener
 import com.devtunasoft.tuneros.core.TimeshiftCapture
@@ -19,7 +19,8 @@ internal class TimeshiftRecorder(
     private val directory: File,
     private val maxSegments: Int = DEFAULT_MAX_SEGMENTS,
     private val maxBytes: Long = DEFAULT_MAX_BYTES,
-    private val openConnection: (String, HlsByteRange?) -> HttpURLConnection,
+    private val userAgent: String? = null,
+    private val referer: String? = null,
 ) {
     sealed class State {
         object Idle : State()
@@ -35,6 +36,7 @@ internal class TimeshiftRecorder(
 
     private val cancelled = AtomicBoolean(false)
     private val completed = AtomicInteger(0)
+    private val connections = AbortableSlot<HttpURLConnection> { it.disconnect() }
 
     /** Segments recorded so far, which is what the window has been given. */
     val completedSegments: Int get() = completed.get()
@@ -48,9 +50,13 @@ internal class TimeshiftRecorder(
         Thread({ record(url) }, "tuneros-timeshift").apply { isDaemon = true }.start()
     }
 
-    /** Asks the recording to end. It ends within one playlist poll, and then the ring is deleted. */
+    /**
+     * Asks the recording to end. A request in flight is aborted, so this returns at once; the thread then deletes the ring.
+     * The stop is reported as CANCELLED even when the abort surfaces as an exception in the thread.
+     */
     fun stop() {
         cancelled.set(true)
+        connections.abortCurrent()
     }
 
     private fun record(url: String) {
@@ -61,7 +67,12 @@ internal class TimeshiftRecorder(
             directory.deleteRecursively()
             val created = TimeshiftCapture(TimeshiftWindow(maxSegments, maxBytes), AndroidTimeshiftRing(directory))
             capture = created
-            val source = AndroidHlsCaptureSource(openConnection, freeBytes = { directory.usableSpace })
+            val source = AndroidHlsCaptureSource(
+                openConnection = { value, range ->
+                    openSourceConnection(value, userAgent, referer, range, connections)
+                },
+                freeBytes = { directory.usableSpace },
+            )
             val listener = object : HlsSegmentListener {
                 override fun onSegmentComplete(
                     sequence: Long,
@@ -85,7 +96,11 @@ internal class TimeshiftRecorder(
             )
             State.Stopped(result.stopReason, result.detail)
         } catch (error: Exception) {
-            State.Failed(error.javaClass.simpleName)
+            if (cancelled.get()) {
+                State.Stopped(HlsCaptureEngine.StopReason.CANCELLED, null)
+            } else {
+                State.Failed(error.javaClass.simpleName)
+            }
         } finally {
             // Best effort, and never skipped: the ring directory is removed even when a file inside it cannot be.
             cleanupFailure = runCatching { capture?.finish() }.exceptionOrNull()
@@ -99,5 +114,12 @@ internal class TimeshiftRecorder(
     companion object {
         const val DEFAULT_MAX_SEGMENTS = 900
         const val DEFAULT_MAX_BYTES = 512L * 1024L * 1024L
+
+        /** Segments that must be listed before the player switches to the ring. */
+        const val STARTUP_SEGMENTS = 3
+        const val STARTUP_DEADLINE_MILLIS = 30_000L
+
+        /** How far back a single "Back" step moves. */
+        const val BACK_MILLIS = 10_000L
     }
 }
