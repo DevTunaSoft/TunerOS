@@ -7,6 +7,7 @@ import android.content.Intent
 import android.os.Build
 import android.os.IBinder
 import com.devtunasoft.tuneros.core.AbortableSlot
+import com.devtunasoft.tuneros.core.DashCaptureEngine
 import com.devtunasoft.tuneros.core.HlsByteRange
 import com.devtunasoft.tuneros.core.HlsCaptureEngine
 import com.devtunasoft.tuneros.core.HlsContentRange
@@ -238,16 +239,13 @@ class DvrRecordingService : Service() {
             } else {
                 val connection = openHttp(streamUrl, userAgent, referer, null)
                 initialConnection = connection
+                var manifestType: String? = null
                 val probedOutcome = connection.inputStream.use { rawInput ->
                     val input = PushbackInputStream(rawInput, 512)
-                    when (detectManifestType(connection, input)) {
-                        "HLS" -> null
-                        "DASH" -> CaptureOutcome(
-                            state = "FAILED",
-                            bytesWritten = 0,
-                            finalizeFile = false,
-                            failureReason = "DASH recording not implemented",
-                        )
+                    val detected = detectManifestType(connection, input)
+                    manifestType = detected
+                    when (detected) {
+                        "HLS", "DASH" -> null
                         else -> sink.openOutput().use { output ->
                             captureRaw(id, input, output, endEpochSeconds, sink)
                         }
@@ -258,9 +256,13 @@ class DvrRecordingService : Service() {
                 } else {
                     connection.disconnect()
                     initialConnection = null
-                    captureHls(
-                        id, streamUrl, endEpochSeconds, userAgent, referer, sink,
-                    )
+                    if (manifestType == "DASH") {
+                        captureDash(id, streamUrl, endEpochSeconds, userAgent, referer, sink)
+                    } else {
+                        captureHls(
+                            id, streamUrl, endEpochSeconds, userAgent, referer, sink,
+                        )
+                    }
                 }
             }
             applyOutcome(id, sink, outcome)
@@ -413,6 +415,63 @@ class DvrRecordingService : Service() {
                 finalizeFile = false,
                 failureReason = "No bytes before scheduled stop",
             )
+        }
+    }
+
+    private fun captureDash(
+        id: String,
+        streamUrl: String,
+        endEpochSeconds: Long,
+        userAgent: String?,
+        referer: String?,
+        sink: RecordingSink,
+    ): CaptureOutcome {
+        var lastCatalogBytes = 0L
+        val source = AndroidDashCaptureSource(
+            openConnection = { url, range -> openHttp(url, userAgent, referer, range) },
+            freeBytes = sink::freeBytes,
+        )
+        return sink.openOutput().use { output ->
+            val result = DashCaptureEngine().record(
+                initialUrl = streamUrl,
+                output = output,
+                endEpochSeconds = endEpochSeconds,
+                source = source,
+                cancelled = { cancelled.get() },
+                nowEpochSeconds = ::nowSeconds,
+                onProgress = { total ->
+                    if (total - lastCatalogBytes >= CATALOG_PROGRESS_BYTES) {
+                        catalog.updateProgress(id, total)
+                        lastCatalogBytes = total
+                    }
+                },
+            )
+            output.flush()
+            val reachedStop = nowSeconds() >= endEpochSeconds
+            when (result.stopReason) {
+                DashCaptureEngine.StopReason.END_LIST ->
+                    if (reachedStop) {
+                        CaptureOutcome("COMPLETED", result.bytesWritten, true)
+                    } else {
+                        CaptureOutcome("PARTIAL", result.bytesWritten, false, "DASH stream ended before scheduled stop")
+                    }
+                DashCaptureEngine.StopReason.DEADLINE ->
+                    CaptureOutcome("COMPLETED", result.bytesWritten, true)
+                DashCaptureEngine.StopReason.CANCELLED ->
+                    if (reachedStop && !cancelled.get()) {
+                        CaptureOutcome("COMPLETED", result.bytesWritten, true)
+                    } else {
+                        CaptureOutcome("CANCELLED", result.bytesWritten, false)
+                    }
+                DashCaptureEngine.StopReason.LOW_STORAGE ->
+                    CaptureOutcome("PARTIAL", result.bytesWritten, false, "Storage reserve reached")
+                DashCaptureEngine.StopReason.UNSUPPORTED -> CaptureOutcome(
+                    state = if (result.bytesWritten > 0) "PARTIAL" else "FAILED",
+                    bytesWritten = result.bytesWritten,
+                    finalizeFile = false,
+                    failureReason = result.detail ?: "DASH recording is not supported",
+                )
+            }
         }
     }
 
