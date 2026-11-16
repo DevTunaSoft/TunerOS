@@ -40,7 +40,9 @@ import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.PlayerView
+import com.devtunasoft.tuneros.core.BackupContents
 import com.devtunasoft.tuneros.core.Channel
+import com.devtunasoft.tuneros.core.TunerBackup
 import com.devtunasoft.tuneros.core.ChannelVisibility
 import com.devtunasoft.tuneros.core.FavoriteChannels
 import com.devtunasoft.tuneros.core.GuideDoctor
@@ -80,6 +82,8 @@ class MainActivity : Activity() {
     private val secureSources by lazy { SecureSourceStore(this) }
     private val recordingDestinations by lazy { RecordingDestinationStore(this) }
     private val recordingTreeRequestCode = 1701
+    private val backupExportRequestCode = 1702
+    private val backupRestoreRequestCode = 1703
     private val downloader = SourceDownloader()
     private val searchRefresh = Runnable { renderChannels() }
     private val clockRefresh = object : Runnable {
@@ -295,6 +299,8 @@ class MainActivity : Activity() {
             addView(button("Cancel scheduled recording") { cancelFocusedSchedule() })
             addView(button("Exact DVR timing") { openExactAlarmSettings() })
             addView(button("Stop recording") { stopRecording() })
+            addView(button("Export backup") { exportBackup() })
+            addView(button("Restore backup") { restoreBackup() })
             addView(button("Guide / Recordings") { toggleRecordings() })
             addView(button("Protect / Unprotect") { toggleFocusedRecordingProtection() })
             addView(button("Delete recording") { deleteFocusedRecording() })
@@ -405,6 +411,7 @@ class MainActivity : Activity() {
         if (isServiceStopLaunch()) {
             worker.execute { OnDeviceSelfTest.runServiceStopOnly(applicationContext) }
         }
+        if (isBackupCheckLaunch()) worker.execute { BackupQa.run(applicationContext) }
         if (isAlarmLaunch()) {
             worker.execute { OnDeviceSelfTest.runAlarmOnly(applicationContext) }
         }
@@ -733,6 +740,10 @@ class MainActivity : Activity() {
     private fun isSeriesCheckLaunch(): Boolean =
         (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0 &&
             intent?.getBooleanExtra("tuneros.debug.series_check", false) == true
+
+    private fun isBackupCheckLaunch(): Boolean =
+        (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0 &&
+            intent?.getBooleanExtra("tuneros.debug.backup_check", false) == true
 
     private fun isAlarmLaunch(): Boolean =
         (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0 &&
@@ -1771,8 +1782,104 @@ class MainActivity : Activity() {
         }
     }
 
+    /** Asks where to save the backup. The file holds favorites, guide mappings and series rules, and nothing else. */
+    private fun exportBackup() {
+        runCatching {
+            startActivityForResult(
+                Intent(Intent.ACTION_CREATE_DOCUMENT)
+                    .addCategory(Intent.CATEGORY_OPENABLE)
+                    .setType("text/plain")
+                    .putExtra(Intent.EXTRA_TITLE, "tuneros-backup.txt"),
+                backupExportRequestCode,
+            )
+        }.onFailure { showStatus("This device does not provide a file picker for the backup") }
+    }
+
+    /** Asks which backup file to restore. Nothing changes until the file has been checked and confirmed. */
+    private fun restoreBackup() {
+        runCatching {
+            startActivityForResult(
+                Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("text/plain"),
+                backupRestoreRequestCode,
+            )
+        }.onFailure { showStatus("This device does not provide a file picker for the backup") }
+    }
+
+    private fun handleBackupResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        val uri = data?.data
+        if (resultCode != RESULT_OK || uri == null) {
+            showStatus("No backup file was selected")
+            return
+        }
+        if (requestCode == backupExportRequestCode) {
+            worker.execute {
+                val saved = runCatching {
+                    val text = SeriesRuleStore(this).use { series ->
+                        BackupRestore(favoriteStore, guideMappingStore, series).exportText()
+                    }
+                    val output = contentResolver.openOutputStream(uri) ?: error("no output stream")
+                    output.use { it.write(text.toByteArray(Charsets.UTF_8)) }
+                }.isSuccess
+                runOnUiThread {
+                    showStatus(
+                        if (saved) "Backup saved: favorites, guide mappings and series rules"
+                        else "The backup could not be saved",
+                    )
+                }
+            }
+            return
+        }
+        worker.execute {
+            val parsed = runCatching {
+                val text = contentResolver.openInputStream(uri)?.use { BackupRestore.readBounded(it) }
+                    ?: error("no input stream")
+                TunerBackup.decode(text)
+            }
+            runOnUiThread {
+                parsed.fold(
+                    onSuccess = { contents -> confirmRestore(contents) },
+                    onFailure = { error ->
+                        // Refusals carry fixed messages from the format; any other failure is named by its type only.
+                        val reason = if (error is IllegalArgumentException) error.message else error.javaClass.simpleName
+                        showStatus("The backup was refused: $reason")
+                    },
+                )
+            }
+        }
+    }
+
+    private fun confirmRestore(contents: BackupContents) {
+        AlertDialog.Builder(this)
+            .setTitle("Restore backup?")
+            .setMessage(
+                "Replace the favorites, guide mappings and series rules with ${contents.favorites.size} favorites, " +
+                    "${contents.guideMappings.size} guide mappings and ${contents.seriesRules.size} series rules?",
+            )
+            .setPositiveButton("Restore") { _, _ ->
+                worker.execute {
+                    val restored = runCatching {
+                        SeriesRuleStore(this).use { series ->
+                            BackupRestore(favoriteStore, guideMappingStore, series).apply(contents)
+                        }
+                    }.isSuccess
+                    runOnUiThread {
+                        favorites = favoriteStore.load()
+                        guideMappings = guideMappingStore.load()
+                        renderChannels()
+                        showStatus(if (restored) "Backup restored" else "The backup could not be restored")
+                    }
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == backupExportRequestCode || requestCode == backupRestoreRequestCode) {
+            handleBackupResult(requestCode, resultCode, data)
+            return
+        }
         if (requestCode == recordingTreeRequestCode && (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0) {
             android.util.Log.i(
                 "TunerOSRecording",
