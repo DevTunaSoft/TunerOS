@@ -656,7 +656,10 @@ fi
 cat > ci-playback/throttle.py <<'PY'
 import http.server
 import os
+import sys
 import time
+
+DELAY = float(sys.argv[1]) if len(sys.argv) > 1 else 0.25  # seconds per 1 KiB chunk
 
 class Handler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
@@ -676,7 +679,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     self.wfile.flush()
                 except (BrokenPipeError, ConnectionResetError):
                     break
-                time.sleep(0.25)
+                time.sleep(DELAY)
 
     def log_message(self, *args):
         pass
@@ -784,8 +787,9 @@ if [ -n "${PUBLIC_PLAYLIST_URL:-}" ]; then
   echo "Real stream check: $STREAM_PASSES of $STREAM_INDEX streams rendered a first frame"
 fi
 # Scheduled recording: a stored schedule is started by a real exact alarm through the receiver
-# and must complete at its stop, end STARTED, and delete its credentials. Runner-served slow stream.
-python3 ci-playback/throttle.py >scheduled-throttle.log 2>&1 &
+# and must complete at its stop, end STARTED, and delete its credentials. The runner serves the stream
+# at 0.5 s per KiB, so it is still running at the 20-second stop and the file stays partial.
+python3 ci-playback/throttle.py 0.5 >scheduled-throttle.log 2>&1 &
 SCHED_HTTP_PID=$!
 sleep 2
 SCHED_FULL_BYTES=$(stat -c %s ci-playback/test.mp4)
@@ -805,6 +809,7 @@ if ! grep -Eq '^PASS[[:space:]]qa-dvr-rearm' scheduled-report.txt \
    || [ -z "$SCHED_BYTES" ] || [ "$SCHED_BYTES" -le 0 ] || [ "$SCHED_BYTES" -ge "$SCHED_FULL_BYTES" ]; then
   echo "Scheduled recording check failed (full stream ${SCHED_FULL_BYTES} bytes, recorded ${SCHED_BYTES:-none})"
   cat scheduled-report.txt 2>/dev/null || echo "(no report file)"
+  tail -n 20 scheduled-throttle.log 2>/dev/null || true
   exit 1
 fi
 

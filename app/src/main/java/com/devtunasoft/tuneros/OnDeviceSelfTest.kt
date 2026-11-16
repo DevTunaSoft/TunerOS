@@ -1068,7 +1068,9 @@ internal object OnDeviceSelfTest {
                     secrets, key, ScheduledRecordingSource(url = url, userAgent = null, referer = null),
                 )
                 val startSec = now / 1000L
-                val endSec = startSec + 8L
+                // Long enough to absorb a slow start (alarm, service, first read). The runner's throttle
+                // (0.5 s per KiB) keeps the file partial, because the stream outlasts this window.
+                val endSec = startSec + 20L
                 RecordingScheduleStore(context).use { store ->
                     store.insertIfAbsent(
                         RecordingScheduleEntry(
