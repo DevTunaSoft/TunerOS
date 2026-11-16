@@ -61,6 +61,8 @@ class HlsCaptureEngine(
         var totalBytes = 0L
         var stalledPolls = 0
         var selectedVariant = false
+        var initializationUri: String? = null
+        var mediaWritten = false
 
         while (true) {
             if (cancelled()) return Result(totalBytes, lastSequence, StopReason.CANCELLED)
@@ -180,13 +182,63 @@ class HlsCaptureEngine(
                                 "Encrypted HLS is not supported yet (${segment.keyMethod})",
                             )
                         }
-                        if (segment.initializationMapUri != null) {
-                            return Result(
-                                totalBytes,
-                                lastSequence,
-                                StopReason.UNSUPPORTED,
-                                "fMP4 HLS is not supported yet",
-                            )
+                        val mapUri = segment.initializationMapUri
+                        if (mapUri != null) {
+                            if (segment.initializationMapHasByteRange) {
+                                return Result(
+                                    totalBytes,
+                                    lastSequence,
+                                    StopReason.UNSUPPORTED,
+                                    "fMP4 initialization byte range is not supported",
+                                )
+                            }
+                            val written = initializationUri
+                            if (written == null && mediaWritten) {
+                                return Result(
+                                    totalBytes,
+                                    lastSequence,
+                                    StopReason.UNSUPPORTED,
+                                    "fMP4 initialization appeared after media was recorded",
+                                )
+                            }
+                            if (written != null && written != mapUri) {
+                                return Result(
+                                    totalBytes,
+                                    lastSequence,
+                                    StopReason.UNSUPPORTED,
+                                    "fMP4 initialization changed during recording",
+                                )
+                            }
+                            if (written == null) {
+                                // Written once, before the first fragment. Later fragments depend on it.
+                                val before = totalBytes
+                                val initCopy = source.copySegment(
+                                    url = resolveHttp(loaded.effectiveUrl, mapUri),
+                                    byteRange = null,
+                                    output = output,
+                                    cancelled = cancelled,
+                                    onProgress = { bytes -> onProgress(before + bytes) },
+                                )
+                                totalBytes = Math.addExact(totalBytes, initCopy.bytesWritten)
+                                when (initCopy.stopReason) {
+                                    StreamRecorder.StopReason.END_OF_STREAM -> {
+                                        if (initCopy.bytesWritten == 0L) {
+                                            return Result(
+                                                totalBytes,
+                                                lastSequence,
+                                                StopReason.UNSUPPORTED,
+                                                "fMP4 initialization segment is empty",
+                                            )
+                                        }
+                                        initializationUri = mapUri
+                                        onProgress(totalBytes)
+                                    }
+                                    StreamRecorder.StopReason.CANCELLED ->
+                                        return Result(totalBytes, lastSequence, StopReason.CANCELLED)
+                                    StreamRecorder.StopReason.LOW_STORAGE ->
+                                        return Result(totalBytes, lastSequence, StopReason.LOW_STORAGE)
+                                }
+                            }
                         }
 
                         val segmentUrl = resolveHttp(loaded.effectiveUrl, segment.uri)
@@ -213,6 +265,7 @@ class HlsCaptureEngine(
                                     )
                                 }
                                 lastSequence = segment.sequence
+                                mediaWritten = true
                                 onProgress(totalBytes)
                             }
                             StreamRecorder.StopReason.CANCELLED ->
