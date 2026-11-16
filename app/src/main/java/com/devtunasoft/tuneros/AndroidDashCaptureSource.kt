@@ -2,6 +2,7 @@ package com.devtunasoft.tuneros
 
 import com.devtunasoft.tuneros.core.DashCaptureSource
 import com.devtunasoft.tuneros.core.DashManifest
+import com.devtunasoft.tuneros.core.DashSegmentIndex
 import com.devtunasoft.tuneros.core.DashSegmentNotPublishedException
 import com.devtunasoft.tuneros.core.HlsByteRange
 import com.devtunasoft.tuneros.core.LoadedDashManifest
@@ -26,6 +27,34 @@ internal class AndroidDashCaptureSource(
         return try {
             val text = connection.inputStream.bufferedReader(Charsets.UTF_8).use { readBounded(it) }
             LoadedDashManifest(effectiveUrl = connection.url.toString(), text = text)
+        } finally {
+            connection.disconnect()
+        }
+    }
+
+    /**
+     * The bytes of a SegmentBase index. The range goes through the same checked connection as a segment, so the
+     * response must be a partial response, and exactly the requested length is read.
+     */
+    override fun loadRange(url: String, range: HlsByteRange): ByteArray {
+        val length = range.length
+        if (length <= 0 || length > DashSegmentIndex.MAX_INDEX_BYTES) throw IOException("DASH index range is out of bounds")
+        val connection = openConnection(url, range)
+        return try {
+            val status = connection.responseCode
+            if (status != HttpURLConnection.HTTP_PARTIAL) {
+                throw if (status in 200..299) IOException("DASH index range was not honoured") else HttpStatusException(status)
+            }
+            val bytes = ByteArray(length.toInt())
+            connection.inputStream.use { input ->
+                var filled = 0
+                while (filled < bytes.size) {
+                    val read = input.read(bytes, filled, bytes.size - filled)
+                    if (read < 0) throw IOException("DASH index range is short")
+                    filled += read
+                }
+            }
+            bytes
         } finally {
             connection.disconnect()
         }

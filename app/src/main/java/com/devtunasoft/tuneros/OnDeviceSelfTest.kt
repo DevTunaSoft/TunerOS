@@ -20,6 +20,7 @@ import com.devtunasoft.tuneros.core.HlsCaptureEngine
 import com.devtunasoft.tuneros.core.HlsCaptureSource
 import com.devtunasoft.tuneros.core.PlaylistParser
 import com.devtunasoft.tuneros.core.RecordingPolicy
+import com.devtunasoft.tuneros.core.SeriesRules
 import com.devtunasoft.tuneros.core.SourceDownloader
 import com.devtunasoft.tuneros.core.SourceRecoveryPolicy
 import com.devtunasoft.tuneros.core.StreamRecorder
@@ -111,6 +112,7 @@ internal object OnDeviceSelfTest {
     const val RECORDING_REPORT = "tuneros-recording-report.txt"
     const val SCHEDULED_REPORT = "tuneros-scheduled-report.txt"
     const val INVALID_START_REPORT = "tuneros-invalid-start-report.txt"
+    const val SERIES_REPORT = "tuneros-series-report.txt"
     private const val MAX_SHARE_EVENTS = 8 * 1024
     private const val CANARY_KEY = "tuneros_selftest_canary_v1"
     private const val RUN_MARKER = "tuneros-selftest-in-progress"
@@ -1169,6 +1171,49 @@ internal object OnDeviceSelfTest {
      * startForegroundService() to call startForeground() promptly, so a refusal that skips it crashes the app and this
      * result is never written. The check passes only if the app is still alive after the refusal.
      */
+    /**
+     * Series rules on the device, in a scratch database: one row per rule, a repeat is ignored, a rule is listed and
+     * removed, the list stops at its budget, and the planner matches only the exact title on the rule's channel. No
+     * schedule is touched.
+     */
+    fun runSeriesRulesOnly(context: Context) {
+        val report = File(context.filesDir, SERIES_REPORT)
+        report.writeText("RUNNING\n")
+        val database = "tuneros-selftest-series-" + System.currentTimeMillis() + ".db"
+        val result = check(
+            "qa-series-rules",
+            "Series rules keep one row per rule, list and remove it, stop at the budget, and match only the exact title",
+        ) {
+            SeriesRuleStore.qaDatabaseName = database
+            try {
+                SeriesRuleStore(context).use { store ->
+                    val now = System.currentTimeMillis() / 1000
+                    val news = SeriesRules.ruleFor("The News", "qa-bbc") ?: return@check false
+                    val added = store.add(news, now)
+                    val repeated = store.add(news, now)
+                    val listed = store.all() == listOf(news)
+                    val present = store.contains(news)
+                    val removed = store.remove(news) && !store.contains(news)
+                    val budget = (0 until SeriesRules.MAX_RULES).all { index ->
+                        store.add(SeriesRules.ruleFor("Show $index", null) ?: return@check false, now)
+                    }
+                    val overBudget = !store.add(SeriesRules.ruleFor("Show extra", null) ?: return@check false, now)
+                    val programs = listOf(
+                        GuideProgram("qa-bbc", "The News", now + 3_600, now + 3_660),
+                        GuideProgram("qa-bbc", "The News Tonight", now + 3_600, now + 3_660),
+                        GuideProgram("qa-itv", "The News", now + 3_600, now + 3_660),
+                    )
+                    val planned = SeriesRules.plan(listOf(news), programs, now)
+                    added && !repeated && listed && present && removed && budget && overBudget &&
+                        planned.size == 1 && planned[0].channelId == "qa-bbc"
+                }
+            } finally {
+                SeriesRuleStore.qaDatabaseName = null
+            }
+        }
+        report.appendText(result.state.name + "\t" + result.id + "\t" + result.detail + "\n")
+    }
+
     fun runInvalidStartOnly(context: Context) {
         val report = File(context.filesDir, INVALID_START_REPORT)
         report.writeText("RUNNING\n")
