@@ -1536,6 +1536,8 @@ if ! grep -Eq '^PASS[[:space:]]qa-dvr-rearm' scheduled-report.txt \
   adb logcat -d -v time 2>/dev/null | tr -d '\r' | grep -E 'RecordingAlarm|DvrRecording|AlarmManager|tuneros' | tail -60 | cut -c1-240 || true
   exit 1
 fi
+# The window is measured from the moment the alarm is armed. The timing line shows how long the start took (epoch seconds).
+echo "scheduled recording timing: $(grep '^DETAIL' scheduled-report.txt | tail -n 1 | cut -f2- || true)"
 
 # Startup recovery: a user import saves the playlist and guide URLs encrypted, a cold start restores both with the
 # fixture counts, and a failed import leaves the saved playlist unchanged. Loopback fixtures only. The app report
