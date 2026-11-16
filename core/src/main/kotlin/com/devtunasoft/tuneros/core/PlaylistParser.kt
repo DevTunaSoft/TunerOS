@@ -26,6 +26,8 @@ object PlaylistParser {
         val result = ArrayList<Channel>()
         val seen = HashSet<String>()
         val digest = MessageDigest.getInstance("SHA-256")
+        // Occurrence numbers for stable keys. Only channels that are kept are counted.
+        val keyCounts = HashMap<String, Int>()
         // Construct the source prefix once; avoid a 30-KiB stable-key String
         // and its UTF-8 copy for every imported channel.
         val sourcePrefix = (sourceId + "\u0000").toByteArray(Charsets.UTF_8)
@@ -71,6 +73,15 @@ object PlaylistParser {
                         continue
                     }
                     if (!seen.add(id)) continue
+                    val guideKey = metadata.guideId?.trim()?.takeIf { it.isNotEmpty() }
+                    val keyBase = if (guideKey != null) {
+                        "g\u0000$guideKey"
+                    } else {
+                        "n\u0000" + metadata.name.trim().lowercase()
+                    }
+                    val occurrence = keyCounts[keyBase] ?: 0
+                    keyCounts[keyBase] = occurrence + 1
+                    val key = storageKey(digest, keyBase, occurrence)
                     result += Channel(
                         id = id, name = metadata.name.take(256), streamUrl = line,
                         guideId = metadata.guideId?.take(MAX_STORED_GUIDE_ID),
@@ -78,6 +89,7 @@ object PlaylistParser {
                             it.length <= MAX_LOGO_URL && isAllowedUrl(it)
                         },
                         group = metadata.group?.take(128), userAgent = shareHeader(userAgent), referer = shareHeader(referer),
+                        stableKey = key,
                     )
                     userAgent = null; referer = null
                 }
@@ -127,6 +139,26 @@ object PlaylistParser {
 
 
     private val hexDigits = "0123456789abcdef".toCharArray()
+
+    /**
+     * Stable key for user data. It hashes the keyed base (a guide ID, or the lower-case name when there is no guide
+     * ID) with the occurrence number, so a token rotation in the stream URL cannot change it. The channel ID is
+     * computed separately and is not affected.
+     */
+    private fun storageKey(digest: MessageDigest, base: String, occurrence: Int): String {
+        digest.reset()
+        digest.update(base.toByteArray(Charsets.UTF_8))
+        digest.update(0.toByte())
+        digest.update(occurrence.toString().toByteArray(Charsets.UTF_8))
+        val hash = digest.digest()
+        val chars = CharArray(24)
+        for (index in 0 until 12) {
+            val byte = hash[index].toInt() and 0xff
+            chars[index * 2] = hexDigits[byte ushr 4]
+            chars[index * 2 + 1] = hexDigits[byte and 0x0f]
+        }
+        return String(chars)
+    }
 
     /** Stream UTF-8 fields with the original zero separators; IDs stay byte-identical. */
     private fun stableId(
