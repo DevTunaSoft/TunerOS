@@ -860,12 +860,15 @@ import time
 
 ROOT = sys.argv[1]
 PORT = int(sys.argv[2])
-START = float(sys.argv[3])  # availabilityStartTime, epoch seconds
-SEGMENTS = int(sys.argv[4])
+START = float(sys.argv[3])  # runner epoch seconds at which the stream starts
+OFFSET = float(sys.argv[4])  # device clock minus runner clock: the manifest is written on the device's clock
+SEGMENTS = int(sys.argv[5])
 SEGMENT_SECONDS = 2
-PUBLISH_DELAY = 1.0  # a segment is published this long after its media time has elapsed
+# A segment is published this long after its media time has elapsed. It must exceed the recorder's first-attempt lag
+# (its poll interval, clock rounding and the measured offset error), so its first request is always refused.
+PUBLISH_DELAY = 4.0
 
-STAMP = datetime.datetime.fromtimestamp(START, datetime.timezone.utc).isoformat(timespec="milliseconds")
+STAMP = datetime.datetime.fromtimestamp(START + OFFSET, datetime.timezone.utc).isoformat(timespec="milliseconds")
 STAMP = STAMP.replace("+00:00", "Z")
 MPD = f'''<?xml version="1.0" encoding="UTF-8"?>
 <MPD xmlns="urn:mpeg:dash:schema:mpd:2011" type="dynamic" availabilityStartTime="{STAMP}" minimumUpdatePeriod="PT2S" minBufferTime="PT2S" profiles="urn:mpeg:dash:profile:isoff-live:2011">
@@ -914,8 +917,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
 http.server.ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()
 PY
+# The recorder compares segment times with the device clock, so the manifest's availability start must be on that clock.
+# Measure the device's offset from this runner once, and write the manifest in the device's time.
+RUNNER_NOW=$(date +%s)
+DEVICE_NOW=$(adb shell date +%s | tr -d '\r')
+case "$DEVICE_NOW" in
+  ''|*[!0-9]*) echo "Could not read the device clock: '${DEVICE_NOW}'"; exit 1 ;;
+esac
+LIVE_OFFSET=$((DEVICE_NOW - RUNNER_NOW))
 LIVE_START=$(python3 -c 'import time; print("%.3f" % time.time())')
-python3 ci-live/live_server.py ci-live/static 8771 "$LIVE_START" "$LIVE_SEGMENTS" >live-server.log 2>&1 &
+echo "live DASH clock: device minus runner offset ${LIVE_OFFSET} s"
+python3 ci-live/live_server.py ci-live/static 8771 "$LIVE_START" "$LIVE_OFFSET" "$LIVE_SEGMENTS" >live-server.log 2>&1 &
 LIVE_HTTP_PID=$!
 sleep 2
 adb shell run-as com.devtunasoft.tuneros rm -f files/tuneros-recording-report.txt 2>/dev/null || true
@@ -938,24 +950,53 @@ if ! grep -Eq '^PASS[[:space:]]qa-recording-deadline-complete' live-dash-report.
   kill "$LIVE_HTTP_PID" 2>/dev/null || true
   exit 1
 fi
-# The stored bytes must equal the initialization segment followed by consecutive segments, from some first segment.
-LIVE_MATCH=""
-for LIVE_FIRST in $(seq 1 "$LIVE_SEGMENTS"); do
-  {
-    cat ci-live/static/init-stream0.m4s
-    for LIVE_N in $(seq "$LIVE_FIRST" "$LIVE_SEGMENTS"); do
-      cat "ci-live/static/chunk-stream0-$(printf '%05d' "$LIVE_N").m4s"
-    done
-  } > ci-live/candidate.bin
-  LIVE_CAND_SHA=$(head -c "$LIVE_DISK" ci-live/candidate.bin | sha256sum | cut -d' ' -f1)
-  if [ "$LIVE_CAND_SHA" = "$LIVE_SHA" ]; then
-    LIVE_MATCH=$LIVE_FIRST
-    break
-  fi
-done
-if [ -z "$LIVE_MATCH" ] || ! grep -q '" 404 ' live-server.log; then
-  echo "Live DASH bytes are not the initialization followed by consecutive segments (sha256 ${LIVE_SHA}, ${LIVE_DISK} bytes), or no segment was refused before publication"
-  cat live-dash-report.txt 2>/dev/null || true
+# The stored bytes must be the initialization segment followed by at least two consecutive segments. The runner keeps no
+# copy of the recording, so the verifier rebuilds each candidate from the served segments and compares its size and
+# SHA-256 with the report.
+cat > ci-live/verify_live.py <<'PY'
+import glob
+import hashlib
+import os
+import sys
+
+root, disk, want = sys.argv[1], int(sys.argv[2]), sys.argv[3]
+with open(os.path.join(root, "init-stream0.m4s"), "rb") as f:
+    init = f.read()
+segments = []
+for name in sorted(glob.glob(os.path.join(root, "chunk-stream0-*.m4s"))):
+    with open(name, "rb") as f:
+        segments.append(f.read())
+for first in range(len(segments)):
+    total = len(init)
+    count = 0
+    for segment in segments[first:]:
+        if total + len(segment) > disk:
+            break
+        total += len(segment)
+        count += 1
+    if total != disk or count < 2:
+        continue
+    stream = init + b"".join(segments[first:first + count])
+    if hashlib.sha256(stream).hexdigest() == want:
+        print("init plus %d consecutive segments from %d" % (count, first + 1))
+        sys.exit(0)
+print("no candidate matches")
+sys.exit(1)
+PY
+LIVE_VERDICT=$(python3 ci-live/verify_live.py ci-live/static "$LIVE_DISK" "$LIVE_SHA") || true
+case "$LIVE_VERDICT" in
+  "init plus "*) ;;
+  *)
+    echo "Live DASH stored bytes are not the initialization followed by consecutive segments (${LIVE_DISK} bytes, sha256 ${LIVE_SHA}): ${LIVE_VERDICT}"
+    cat live-dash-report.txt 2>/dev/null || true
+    tail -20 live-server.log 2>/dev/null || true
+    kill "$LIVE_HTTP_PID" 2>/dev/null || true
+    exit 1
+    ;;
+esac
+LIVE_REFUSED=$(grep -c '" 404 ' live-server.log || true)
+if [ "$LIVE_REFUSED" -lt 1 ]; then
+  echo "The live server refused no segment before publication, so the retry path was not exercised"
   tail -20 live-server.log 2>/dev/null || true
   kill "$LIVE_HTTP_PID" 2>/dev/null || true
   exit 1
@@ -975,7 +1016,7 @@ if ! grep -Fq "$(printf 'PASS\tqa-recording-playback-first-frame\tfirst video fr
   exit 1
 fi
 kill "$LIVE_HTTP_PID" 2>/dev/null || true
-echo "live DASH recording reached the scheduled stop: ${LIVE_DISK} bytes, init plus segments from ${LIVE_MATCH}, and plays back"
+echo "live DASH recording reached the scheduled stop: ${LIVE_DISK} bytes, ${LIVE_VERDICT}, ${LIVE_REFUSED} segment requests refused before publication at a ${LIVE_OFFSET} s device offset, and plays back"
 
 # Optional real-feed import: a public playlist supplied at dispatch time (never committed). The
 # guide stays a runner fixture so the expected programme count is fixed. Channel count must be > 0.
