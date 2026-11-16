@@ -67,7 +67,9 @@ class HlsCaptureEngine(
         var totalBytes = 0L
         var stalledPolls = 0
         var selectedVariant = false
+        var initializationWritten = false
         var initializationUri: String? = null
+        var initializationRange: HlsByteRange? = null
         var mediaWritten = false
         val keys = LinkedHashMap<String, ByteArray>()
         // Keys are cached by absolute URL, a few at a time, so rotating keys cannot grow memory.
@@ -218,16 +220,8 @@ class HlsCaptureEngine(
                         }
                         val mapUri = segment.initializationMapUri
                         if (mapUri != null) {
-                            if (segment.initializationMapHasByteRange) {
-                                return Result(
-                                    totalBytes,
-                                    lastSequence,
-                                    StopReason.UNSUPPORTED,
-                                    "fMP4 initialization byte range is not supported",
-                                )
-                            }
-                            val written = initializationUri
-                            if (written == null && mediaWritten) {
+                            val mapRange = segment.initializationMapByteRange
+                            if (!initializationWritten && mediaWritten) {
                                 return Result(
                                     totalBytes,
                                     lastSequence,
@@ -235,7 +229,7 @@ class HlsCaptureEngine(
                                     "fMP4 initialization appeared after media was recorded",
                                 )
                             }
-                            if (written != null && written != mapUri) {
+                            if (initializationWritten && (initializationUri != mapUri || initializationRange != mapRange)) {
                                 return Result(
                                     totalBytes,
                                     lastSequence,
@@ -243,12 +237,12 @@ class HlsCaptureEngine(
                                     "fMP4 initialization changed during recording",
                                 )
                             }
-                            if (written == null) {
+                            if (!initializationWritten) {
                                 // Written once, before the first fragment. Later fragments depend on it.
                                 val before = totalBytes
                                 val initCopy = source.copySegment(
                                     url = resolveHttp(loaded.effectiveUrl, mapUri),
-                                    byteRange = null,
+                                    byteRange = mapRange,
                                     output = output,
                                     cancelled = cancelled,
                                     onProgress = { bytes -> onProgress(before + bytes) },
@@ -264,7 +258,18 @@ class HlsCaptureEngine(
                                                 "fMP4 initialization segment is empty",
                                             )
                                         }
+                                        if (mapRange != null && initCopy.bytesWritten != mapRange.length) {
+                                            return Result(
+                                                totalBytes,
+                                                lastSequence,
+                                                StopReason.GAP,
+                                                "fMP4 initialization byte range incomplete: expected " +
+                                                    "${mapRange.length} bytes, received ${initCopy.bytesWritten}",
+                                            )
+                                        }
+                                        initializationWritten = true
                                         initializationUri = mapUri
+                                        initializationRange = mapRange
                                         onProgress(totalBytes)
                                     }
                                     StreamRecorder.StopReason.CANCELLED ->

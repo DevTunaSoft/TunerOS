@@ -224,7 +224,7 @@ class HlsCaptureEngineTest {
         assertEquals(listOf("https://example.test/init.mp4"), source.copied.map { it.first })
     }
 
-    @Test fun fmp4InitializationInsideAByteRangeFailsClosed() {
+    @Test fun fmp4InitializationByteRangeIsRequestedAndItsLengthIsChecked() {
         val source = FakeSource(
             mapOf(
                 fmp4Url to listOf(
@@ -233,17 +233,84 @@ class HlsCaptureEngineTest {
                         HlsMediaPlaylist(1, 4, true, listOf(
                             HlsSegment(
                                 1, "1.m4s", 4.0, null, false, "NONE", null, "init.mp4",
-                                initializationMapHasByteRange = true,
+                                initializationMapByteRange = HlsByteRange(length = 4, offset = 0),
                             ),
                         )),
                     ),
                 ),
             ),
+            mapOf(
+                "https://example.test/init.mp4" to byteArrayOf(9, 9, 9, 9),
+                "https://example.test/1.m4s" to byteArrayOf(1),
+            ),
+        )
+        val out = ByteArrayOutputStream()
+        val result = HlsCaptureEngine().record(fmp4Url, out, 1_000, source, { false }, { 100 }, {})
+        assertEquals(HlsCaptureEngine.StopReason.END_LIST, result.stopReason)
+        assertEquals(listOf(9, 9, 9, 9, 1), out.toByteArray().map { it.toInt() })
+        assertEquals(HlsByteRange(length = 4, offset = 0), source.copied.first().second)
+    }
+
+    @Test fun fmp4InitializationShortByteRangeReadFailsClosedBeforeAnyFragment() {
+        val source = FakeSource(
+            mapOf(
+                fmp4Url to listOf(
+                    LoadedHlsPlaylist(
+                        fmp4Url,
+                        HlsMediaPlaylist(1, 4, true, listOf(
+                            HlsSegment(
+                                1, "1.m4s", 4.0, null, false, "NONE", null, "init.mp4",
+                                initializationMapByteRange = HlsByteRange(length = 4, offset = 0),
+                            ),
+                        )),
+                    ),
+                ),
+            ),
+            mapOf("https://example.test/init.mp4" to byteArrayOf(9, 9, 9)),
+        )
+        val result = HlsCaptureEngine().record(fmp4Url, ByteArrayOutputStream(), 1_000, source, { false }, { 100 }, {})
+        assertEquals(HlsCaptureEngine.StopReason.GAP, result.stopReason)
+        assertTrue(result.detail.orEmpty().contains("byte range incomplete"))
+        assertEquals(1, source.copied.size)
+    }
+
+    @Test fun fmp4InitializationRangeChangeFailsClosedEvenWithTheSameUri() {
+        val source = FakeSource(
+            mapOf(
+                fmp4Url to listOf(
+                    LoadedHlsPlaylist(
+                        fmp4Url,
+                        HlsMediaPlaylist(1, 4, false, listOf(
+                            HlsSegment(
+                                1, "1.m4s", 4.0, null, false, "NONE", null, "init.mp4",
+                                initializationMapByteRange = HlsByteRange(length = 4, offset = 0),
+                            ),
+                        )),
+                    ),
+                    LoadedHlsPlaylist(
+                        fmp4Url,
+                        HlsMediaPlaylist(2, 4, true, listOf(
+                            HlsSegment(
+                                2, "2.m4s", 4.0, null, false, "NONE", null, "init.mp4",
+                                initializationMapByteRange = HlsByteRange(length = 4, offset = 100),
+                            ),
+                        )),
+                    ),
+                ),
+            ),
+            mapOf(
+                "https://example.test/init.mp4" to byteArrayOf(9, 9, 9, 9),
+                "https://example.test/1.m4s" to byteArrayOf(1),
+                "https://example.test/2.m4s" to byteArrayOf(2),
+            ),
         )
         val result = HlsCaptureEngine().record(fmp4Url, ByteArrayOutputStream(), 1_000, source, { false }, { 100 }, {})
         assertEquals(HlsCaptureEngine.StopReason.UNSUPPORTED, result.stopReason)
-        assertTrue(result.detail.orEmpty().contains("byte range"))
-        assertEquals(emptyList(), source.copied.map { it.first })
+        assertTrue(result.detail.orEmpty().contains("changed"))
+        assertEquals(
+            listOf("https://example.test/init.mp4", "https://example.test/1.m4s"),
+            source.copied.map { it.first },
+        )
     }
 
     @Test fun fmp4InitializationAppearingAfterTransportStreamMediaFailsClosed() {
