@@ -1,5 +1,6 @@
 package com.devtunasoft.tuneros.core
 
+import java.io.IOException
 import java.io.OutputStream
 import java.net.URI
 
@@ -10,7 +11,8 @@ data class LoadedDashManifest(
 
 /**
  * Network access for DASH recording. Implementations keep provider headers, never log URLs or bodies, and
- * never follow a redirect to another scheme.
+ * never follow a redirect to another scheme. A 404 answered before any body byte must be reported as
+ * [DashSegmentNotPublishedException]: nothing has been written for that segment.
  */
 interface DashCaptureSource {
     fun loadManifest(url: String): LoadedDashManifest
@@ -23,10 +25,17 @@ interface DashCaptureSource {
     ): StreamRecorder.Result
 }
 
+/** The origin answered 404 before the body. Live recording waits for such a segment within a grace window. */
+class DashSegmentNotPublishedException : IOException("DASH segment is not published")
+
 /**
- * Records one static DASH video representation: the initialization segment once, then each media segment in
- * order. The segment count comes from the presentation duration and the fixed segment duration. Anything the
- * planner refuses is reported as UNSUPPORTED before any byte is written.
+ * Records one DASH video representation: the initialization segment once, then each media segment in order.
+ *
+ * A static presentation stops after the last segment its duration implies. A live presentation follows the
+ * clock: it starts at the newest complete segment, waits until each following segment has elapsed, and runs to
+ * the scheduled stop. A live segment the origin has not published yet is retried within a bounded grace window.
+ * After that the recording stops with the bytes it has, so a gap is never written silently. Anything the planner
+ * refuses is reported as UNSUPPORTED before any byte is written.
  */
 class DashCaptureEngine {
     enum class StopReason { END_LIST, CANCELLED, DEADLINE, LOW_STORAGE, UNSUPPORTED }
@@ -44,6 +53,7 @@ class DashCaptureEngine {
         source: DashCaptureSource,
         cancelled: () -> Boolean,
         nowEpochSeconds: () -> Long,
+        sleepMillis: (Long) -> Unit,
         onProgress: (Long) -> Unit = {},
     ): Result {
         require(endEpochSeconds > 0)
@@ -55,11 +65,19 @@ class DashCaptureEngine {
             is DashPlanOutcome.Unsupported -> return Result(0, StopReason.UNSUPPORTED, outcome.reason)
             is DashPlanOutcome.Planned -> outcome.plan
         }
-        val count = Math.ceil(
-            plan.mediaPresentationDurationSeconds / plan.segmentDurationSeconds - COUNT_TOLERANCE,
-        ).toLong()
-        if (count < 1) return Result(0, StopReason.UNSUPPORTED, "DASH manifest has no media segments")
-        if (count > MAX_SEGMENTS) return Result(0, StopReason.UNSUPPORTED, "DASH manifest has too many segments")
+        val timing = plan.timing
+        // A static presentation ends at a known segment. A live one never does; the scheduled stop ends it.
+        val lastNumber = when (timing) {
+            is DashTiming.Static -> {
+                val count = Math.ceil(
+                    timing.mediaPresentationDurationSeconds / plan.segmentDurationSeconds - COUNT_TOLERANCE,
+                ).toLong()
+                if (count < 1) return Result(0, StopReason.UNSUPPORTED, "DASH manifest has no media segments")
+                if (count > MAX_SEGMENTS) return Result(0, StopReason.UNSUPPORTED, "DASH manifest has too many segments")
+                plan.startNumber + count - 1
+            }
+            is DashTiming.Live -> Long.MAX_VALUE
+        }
 
         val base = if (plan.baseUrl == null) {
             loaded.effectiveUrl
@@ -76,7 +94,11 @@ class DashCaptureEngine {
             ) ?: return Result(0, StopReason.UNSUPPORTED, UNSUPPORTED_TOKEN)
             val url = resolveOrNull(base, expanded) ?: return Result(0, StopReason.UNSUPPORTED, UNSUPPORTED_RESOURCE)
             val before = totalBytes
-            val init = source.copySegment(url, output, cancelled) { bytes -> onProgress(before + bytes) }
+            val init = try {
+                source.copySegment(url, output, cancelled) { bytes -> onProgress(before + bytes) }
+            } catch (missing: DashSegmentNotPublishedException) {
+                return Result(totalBytes, StopReason.UNSUPPORTED, UNAVAILABLE_INITIALIZATION)
+            }
             totalBytes = Math.addExact(totalBytes, init.bytesWritten)
             when (init.stopReason) {
                 StreamRecorder.StopReason.END_OF_STREAM -> {
@@ -90,24 +112,56 @@ class DashCaptureEngine {
             }
         }
 
-        for (index in 0 until count) {
-            val number = plan.startNumber + index
+        // A live recording starts at the newest complete segment, as the HLS live recorder starts at the last one.
+        var number = when (timing) {
+            is DashTiming.Static -> plan.startNumber
+            is DashTiming.Live -> maxOf(plan.startNumber, newestCompleteNumber(timing, plan, nowEpochSeconds()))
+        }
+        while (true) {
             if (cancelled()) return Result(totalBytes, StopReason.CANCELLED)
-            if (nowEpochSeconds() >= endEpochSeconds) return Result(totalBytes, StopReason.DEADLINE)
+            if (number > lastNumber) return Result(totalBytes, StopReason.END_LIST)
+            val now = nowEpochSeconds()
+            if (now >= endEpochSeconds) return Result(totalBytes, StopReason.DEADLINE)
+            if (timing is DashTiming.Live && number > newestCompleteNumber(timing, plan, now)) {
+                sleepMillis(LIVE_POLL_MILLIS)
+                continue
+            }
             val expanded = DashManifest.expand(plan.mediaTemplate, plan.representationId, plan.bandwidth, number)
                 ?: return Result(totalBytes, StopReason.UNSUPPORTED, UNSUPPORTED_TOKEN)
             val url = resolveOrNull(base, expanded) ?: return Result(totalBytes, StopReason.UNSUPPORTED, UNSUPPORTED_RESOURCE)
             val before = totalBytes
-            val copy = source.copySegment(url, output, cancelled) { bytes -> onProgress(before + bytes) }
+            val copy = try {
+                source.copySegment(url, output, cancelled) { bytes -> onProgress(before + bytes) }
+            } catch (missing: DashSegmentNotPublishedException) {
+                if (timing is DashTiming.Live && withinPublishGrace(timing, plan, number, nowEpochSeconds())) {
+                    sleepMillis(LIVE_POLL_MILLIS)
+                    continue
+                }
+                val reason = if (timing is DashTiming.Live) UNPUBLISHED_LIVE_SEGMENT else UNAVAILABLE_SEGMENT
+                return Result(totalBytes, StopReason.UNSUPPORTED, reason)
+            }
             totalBytes = Math.addExact(totalBytes, copy.bytesWritten)
             when (copy.stopReason) {
                 StreamRecorder.StopReason.END_OF_STREAM -> onProgress(totalBytes)
                 StreamRecorder.StopReason.CANCELLED -> return Result(totalBytes, StopReason.CANCELLED)
                 StreamRecorder.StopReason.LOW_STORAGE -> return Result(totalBytes, StopReason.LOW_STORAGE)
             }
+            number++
         }
-        return Result(totalBytes, StopReason.END_LIST)
     }
+
+    /** The newest segment whose media time has fully elapsed at [nowEpochSeconds]. */
+    private fun newestCompleteNumber(timing: DashTiming.Live, plan: DashPlan, nowEpochSeconds: Long): Long =
+        plan.startNumber +
+            Math.floor((nowEpochSeconds - timing.availabilityStartEpochSeconds) / plan.segmentDurationSeconds).toLong() - 1
+
+    /** Segment N is published when its media time has elapsed: availabilityStart + (N - startNumber + 1) * duration. */
+    private fun completeAtEpochSeconds(timing: DashTiming.Live, plan: DashPlan, number: Long): Double =
+        timing.availabilityStartEpochSeconds + (number - plan.startNumber + 1) * plan.segmentDurationSeconds
+
+    private fun withinPublishGrace(timing: DashTiming.Live, plan: DashPlan, number: Long, nowEpochSeconds: Long): Boolean =
+        nowEpochSeconds - completeAtEpochSeconds(timing, plan, number) <
+            maxOf(LIVE_PUBLISH_GRACE_SECONDS, 2 * plan.segmentDurationSeconds)
 
     /** Resolves [relative] against [base]. Null when the result is not HTTP(S) or would downgrade HTTPS. */
     private fun resolveOrNull(base: String, relative: String): String? = runCatching {
@@ -124,7 +178,16 @@ class DashCaptureEngine {
         /** Counts whole segments, so a duration a few milliseconds past a segment boundary adds no segment. */
         const val COUNT_TOLERANCE = 0.05
         const val MAX_SEGMENTS = 100_000L
+
+        /** How long a live segment may stay unpublished after its media time has elapsed. */
+        const val LIVE_PUBLISH_GRACE_SECONDS = 10.0
+
+        /** Live waits in half-second steps: prompt enough to stop on time, slow enough not to spin. */
+        const val LIVE_POLL_MILLIS = 500L
         const val UNSUPPORTED_RESOURCE = "DASH resource must use HTTP or HTTPS"
         const val UNSUPPORTED_TOKEN = "DASH template uses a token that is not supported"
+        const val UNAVAILABLE_INITIALIZATION = "DASH initialization segment is not available"
+        const val UNAVAILABLE_SEGMENT = "DASH segment is not available"
+        const val UNPUBLISHED_LIVE_SEGMENT = "DASH live segment was not published in time"
     }
 }

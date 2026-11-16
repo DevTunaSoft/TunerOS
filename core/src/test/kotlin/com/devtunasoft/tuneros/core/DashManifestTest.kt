@@ -11,19 +11,30 @@ class DashManifestTest {
       <Representation id="v1" bandwidth="500000" codecs="avc1.42c01e" width="160" height="120"/>
     </AdaptationSet>"""
 
-    /** `@` stands for a dollar sign, so the fixtures read like manifests without Kotlin template escapes. */
+    /**
+     * `@` stands for a dollar sign, so the fixtures read like manifests without Kotlin template escapes. A static
+     * manifest carries a presentation duration; a dynamic one carries an availability start instead.
+     */
     private fun mpd(
         type: String = "static",
         duration: String = "PT9S",
         baseUrl: String? = null,
+        availabilityStart: String? = null,
         body: String = videoSet,
-    ): String = """<?xml version="1.0" encoding="UTF-8"?>
-<MPD xmlns="urn:mpeg:dash:schema:mpd:2011" type="$type" mediaPresentationDuration="$duration">
+    ): String {
+        val timing = if (type == "dynamic") {
+            availabilityStart?.let { " availabilityStartTime=\"$it\"" }.orEmpty()
+        } else {
+            " mediaPresentationDuration=\"$duration\""
+        }
+        return """<?xml version="1.0" encoding="UTF-8"?>
+<MPD xmlns="urn:mpeg:dash:schema:mpd:2011" type="$type"$timing>
 ${baseUrl?.let { "  <BaseURL>$it</BaseURL>\n" }.orEmpty()}  <Period id="0" start="PT0S">
 $body
   </Period>
 </MPD>
 """.replace('@', '$')
+    }
 
     private fun refusalOf(text: String): String {
         val outcome = DashManifest.plan(text)
@@ -39,13 +50,41 @@ $body
         assertEquals("init-\$RepresentationID\$.m4s", plan.initializationTemplate)
         assertEquals("chunk-\$RepresentationID\$-\$Number%05d\$.m4s", plan.mediaTemplate)
         assertEquals(3.0, plan.segmentDurationSeconds)
-        assertEquals(9.0, plan.mediaPresentationDurationSeconds)
+        assertEquals(DashTiming.Static(9.0), plan.timing)
         assertEquals(1L, plan.startNumber)
         assertNull(plan.baseUrl)
     }
 
-    @Test fun liveManifestsAreRefusedForNow() {
-        assertEquals("Live DASH recording is not supported yet", refusalOf(mpd(type = "dynamic")))
+    @Test fun liveManifestWithAnAvailabilityStartIsPlanned() {
+        val outcome = DashManifest.plan(mpd(type = "dynamic", availabilityStart = "1970-01-01T00:16:40Z"))
+        assertTrue(outcome is DashPlanOutcome.Planned, "expected a plan, got $outcome")
+        assertEquals(DashTiming.Live(1_000.0), (outcome as DashPlanOutcome.Planned).plan.timing)
+    }
+
+    @Test fun aLiveManifestWrittenByFfmpegPlansAgainstItsSegmentClock() {
+        // Real output of ffmpeg 2-second live DASH. It declares availabilityTimeOffset, which the recorder does not
+        // use: each segment is requested only after its full duration has elapsed.
+        val text = DashManifestTest::class.java.getResource("/dash/ffmpeg-live.mpd")!!.readText()
+        val plan = (DashManifest.plan(text) as DashPlanOutcome.Planned).plan
+        val timing = plan.timing as DashTiming.Live
+        assertEquals(1_794_833_535.972, timing.availabilityStartEpochSeconds, 0.001)
+        assertEquals(2.0, plan.segmentDurationSeconds)
+        assertEquals(1L, plan.startNumber)
+        assertEquals("init-stream0.m4s", DashManifest.expand(plan.initializationTemplate!!, plan.representationId, plan.bandwidth, 1))
+        assertEquals("chunk-stream0-00007.m4s", DashManifest.expand(plan.mediaTemplate, plan.representationId, plan.bandwidth, 7))
+    }
+
+    @Test fun liveAvailabilityStartKeepsItsFractionalSecondAndOffset() {
+        // 01:00:00.5 at +01:00 is 00:00:00.5 UTC, which is 0.5 seconds after the epoch.
+        val outcome = DashManifest.plan(mpd(type = "dynamic", availabilityStart = "1970-01-01T01:00:00.5+01:00"))
+        assertEquals(DashTiming.Live(0.5), (outcome as DashPlanOutcome.Planned).plan.timing)
+    }
+
+    @Test fun liveManifestNeedsAnAvailabilityStartWithAnOffset() {
+        val reason = "Live DASH manifest needs a valid availabilityStartTime"
+        assertEquals(reason, refusalOf(mpd(type = "dynamic")))
+        assertEquals(reason, refusalOf(mpd(type = "dynamic", availabilityStart = "2026-11-16T10:00:00")))
+        assertEquals(reason, refusalOf(mpd(type = "dynamic", availabilityStart = "yesterday")))
     }
 
     @Test fun separateAudioRenditionIsRefused() {

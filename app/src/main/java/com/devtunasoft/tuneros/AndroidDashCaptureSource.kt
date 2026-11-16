@@ -2,6 +2,7 @@ package com.devtunasoft.tuneros
 
 import com.devtunasoft.tuneros.core.DashCaptureSource
 import com.devtunasoft.tuneros.core.DashManifest
+import com.devtunasoft.tuneros.core.DashSegmentNotPublishedException
 import com.devtunasoft.tuneros.core.HlsByteRange
 import com.devtunasoft.tuneros.core.LoadedDashManifest
 import com.devtunasoft.tuneros.core.StreamRecorder
@@ -35,7 +36,12 @@ internal class AndroidDashCaptureSource(
         output: OutputStream,
         cancelled: () -> Boolean,
         onProgress: (Long) -> Unit,
-    ): StreamRecorder.Result = segments.copySegment(url, null, output, cancelled, onProgress)
+    ): StreamRecorder.Result = try {
+        segments.copySegment(url, null, output, cancelled, onProgress)
+    } catch (status: HttpStatusException) {
+        // A 404 is answered before the body, so nothing has been written for this segment.
+        if (status.code == HttpURLConnection.HTTP_NOT_FOUND) throw DashSegmentNotPublishedException() else throw status
+    }
 
     private fun readBounded(reader: Reader): String {
         val buffer = CharArray(DashManifest.MAX_MANIFEST_CHARS + 1)

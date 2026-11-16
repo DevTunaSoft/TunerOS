@@ -843,6 +843,140 @@ if ! grep -Fq "$(printf 'PASS\tqa-recording-playback-first-frame\tfirst video fr
   exit 1
 fi
 
+# Live DASH on the device. The runner serves a dynamic manifest whose 2-second segments appear on the clock, each one
+# second after its media time has elapsed. The recorder therefore sees a 404 for each segment at first and must retry it
+# inside its grace window. The recording must reach the scheduled stop as COMPLETED, its stored bytes must be the
+# initialization segment followed by consecutive segments, and the stored file must play back.
+rm -rf ci-live && mkdir -p ci-live/static
+ffmpeg -y -loglevel error -f lavfi -i testsrc=duration=60:size=160x120:rate=10 -c:v libx264 -pix_fmt yuv420p \
+  -g 20 -keyint_min 20 -sc_threshold 0 -f dash -seg_duration 2 -use_template 1 -use_timeline 0 ci-live/static/manifest.mpd
+LIVE_SEGMENTS=$(ls ci-live/static/chunk-stream0-*.m4s | wc -l)
+cat > ci-live/live_server.py <<'PY'
+import datetime
+import http.server
+import os
+import sys
+import time
+
+ROOT = sys.argv[1]
+PORT = int(sys.argv[2])
+START = float(sys.argv[3])  # availabilityStartTime, epoch seconds
+SEGMENTS = int(sys.argv[4])
+SEGMENT_SECONDS = 2
+PUBLISH_DELAY = 1.0  # a segment is published this long after its media time has elapsed
+
+STAMP = datetime.datetime.fromtimestamp(START, datetime.timezone.utc).isoformat(timespec="milliseconds")
+STAMP = STAMP.replace("+00:00", "Z")
+MPD = f'''<?xml version="1.0" encoding="UTF-8"?>
+<MPD xmlns="urn:mpeg:dash:schema:mpd:2011" type="dynamic" availabilityStartTime="{STAMP}" minimumUpdatePeriod="PT2S" minBufferTime="PT2S" profiles="urn:mpeg:dash:profile:isoff-live:2011">
+  <Period id="0" start="PT0S">
+    <AdaptationSet mimeType="video/mp4" contentType="video">
+      <SegmentTemplate timescale="1000" duration="{SEGMENT_SECONDS * 1000}" startNumber="1" initialization="init.m4s" media="chunk-$Number%05d$.m4s"/>
+      <Representation id="v1" bandwidth="100000" codecs="avc1.42c01e" width="160" height="120"/>
+    </AdaptationSet>
+  </Period>
+</MPD>
+'''
+
+
+def read(name):
+    with open(os.path.join(ROOT, name), "rb") as f:
+        return f.read()
+
+
+def send(handler, body, content_type):
+    handler.send_response(200)
+    handler.send_header("Content-Type", content_type)
+    handler.send_header("Content-Length", str(len(body)))
+    handler.end_headers()
+    handler.wfile.write(body)
+
+
+class Handler(http.server.BaseHTTPRequestHandler):
+    def do_GET(self):
+        path = self.path.split("?", 1)[0]
+        if path == "/live/manifest.mpd":
+            return send(self, MPD.encode("utf-8"), "application/dash+xml")
+        if path == "/live/init.m4s":
+            return send(self, read("init-stream0.m4s"), "video/mp4")
+        name = path.rsplit("/", 1)[-1]
+        if path.startswith("/live/chunk-") and name.endswith(".m4s"):
+            digits = name[len("chunk-"):-len(".m4s")]
+            if digits.isdigit():
+                number = int(digits)
+                if 1 <= number <= SEGMENTS and time.time() >= START + SEGMENT_SECONDS * number + PUBLISH_DELAY:
+                    return send(self, read("chunk-stream0-%05d.m4s" % number), "video/mp4")
+        self.send_error(404)
+
+    def log_message(self, format, *args):
+        sys.stderr.write("live-server " + (format % args) + "\n")
+
+
+http.server.ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()
+PY
+LIVE_START=$(python3 -c 'import time; print("%.3f" % time.time())')
+python3 ci-live/live_server.py ci-live/static 8771 "$LIVE_START" "$LIVE_SEGMENTS" >live-server.log 2>&1 &
+LIVE_HTTP_PID=$!
+sleep 2
+adb shell run-as com.devtunasoft.tuneros rm -f files/tuneros-recording-report.txt 2>/dev/null || true
+adb shell am force-stop com.devtunasoft.tuneros
+adb shell am start -n com.devtunasoft.tuneros/.MainActivity --es tuneros.debug.record_url http://10.0.2.2:8771/live/manifest.mpd --es tuneros.debug.record_mode deadline
+for attempt in $(seq 1 90); do
+  adb shell run-as com.devtunasoft.tuneros cat files/tuneros-recording-report.txt > live-dash-report.txt 2>/dev/null || true
+  if grep -Eq '^(PASS|FAIL)[[:space:]]qa-recording-deadline-complete' live-dash-report.txt; then
+    break
+  fi
+  sleep 2
+done
+LIVE_DISK=$(sed -n 's/^DETAIL.* disk=\([0-9]*\)$/\1/p' live-dash-report.txt | tail -1)
+LIVE_SHA=$(sed -n 's/^DETAIL.* sha256=\([0-9a-f]*\) .*/\1/p' live-dash-report.txt | tail -1)
+if ! grep -Eq '^PASS[[:space:]]qa-recording-deadline-complete' live-dash-report.txt \
+   || [ -z "$LIVE_DISK" ] || [ "$LIVE_DISK" -le 0 ] || [ -z "$LIVE_SHA" ]; then
+  echo "Live DASH recording did not reach the scheduled stop as COMPLETED"
+  cat live-dash-report.txt 2>/dev/null || echo "(no report file)"
+  tail -20 live-server.log 2>/dev/null || true
+  kill "$LIVE_HTTP_PID" 2>/dev/null || true
+  exit 1
+fi
+# The stored bytes must equal the initialization segment followed by consecutive segments, from some first segment.
+LIVE_MATCH=""
+for LIVE_FIRST in $(seq 1 "$LIVE_SEGMENTS"); do
+  {
+    cat ci-live/static/init-stream0.m4s
+    for LIVE_N in $(seq "$LIVE_FIRST" "$LIVE_SEGMENTS"); do
+      cat "ci-live/static/chunk-stream0-$(printf '%05d' "$LIVE_N").m4s"
+    done
+  } > ci-live/candidate.bin
+  LIVE_CAND_SHA=$(head -c "$LIVE_DISK" ci-live/candidate.bin | sha256sum | cut -d' ' -f1)
+  if [ "$LIVE_CAND_SHA" = "$LIVE_SHA" ]; then
+    LIVE_MATCH=$LIVE_FIRST
+    break
+  fi
+done
+if [ -z "$LIVE_MATCH" ] || ! grep -q '" 404 ' live-server.log; then
+  echo "Live DASH bytes are not the initialization followed by consecutive segments (sha256 ${LIVE_SHA}, ${LIVE_DISK} bytes), or no segment was refused before publication"
+  cat live-dash-report.txt 2>/dev/null || true
+  tail -20 live-server.log 2>/dev/null || true
+  kill "$LIVE_HTTP_PID" 2>/dev/null || true
+  exit 1
+fi
+# The stored live file must also play back.
+for attempt in $(seq 1 60); do
+  adb shell run-as com.devtunasoft.tuneros cat files/tuneros-recording-report.txt > live-dash-report.txt 2>/dev/null || true
+  if grep -Eq '^(PASS|FAIL)[[:space:]]qa-recording-playback-first-frame' live-dash-report.txt; then
+    break
+  fi
+  sleep 2
+done
+if ! grep -Fq "$(printf 'PASS\tqa-recording-playback-first-frame\tfirst video frame rendered')" live-dash-report.txt; then
+  echo "Live DASH recorded file playback check failed or never completed"
+  cat live-dash-report.txt 2>/dev/null || echo "(no report file)"
+  kill "$LIVE_HTTP_PID" 2>/dev/null || true
+  exit 1
+fi
+kill "$LIVE_HTTP_PID" 2>/dev/null || true
+echo "live DASH recording reached the scheduled stop: ${LIVE_DISK} bytes, init plus segments from ${LIVE_MATCH}, and plays back"
+
 # Optional real-feed import: a public playlist supplied at dispatch time (never committed). The
 # guide stays a runner fixture so the expected programme count is fixed. Channel count must be > 0.
 if [ -n "${PUBLIC_PLAYLIST_URL:-}" ]; then

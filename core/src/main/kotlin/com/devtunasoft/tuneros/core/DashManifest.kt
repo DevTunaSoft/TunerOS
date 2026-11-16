@@ -2,12 +2,13 @@ package com.devtunasoft.tuneros.core
 
 import java.io.StringReader
 import java.time.Duration
+import java.time.OffsetDateTime
 import javax.xml.parsers.DocumentBuilderFactory
 import org.w3c.dom.Element
 import org.w3c.dom.Node
 import org.xml.sax.InputSource
 
-/** What a static DASH recording needs from a manifest. Only the fields the recorder reads. */
+/** What a DASH recording needs from a manifest. Only the fields the recorder reads. */
 data class DashPlan(
     val baseUrl: String?,
     val representationId: String,
@@ -16,8 +17,22 @@ data class DashPlan(
     val mediaTemplate: String,
     val startNumber: Long,
     val segmentDurationSeconds: Double,
-    val mediaPresentationDurationSeconds: Double,
+    val timing: DashTiming,
 )
+
+/** How segment numbers relate to time. */
+sealed class DashTiming {
+    /** A finished presentation. Its media segments are counted from the presentation duration. */
+    data class Static(val mediaPresentationDurationSeconds: Double) : DashTiming()
+
+    /**
+     * A live presentation. Segment N is complete at availabilityStart + (N - startNumber + 1) * duration, so the
+     * recorder follows the clock rather than a segment list. availabilityTimeOffset and availabilityTimeComplete
+     * are not read: each segment is requested only after its full duration has elapsed, and a truncated body is
+     * refused by the length check on the copy.
+     */
+    data class Live(val availabilityStartEpochSeconds: Double) : DashTiming()
+}
 
 sealed class DashPlanOutcome {
     data class Planned(val plan: DashPlan) : DashPlanOutcome()
@@ -25,10 +40,11 @@ sealed class DashPlanOutcome {
 }
 
 /**
- * Bounded static-DASH planner. It accepts one period with one video track, muxed or video-only, whose
- * representation uses a SegmentTemplate with `$Number$` and a fixed duration. It refuses everything else with a
- * fixed reason: live manifests, separate audio or text renditions, protection, timelines, lists, DTDs and
- * unknown template tokens. No manifest text, URL or exception message is kept.
+ * Bounded DASH planner for static and live manifests. It accepts one period with one video track, muxed or
+ * video-only, whose representation uses a SegmentTemplate with `$Number$` and a fixed duration. A dynamic manifest
+ * must carry an availabilityStartTime with a UTC offset, and the recorder follows that clock. It refuses everything
+ * else with a fixed reason: separate audio or text renditions, protection, timelines, lists, DTDs and unknown
+ * template tokens. No manifest text, URL or exception message is kept.
  */
 object DashManifest {
     const val MAX_MANIFEST_CHARS = 1_000_000
@@ -40,9 +56,9 @@ object DashManifest {
         if (text.contains("<!DOCTYPE", ignoreCase = true)) return refuse("DASH manifest declares a DTD, which is not accepted")
         val root = parse(text) ?: return refuse("DASH manifest is not well formed")
         if (root.nodeName != "MPD") return refuse("Not a DASH manifest")
-        when (root.attr("type")) {
-            null, "static" -> Unit
-            "dynamic" -> return refuse("Live DASH recording is not supported yet")
+        val live = when (root.attr("type")) {
+            null, "static" -> false
+            "dynamic" -> true
             else -> return refuse("Unknown DASH manifest type")
         }
         for (name in UNSUPPORTED_ELEMENTS) {
@@ -52,8 +68,15 @@ object DashManifest {
         if (topBaseUrls.size > 1 || root.getElementsByTagName("BaseURL").length != topBaseUrls.size) {
             return refuse("Nested or repeated DASH BaseURL is not supported")
         }
-        val duration = root.attr("mediaPresentationDuration")?.let { seconds(it) }
-            ?: return refuse("Static DASH manifest needs a presentation duration")
+        val timing: DashTiming = if (live) {
+            val start = root.attr("availabilityStartTime")?.let { epochSeconds(it) }
+                ?: return refuse("Live DASH manifest needs a valid availabilityStartTime")
+            DashTiming.Live(start)
+        } else {
+            val duration = root.attr("mediaPresentationDuration")?.let { seconds(it) }
+                ?: return refuse("Static DASH manifest needs a presentation duration")
+            DashTiming.Static(duration)
+        }
         val periods = root.childElements("Period")
         if (periods.size != 1) return refuse("DASH manifests with exactly one period are supported")
         periods[0].attr("start")?.let { start ->
@@ -114,7 +137,7 @@ object DashManifest {
                 mediaTemplate = media,
                 startNumber = startNumber,
                 segmentDurationSeconds = durationTicks.toDouble() / timescale.toDouble(),
-                mediaPresentationDurationSeconds = duration,
+                timing = timing,
             ),
         )
     }
@@ -162,6 +185,12 @@ object DashManifest {
         val parsed = runCatching { Duration.parse(value) }.getOrNull() ?: return null
         if (parsed.isNegative) return null
         return parsed.toMillis() / 1000.0
+    }
+
+    /** Epoch seconds of an xs:dateTime that carries an offset. A time without one is ambiguous, so it is refused. */
+    private fun epochSeconds(value: String): Double? {
+        val parsed = runCatching { OffsetDateTime.parse(value).toInstant() }.getOrNull() ?: return null
+        return parsed.epochSecond + parsed.nano / 1_000_000_000.0
     }
 
     /** Parses without DTD or entity expansion. Returns null for anything that is not well formed XML. */

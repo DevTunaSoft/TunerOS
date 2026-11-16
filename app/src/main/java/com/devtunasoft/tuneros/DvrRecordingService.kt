@@ -359,7 +359,7 @@ class DvrRecordingService : Service() {
                 source = source,
                 cancelled = { cancelled.get() },
                 nowEpochSeconds = ::nowSeconds,
-                sleepMillis = ::sleepHlsPoll,
+                sleepMillis = ::sleepRecordingPoll,
                 onProgress = { total ->
                     if (total - lastCatalogBytes >= CATALOG_PROGRESS_BYTES) {
                         catalog.updateProgress(id, total)
@@ -444,6 +444,7 @@ class DvrRecordingService : Service() {
                 source = source,
                 cancelled = { cancelled.get() },
                 nowEpochSeconds = ::nowSeconds,
+                sleepMillis = ::sleepRecordingPoll,
                 onProgress = { total ->
                     if (total - lastCatalogBytes >= CATALOG_PROGRESS_BYTES) {
                         catalog.updateProgress(id, total)
@@ -567,7 +568,7 @@ class DvrRecordingService : Service() {
             if (code !in 200..299) {
                 connection.disconnect()
                 connections.release(connection)
-                error("HTTP status " + code)
+                throw HttpStatusException(code)
             }
             if (byteRange != null && code != HttpURLConnection.HTTP_PARTIAL) {
                 connection.disconnect()
@@ -612,7 +613,7 @@ class DvrRecordingService : Service() {
         return null
     }
 
-    private fun sleepHlsPoll(delayMillis: Long) {
+    private fun sleepRecordingPoll(delayMillis: Long) {
         var remaining = delayMillis
         while (remaining > 0 && !cancelled.get()) {
             val chunk = minOf(remaining, 250L)
