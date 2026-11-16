@@ -273,9 +273,21 @@ $body
         assertEquals(2L, plan.segmentCount)
     }
 
-    @Test fun liveSegmentListIsRefusedUntilARefreshIsSupported() {
-        val text = mpd(type = "dynamic", availabilityStart = "1970-01-01T00:16:40Z", body = listSet(base = "x.mp4", body = """<SegmentURL mediaRange="0-9"/>"""))
-        assertTrue(refusalOf(text).contains("refresh"))
+    @Test fun liveSegmentListIsPlannedForRefreshWithItsNumbers() {
+        val text = mpd(type = "dynamic", availabilityStart = "1970-01-01T00:16:40Z", body = listSet(base = "x.mp4", body = """<SegmentURL mediaRange="0-9"/><SegmentURL mediaRange="10-19"/>"""))
+        val plan = planned(text)
+        assertTrue(plan.timing is DashTiming.Live)
+        assertNull(plan.segmentCount)
+        assertEquals(1L, plan.listedSegments?.get(0)?.id)
+        assertEquals(2L, plan.listedSegments?.get(1)?.id)
+        assertEquals(3L, plan.listedSegments?.get(1)?.endId)
+    }
+
+    @Test fun liveTimingReadsTheMinimumUpdatePeriod() {
+        val text = mpd(type = "dynamic", availabilityStart = "1970-01-01T00:16:40Z", body = videoSet)
+            .replace("availabilityStartTime=", "minimumUpdatePeriod=\"PT4S\" availabilityStartTime=")
+        assertEquals(4.0, (planned(text).timing as DashTiming.Live).minimumUpdatePeriodSeconds)
+        assertEquals(DashTiming.DEFAULT_MINIMUM_UPDATE_SECONDS, (planned(mpd(type = "dynamic", availabilityStart = "1970-01-01T00:16:40Z")).timing as DashTiming.Live).minimumUpdatePeriodSeconds)
     }
 
     @Test fun segmentListRangeMustBeOrderedAndNumeric() {

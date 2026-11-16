@@ -1032,11 +1032,12 @@ if ! grep -Fq "$(printf 'PASS\tqa-recording-playback-first-frame\tfirst video fr
   exit 1
 fi
 
-# Live DASH on the device. The runner serves a dynamic manifest of 2-second segments on the device's clock, in three
-# forms: a fixed duration, a finite SegmentTimeline addressed by number (as ffmpeg lists it), and an open SegmentTimeline
-# addressed by time. The origin answers the first request for each segment with 404, so the recorder must retry every
-# segment inside its grace window. Each recording must reach the scheduled stop as COMPLETED, its stored bytes must be
-# the initialization segment followed by at least two consecutive segments, and the stored file must play back.
+# Live DASH on the device. The runner serves a dynamic manifest of 2-second segments on the device's clock, in five
+# forms: a fixed duration, a finite SegmentTimeline addressed by number (as ffmpeg lists it), an open SegmentTimeline
+# addressed by time, the same with a presentation offset, and a sliding SegmentList of the newest four segments that the
+# recorder re-reads and follows. The origin answers the first request for each segment with 404, so the recorder must
+# retry every segment inside its grace window. Each recording must reach the scheduled stop as COMPLETED, its stored
+# bytes must be the initialization segment and at least two consecutive segments, and the file must play back.
 rm -rf ci-live && mkdir -p ci-live/static
 ffmpeg -y -loglevel error -f lavfi -i testsrc=duration=60:size=160x120:rate=10 -c:v libx264 -pix_fmt yuv420p \
   -g 20 -keyint_min 20 -sc_threshold 0 -f dash -seg_duration 2 -use_template 1 -use_timeline 0 ci-live/static/manifest.mpd
@@ -1053,7 +1054,7 @@ PORT = int(sys.argv[2])
 START = float(sys.argv[3])  # runner epoch seconds at which the stream starts
 OFFSET = float(sys.argv[4])  # device clock minus runner clock: the manifest is written on the device's clock
 SEGMENTS = int(sys.argv[5])
-MODE = sys.argv[6]  # template, timeline-number, timeline-time or timeline-offset
+MODE = sys.argv[6]  # template, timeline-number, timeline-time, timeline-offset or list-live
 SEGMENT_SECONDS = 2
 STEP = SEGMENT_SECONDS * 1000  # one segment in the 1000-unit timescale
 PRESENTATION_OFFSET = 600000  # media time of the first segment in timeline-offset mode
@@ -1085,6 +1086,9 @@ elif MODE == "timeline-offset":
         'initialization="init.m4s" media="chunk-$Time$.m4s">'
         f'<SegmentTimeline><S t="{PRESENTATION_OFFSET}" d="{STEP}" r="-1"/></SegmentTimeline></SegmentTemplate>'
     )
+elif MODE == "list-live":
+    # The manifest is built on each request (manifest_text), so its SegmentList slides with the clock.
+    SEGMENT_TEMPLATE = ""
 else:
     raise SystemExit("unknown mode: " + MODE)
 
@@ -1096,6 +1100,34 @@ MPD = f'''<?xml version="1.0" encoding="UTF-8"?>
     <AdaptationSet mimeType="video/mp4" contentType="video">
       {SEGMENT_TEMPLATE}
       <Representation id="v1" bandwidth="100000" codecs="avc1.42c01e" width="160" height="120"/>
+    </AdaptationSet>
+  </Period>
+</MPD>
+'''
+
+
+LIST_WINDOW = 4  # listed segments in list-live mode: the newest four, slid forward as segments complete
+
+
+def manifest_text():
+    if MODE != "list-live":
+        return MPD
+    # Segment N completes at START + N * SEGMENT_SECONDS on the runner clock, so the newest complete one is:
+    newest = min(SEGMENTS, max(1, int((time.time() - START) // SEGMENT_SECONDS)))
+    first = max(1, newest - LIST_WINDOW + 1)
+    entries = "\n".join(
+        f'          <SegmentURL media="chunk-{number:05d}.m4s"/>' for number in range(first, newest + 1)
+    )
+    return f'''<?xml version="1.0" encoding="UTF-8"?>
+<MPD xmlns="urn:mpeg:dash:schema:mpd:2011" type="dynamic" availabilityStartTime="{STAMP}" minimumUpdatePeriod="PT2S" minBufferTime="PT2S" profiles="urn:mpeg:dash:profile:isoff-live:2011">
+  <Period id="0" start="PT0S">
+    <AdaptationSet mimeType="video/mp4" contentType="video">
+      <Representation id="v1" bandwidth="100000" codecs="avc1.42c01e" width="160" height="120">
+        <SegmentList timescale="1000" duration="{STEP}" startNumber="{first}">
+          <Initialization sourceURL="init.m4s"/>
+{entries}
+        </SegmentList>
+      </Representation>
     </AdaptationSet>
   </Period>
 </MPD>
@@ -1119,7 +1151,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
         path = self.path.split("?", 1)[0]
         if path == "/live/manifest.mpd":
-            return send(self, MPD.encode("utf-8"), "application/dash+xml")
+            return send(self, manifest_text().encode("utf-8"), "application/dash+xml")
         if path == "/live/init.m4s":
             return send(self, read("init-stream0.m4s"), "video/mp4")
         name = path.rsplit("/", 1)[-1]
@@ -1257,6 +1289,7 @@ run_live_dash_case template 8771
 run_live_dash_case timeline-number 8772
 run_live_dash_case timeline-time 8773
 run_live_dash_case timeline-offset 8776
+run_live_dash_case list-live 8777
 
 # Optional real-feed import: a public playlist supplied at dispatch time (never committed). The
 # guide stays a runner fixture so the expected programme count is fixed. Channel count must be > 0.

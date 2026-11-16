@@ -23,7 +23,7 @@ data class DashPlan(
     val startTimeTicks: Long,
     /** Segment duration in timescale units. */
     val segmentDurationTicks: Long,
-    /** Static presentations only: the number of media segments. Null for live, which the clock ends. */
+    /** Static presentations only: the number of media segments. Null for live, which the scheduled stop ends. */
     val segmentCount: Long?,
     val timing: DashTiming,
     /** The representation's own BaseURL, resolved after [baseUrl]. */
@@ -41,8 +41,11 @@ data class DashPlan(
 /** A SegmentList's initialization: a source (default the base URL) and an optional byte range. */
 data class DashListedInitialization(val source: String?, val range: HlsByteRange?)
 
-/** One SegmentList entry: a media URL (default the base URL) and an optional byte range. */
-data class DashListedSegment(val media: String?, val range: HlsByteRange?)
+/**
+ * One listed segment: its identity in the listing (a SegmentList number), the identity that follows it, a media URL
+ * (default the base URL) and an optional byte range. Identities increase along the listing.
+ */
+data class DashListedSegment(val id: Long, val endId: Long, val media: String?, val range: HlsByteRange?)
 
 /** How segment numbers relate to time. */
 sealed class DashTiming {
@@ -50,12 +53,20 @@ sealed class DashTiming {
     data class Static(val mediaPresentationDurationSeconds: Double) : DashTiming()
 
     /**
-     * A live presentation. Segment N is complete at availabilityStart + (start + N - startNumber + 1) * duration, so
-     * the recorder follows the clock rather than a segment list. availabilityTimeOffset and availabilityTimeComplete
-     * are not read: each segment is requested only after its full duration has elapsed, and a truncated body is
-     * refused by the length check on the copy.
+     * A live presentation. For a SegmentTemplate, segment N is complete at availabilityStart + (start + N - startNumber
+     * + 1) times duration, so the recorder follows the clock and requests each segment only after its duration has
+     * elapsed. A live SegmentList is followed through its listing instead. availabilityTimeOffset and
+     * availabilityTimeComplete are not read, and a truncated body is refused by the length check on the copy.
      */
-    data class Live(val availabilityStartEpochSeconds: Double) : DashTiming()
+    data class Live(
+        val availabilityStartEpochSeconds: Double,
+        /** How often a listed live manifest is read again. */
+        val minimumUpdatePeriodSeconds: Double = DEFAULT_MINIMUM_UPDATE_SECONDS,
+    ) : DashTiming()
+
+    companion object {
+        const val DEFAULT_MINIMUM_UPDATE_SECONDS = 2.0
+    }
 }
 
 sealed class DashPlanOutcome {
@@ -69,7 +80,8 @@ sealed class DashPlanOutcome {
  * `$Time$`; or by a static SegmentList of URLs and byte ranges. A timeline must be regular: its entries share one
  * duration and follow one another. A static manifest carries a presentation duration or a timeline or list, and the
  * recorder counts its segments from it. A live manifest carries an availabilityStartTime with an offset, and the
- * recorder follows that clock; a live SegmentList needs a manifest refresh and is refused. It refuses everything else
+ * recorder follows that clock. A live SegmentList is read again at its minimum update period, and its listed segments
+ * are followed as they appear. It refuses everything else
  * with a fixed reason: separate audio or text renditions, protection, SegmentBase, irregular timelines, DTDs and
  * unknown template tokens. No manifest text, URL or exception message is kept.
  */
@@ -112,7 +124,8 @@ object DashManifest {
         val timing: DashTiming = if (live) {
             val start = root.attr("availabilityStartTime")?.let { epochSeconds(it) }
                 ?: return refuse("Live DASH manifest needs a valid availabilityStartTime")
-            DashTiming.Live(start)
+            val updatePeriod = root.attr("minimumUpdatePeriod")?.let { seconds(it) }?.takeIf { it > 0 }
+            DashTiming.Live(start, updatePeriod ?: DashTiming.DEFAULT_MINIMUM_UPDATE_SECONDS)
         } else {
             val duration = root.attr("mediaPresentationDuration")?.let { seconds(it) }
                 ?: return refuse("Static DASH manifest needs a presentation duration")
@@ -225,7 +238,10 @@ object DashManifest {
         )
     }
 
-    /** A static SegmentList: the listed URLs and byte ranges, in order. A live list needs a refresh, so it is refused. */
+    /**
+     * A SegmentList: the listed URLs and byte ranges, in order. Segment identity is startNumber plus position, so a live
+     * list must advance startNumber as it slides.
+     */
     private fun planList(
         live: Boolean,
         timing: DashTiming,
@@ -235,7 +251,6 @@ object DashManifest {
         bandwidth: Long,
         list: Element,
     ): DashPlanOutcome {
-        if (live) return refuse("Live DASH SegmentList needs a manifest refresh, which is not supported yet")
         val timescale = list.attr("timescale")?.let { raw ->
             raw.toLongOrNull()?.takeIf { it > 0 } ?: return refuse("DASH timescale is not a positive number")
         } ?: 1L
@@ -257,12 +272,13 @@ object DashManifest {
         if (entries.size > MAX_LIST_SEGMENTS) return refuse("DASH SegmentList has too many segments")
         val hasBase = topBaseUrls.isNotEmpty() || representationBaseUrl(representation) != null
         val segments = ArrayList<DashListedSegment>(entries.size)
-        for (entry in entries) {
+        for ((index, entry) in entries.withIndex()) {
             val media = entry.attr("media")
             val range = entry.attr("mediaRange")?.let { parseRange(it) ?: return refuse("DASH SegmentURL byte range is not valid") }
             if (media == null && range == null) return refuse("DASH SegmentURL has no media URL or byte range")
             if (media == null && !hasBase) return refuse("DASH SegmentURL has no media URL and no BaseURL")
-            segments += DashListedSegment(media = media, range = range)
+            val number = startNumber + index
+            segments += DashListedSegment(id = number, endId = number + 1, media = media, range = range)
         }
         return DashPlanOutcome.Planned(
             DashPlan(
@@ -275,7 +291,7 @@ object DashManifest {
                 timescale = timescale,
                 startTimeTicks = 0L,
                 segmentDurationTicks = durationTicks,
-                segmentCount = segments.size.toLong(),
+                segmentCount = if (live) null else segments.size.toLong(),
                 timing = timing,
                 representationBaseUrl = representationBaseUrl(representation),
                 listedInitialization = initialization,

@@ -460,4 +460,161 @@ $body
         assertEquals((0 until 25).toList(), out.toByteArray().map { it.toInt() })
         assertEquals(3, source.requests.size, "initialization and the first two ranges, not the third")
     }
+
+    /** Serves manifests that change with the clock: the latest entry at or before the current time is the one read. */
+    private class ScheduledManifestSource(
+        private val clock: FakeClock,
+        private val schedule: List<Pair<Long, String>>,
+        private val manifestUrl: String,
+        private val segments: Map<String, ByteArray>,
+        private val publishedAtSeconds: Map<String, Long> = emptyMap(),
+        /** Manifest reads, counted from 1, that the origin does not answer. */
+        private val unansweredReads: Set<Int> = emptySet(),
+    ) : DashCaptureSource {
+        val copied = ArrayList<String>()
+        var manifestReads = 0
+
+        override fun loadManifest(url: String): LoadedDashManifest {
+            manifestReads++
+            if (manifestReads in unansweredReads) throw IllegalStateException("manifest unavailable")
+            return LoadedDashManifest(manifestUrl, schedule.last { it.first <= clock.now() }.second)
+        }
+
+        override fun copySegment(
+            url: String,
+            byteRange: HlsByteRange?,
+            output: OutputStream,
+            cancelled: () -> Boolean,
+            onProgress: (Long) -> Unit,
+        ): StreamRecorder.Result {
+            copied += url
+            if (cancelled()) return StreamRecorder.Result(0, StreamRecorder.StopReason.CANCELLED)
+            val publishedAt = publishedAtSeconds[url]
+            if (publishedAt != null && clock.now() < publishedAt) throw DashSegmentNotPublishedException()
+            val bytes = segments[url] ?: error("No fake segment for $url")
+            output.write(bytes)
+            onProgress(bytes.size.toLong())
+            return StreamRecorder.Result(bytes.size.toLong(), StreamRecorder.StopReason.END_OF_STREAM)
+        }
+    }
+
+    /** A dynamic manifest that lists segments [first] to [last] of 3-second media in a SegmentList. */
+    private fun listingManifest(first: Int, last: Int, representation: String = "v1"): String = """<?xml version="1.0" encoding="UTF-8"?>
+<MPD xmlns="urn:mpeg:dash:schema:mpd:2011" type="dynamic" availabilityStartTime="$liveStart" minimumUpdatePeriod="PT2S">
+  <Period id="0" start="PT0S">
+    <AdaptationSet mimeType="video/mp4">
+      <Representation id="$representation" bandwidth="500000" codecs="avc1.42c01e" width="160" height="120">
+        <SegmentList timescale="1000" duration="3000" startNumber="$first">
+          <Initialization sourceURL="init-v1.m4s"/>
+${(first..last).joinToString("\n") { "          <SegmentURL media=\"chunk-v1-%05d.m4s\"/>".format(it) }}
+        </SegmentList>
+      </Representation>
+    </AdaptationSet>
+  </Period>
+</MPD>
+"""
+
+    @Test fun liveSegmentListStartsAtTheLiveEdgeAndFollowsEachNewlyListedSegment() {
+        val clock = FakeClock(1_000)
+        val source = ScheduledManifestSource(
+            clock,
+            listOf(1_000L to listingManifest(1, 3), 1_004L to listingManifest(2, 5), 1_008L to listingManifest(4, 7)),
+            manifestUrl, liveSegments,
+        )
+        val out = ByteArrayOutputStream()
+        val result = record(source, out, end = 1_012, clock = clock)
+        assertEquals(DashCaptureEngine.StopReason.DEADLINE, result.stopReason)
+        assertEquals(listOf(9, 9, 3, 4, 5, 6, 7), out.toByteArray().map { it.toInt() })
+        assertEquals(listOf(initUrl) + (3..7).map { chunk(it) }, source.copied)
+    }
+
+    @Test fun liveSegmentListStopsWhenTheListingMovesPastTheNextSegment() {
+        val clock = FakeClock(1_000)
+        val source = ScheduledManifestSource(
+            clock, listOf(1_000L to listingManifest(1, 3), 1_002L to listingManifest(6, 9)), manifestUrl, liveSegments,
+        )
+        val out = ByteArrayOutputStream()
+        val result = record(source, out, end = 1_100, clock = clock)
+        assertEquals(DashCaptureEngine.StopReason.UNSUPPORTED, result.stopReason)
+        assertTrue(result.detail.orEmpty().contains("moved past"))
+        assertEquals(listOf(9, 9, 3), out.toByteArray().map { it.toInt() })
+        assertEquals(listOf(initUrl, chunk(3)), source.copied, "segments 4 and 5 were never listed in time")
+    }
+
+    @Test fun liveSegmentListStopsWhenTheListingStopsAdvancing() {
+        val clock = FakeClock(1_000)
+        val source = ScheduledManifestSource(clock, listOf(1_000L to listingManifest(1, 3)), manifestUrl, liveSegments)
+        val out = ByteArrayOutputStream()
+        val result = record(source, out, end = 1_100, clock = clock)
+        assertEquals(DashCaptureEngine.StopReason.UNSUPPORTED, result.stopReason)
+        assertTrue(result.detail.orEmpty().contains("stopped advancing"))
+        assertEquals(listOf(9, 9, 3), out.toByteArray().map { it.toInt() })
+    }
+
+    @Test fun aListedLiveSegmentNeverPublishedStopsAfterTheGraceWithTheBytesKept() {
+        val clock = FakeClock(1_000)
+        val source = ScheduledManifestSource(
+            clock, listOf(1_000L to listingManifest(2, 4)), manifestUrl, liveSegments,
+            publishedAtSeconds = mapOf(chunk(4) to Long.MAX_VALUE),
+        )
+        val out = ByteArrayOutputStream()
+        val result = record(source, out, end = 1_100, clock = clock)
+        assertEquals(DashCaptureEngine.StopReason.UNSUPPORTED, result.stopReason)
+        assertEquals("DASH live segment was not published in time", result.detail)
+        assertEquals(listOf(9, 9), out.toByteArray().map { it.toInt() })
+    }
+
+    @Test fun aChangedRepresentationStopsTheLiveListing() {
+        val clock = FakeClock(1_000)
+        val source = ScheduledManifestSource(
+            clock,
+            listOf(1_000L to listingManifest(1, 3, representation = "v1"), 1_002L to listingManifest(2, 4, representation = "v2")),
+            manifestUrl, liveSegments,
+        )
+        val out = ByteArrayOutputStream()
+        val result = record(source, out, end = 1_100, clock = clock)
+        assertEquals(DashCaptureEngine.StopReason.UNSUPPORTED, result.stopReason)
+        assertTrue(result.detail.orEmpty().contains("changed"))
+        assertEquals(listOf(9, 9, 3), out.toByteArray().map { it.toInt() })
+    }
+
+    @Test fun liveSegmentListSurvivesOneUnansweredManifestRefresh() {
+        val clock = FakeClock(1_000)
+        val source = ScheduledManifestSource(
+            clock,
+            listOf(1_000L to listingManifest(1, 3), 1_004L to listingManifest(2, 5)),
+            manifestUrl, liveSegments,
+            unansweredReads = setOf(2),
+        )
+        val out = ByteArrayOutputStream()
+        val result = record(source, out, end = 1_008, clock = clock)
+        assertEquals(DashCaptureEngine.StopReason.DEADLINE, result.stopReason)
+        assertEquals(listOf(9, 9, 3, 4, 5), out.toByteArray().map { it.toInt() })
+        assertEquals(listOf(initUrl) + (3..5).map { chunk(it) }, source.copied)
+    }
+
+    @Test fun liveSegmentListStopsWhenTheManifestStaysUnanswered() {
+        val clock = FakeClock(1_000)
+        val source = ScheduledManifestSource(
+            clock, listOf(1_000L to listingManifest(1, 3)), manifestUrl, liveSegments,
+            unansweredReads = (2..100).toSet(),
+        )
+        val out = ByteArrayOutputStream()
+        val result = record(source, out, end = 1_100, clock = clock)
+        assertEquals(DashCaptureEngine.StopReason.UNSUPPORTED, result.stopReason)
+        assertEquals("DASH live manifest could not be read", result.detail)
+        assertEquals(listOf(9, 9, 3), out.toByteArray().map { it.toInt() })
+    }
+
+    @Test fun cancellationDuringALiveSegmentListStopsWithoutFetchingMore() {
+        val clock = FakeClock(1_000)
+        val source = ScheduledManifestSource(
+            clock, listOf(1_000L to listingManifest(1, 3), 1_002L to listingManifest(2, 4)), manifestUrl, liveSegments,
+        )
+        val out = ByteArrayOutputStream()
+        val result = record(source, out, cancelled = { clock.now() >= 1_002 }, end = 1_100, clock = clock)
+        assertEquals(DashCaptureEngine.StopReason.CANCELLED, result.stopReason)
+        assertEquals(listOf(9, 9, 3), out.toByteArray().map { it.toInt() })
+        assertEquals(listOf(initUrl, chunk(3)), source.copied, "the listing read at 1002 is not fetched")
+    }
 }
