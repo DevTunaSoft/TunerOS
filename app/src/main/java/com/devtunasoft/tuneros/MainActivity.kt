@@ -129,6 +129,7 @@ class MainActivity : Activity() {
     private var player: ExoPlayer? = null
     // Reuse a single decoder for channels with identical provider request headers.
     private var playerHeaders: Map<String, String>? = null
+    private var playbackEvidence: FirstResponseRecorder? = null
     private var activeChannelName: String? = null
     private var focusedChannel: Channel? = null
     private var focusedProgram: GuideProgram? = null
@@ -653,7 +654,15 @@ class MainActivity : Activity() {
         )
         // Keep images flowing so rendering never stalls waiting for the app to release them.
         reader.setOnImageAvailableListener({ r -> r.acquireLatestImage()?.close() }, null)
-        val player = ExoPlayer.Builder(applicationContext).build()
+        val evidence = FirstResponseRecorder()
+        val player = ExoPlayer.Builder(applicationContext)
+            .setMediaSourceFactory(
+                DefaultMediaSourceFactory(
+                    DefaultDataSource.Factory(applicationContext, DefaultHttpDataSource.Factory())
+                        .setTransferListener(evidence),
+                ),
+            )
+            .build()
         var finished = false
         fun finish(state: String, detail: String) {
             if (finished) return
@@ -669,7 +678,8 @@ class MainActivity : Activity() {
             }
 
             override fun onPlayerError(error: PlaybackException) {
-                finish("FAIL", "player error code " + error.errorCode)
+                val detail = StreamDoctor.describe(evidenceOf(error, evidence))
+                finish("FAIL", "player error code ${error.errorCode}" + (if (detail.isEmpty()) "" else "; $detail"))
             }
         })
         player.setMediaItem(MediaItem.fromUri(url))
@@ -1162,13 +1172,15 @@ class MainActivity : Activity() {
             reusable
         } else {
             releasePlayer()
+            val evidence = FirstResponseRecorder()
+            playbackEvidence = evidence
             val http = DefaultHttpDataSource.Factory()
                 .setConnectTimeoutMs(12_000)
                 .setReadTimeoutMs(15_000)
                 .setAllowCrossProtocolRedirects(false)
                 .setDefaultRequestProperties(headers)
             val sourceFactory = DefaultMediaSourceFactory(
-                DefaultDataSource.Factory(applicationContext, http),
+                DefaultDataSource.Factory(applicationContext, http).setTransferListener(evidence),
             )
             val created = ExoPlayer.Builder(applicationContext)
                 .setMediaSourceFactory(sourceFactory)
@@ -1196,7 +1208,7 @@ class MainActivity : Activity() {
                     if (player === created) {
                         clearPlaybackTimeout()
                         observe(OnDeviceSelfTest.Event.PLAYBACK_ERROR, error.errorCode.toLong())
-                        showStatus(playbackFailureMessage(error))
+                        showStatus(playbackFailureMessage(error, playbackEvidence))
                     }
                 }
                 override fun onRenderedFirstFrame() {
@@ -1225,6 +1237,7 @@ class MainActivity : Activity() {
         if (path.endsWith(".m3u8")) builder.setMimeType(MimeTypes.APPLICATION_M3U8)
         if (path.endsWith(".mpd")) builder.setMimeType(MimeTypes.APPLICATION_MPD)
         observe(OnDeviceSelfTest.Event.PLAYBACK_REQUESTED)
+        playbackEvidence?.reset()
         target.setMediaItem(builder.build())
         armPlaybackTimeout(target)
         target.prepare()
@@ -1586,7 +1599,7 @@ class MainActivity : Activity() {
                 if (player === newPlayer) {
                     clearPlaybackTimeout()
                     observe(OnDeviceSelfTest.Event.RECORDING_PLAYBACK_ERROR, error.errorCode.toLong())
-                    showStatus(playbackFailureMessage(error))
+                    showStatus(playbackFailureMessage(error, null))
                 }
             }
             override fun onPlaybackStateChanged(playbackState: Int) {
@@ -1724,14 +1737,20 @@ class MainActivity : Activity() {
         player?.release()
         player = null
         playerHeaders = null
+        playbackEvidence = null
         activeChannelName = null
         playingRecordingId = null
     }
 
-    /** No provider URL, response body or exception message is exposed by diagnostics. */
-    private fun playbackFailureMessage(error: PlaybackException): String {
+    /**
+     * No provider URL, response body or exception message is exposed. The detail is limited to an HTTP
+     * status, a validated media type and a fixed transport label.
+     */
+    private fun playbackFailureMessage(error: PlaybackException, firstResponse: FirstResponseRecorder?): String {
         val diagnosis = StreamDoctor.diagnose(error.errorCode)
-        return "Stream Doctor (${error.errorCode}): ${diagnosis.issue}. ${diagnosis.nextStep}"
+        val base = "Stream Doctor (${error.errorCode}): ${diagnosis.issue}. ${diagnosis.nextStep}"
+        val detail = StreamDoctor.describe(evidenceOf(error, firstResponse))
+        return if (detail.isEmpty()) base else "$base. Detail: $detail"
     }
 
     private fun showStatus(value: String) { status.text = value }
