@@ -307,6 +307,45 @@ internal object OnDeviceSelfTest {
         }
 
         checks += check(
+            "scratch-dvr-schedule-paging",
+            "Isolated SQLite: keyset paging visits every scheduled job exactly once beyond one 200-job batch",
+        ) {
+            val name = "tuneros-selftest-paging.db"
+            context.deleteDatabase(name) // Owned, disposable DB only; not user schedules.
+            try {
+                RecordingScheduleStore(context, name).use { store ->
+                    val total = 450
+                    val ids = (0 until total).map { "qa-batch-%03d".format(it) }
+                    for (index in 0 until total) {
+                        // Three jobs share each start time, so the id tie-breaker is exercised across pages.
+                        val entry = RecordingScheduleEntry(
+                            ids[index], "Batch job", "qa-channel", "qa-batch-key-$index",
+                            2000L + index / 3, 2060L + index / 3, "PREPARING", false, null,
+                        )
+                        store.insertIfAbsent(entry)
+                        store.markScheduledIfPreparing(entry.id)
+                    }
+                    fun visitAll(limit: Int): List<String> {
+                        val seen = ArrayList<String>(total)
+                        var after: RecordingScheduleEntry? = null
+                        while (true) {
+                            val page = store.pendingAfter(1000L, limit = limit, after = after)
+                            if (page.isEmpty()) break
+                            seen += page.map { it.id }
+                            after = page.last()
+                        }
+                        return seen
+                    }
+                    visitAll(200) == ids && visitAll(7) == ids
+                }
+            } finally {
+                kotlin.check(context.deleteDatabase(name)) {
+                    "Could not remove the isolated QA SQLite database"
+                }
+            }
+        }
+
+        checks += check(
             "scratch-dvr-schedule-reservation",
             "Isolated SQLite: immutable ID, PREPARING gate, overlap and bounded paging",
         ) {
