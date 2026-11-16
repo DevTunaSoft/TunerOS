@@ -50,6 +50,7 @@ import com.devtunasoft.tuneros.core.GuideProgram
 import com.devtunasoft.tuneros.core.SourceDownloader
 import com.devtunasoft.tuneros.core.SourceRecoveryPolicy
 import com.devtunasoft.tuneros.core.StreamDoctor
+import com.devtunasoft.tuneros.core.PlayerReusePolicy
 import com.devtunasoft.tuneros.core.PlaylistParser
 import com.devtunasoft.tuneros.core.RecordingPolicy
 import com.devtunasoft.tuneros.core.TimelineEntry
@@ -1155,7 +1156,7 @@ class MainActivity : Activity() {
         // Replacing the MediaItem on the same player avoids repeated decoder allocation.
         // A different provider header set requires a new data-source factory/player.
         val reusable = player?.takeIf {
-            playingRecordingId == null && playerHeaders == headers
+            PlayerReusePolicy.canReuse(playerHeaders, headers, playingRecording = playingRecordingId != null)
         }
         val target = if (reusable != null) {
             reusable
