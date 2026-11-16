@@ -145,4 +145,24 @@ variant.m3u8
         }
     }
 
+    @Test fun mapByteRangeIsRecordedSoAnEngineCanFailClosed() {
+        val text = """#EXTM3U
+#EXT-X-TARGETDURATION:4
+#EXT-X-MAP:URI="init.mp4",BYTERANGE="720@0"
+#EXTINF:4,
+1.m4s
+#EXT-X-ENDLIST
+"""
+        val segment = (HlsPlaylistParserCore.parse(text.reader()) as HlsMediaPlaylist).segments.single()
+        assertEquals("init.mp4", segment.initializationMapUri)
+        assertTrue(segment.initializationMapHasByteRange)
+        val plain = """#EXTM3U
+#EXT-X-TARGETDURATION:4
+#EXT-X-MAP:URI="init.mp4"
+#EXTINF:4,
+1.m4s
+#EXT-X-ENDLIST
+"""
+        assertEquals(false, (HlsPlaylistParserCore.parse(plain.reader()) as HlsMediaPlaylist).segments.single().initializationMapHasByteRange)
+    }
 }
