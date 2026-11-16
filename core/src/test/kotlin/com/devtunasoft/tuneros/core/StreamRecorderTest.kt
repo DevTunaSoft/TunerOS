@@ -62,4 +62,51 @@ class StreamRecorderTest {
         assertEquals(StreamRecorder.StopReason.CANCELLED, result.stopReason)
         assertEquals(3, reads)
     }
+
+    @Test fun aStopRequestDuringABlockingReadWritesNothingFromThatRead() {
+        var stopRequested = false
+        val output = ByteArrayOutputStream()
+        val input = object : InputStream() {
+            override fun read(): Int = error("single-byte read should not be used")
+            override fun read(b: ByteArray, off: Int, len: Int): Int {
+                // The stop request arrives while this read is blocked; the read then returns data.
+                stopRequested = true
+                b.fill(42, off, off + 4)
+                return 4
+            }
+        }
+        val result = recorder.copy(
+            input, output,
+            freeBytes = { Long.MAX_VALUE },
+            cancelled = { stopRequested },
+        )
+        assertEquals(StreamRecorder.StopReason.CANCELLED, result.stopReason)
+        assertEquals(0L, result.bytesWritten)
+        assertEquals(0, output.size())
+    }
+
+    @Test fun bytesBeforeTheStopStayWrittenAndNothingAfterItIsWritten() {
+        var reads = 0
+        var stopRequested = false
+        val output = ByteArrayOutputStream()
+        val input = object : InputStream() {
+            override fun read(): Int = error("single-byte read should not be used")
+            override fun read(b: ByteArray, off: Int, len: Int): Int {
+                reads++
+                // The second read is blocked until a stop request arrives, then returns data that must not be written.
+                if (reads == 2) stopRequested = true
+                b.fill(reads.toByte(), off, off + 4)
+                return 4
+            }
+        }
+        val result = recorder.copy(
+            input, output,
+            freeBytes = { Long.MAX_VALUE },
+            cancelled = { stopRequested },
+        )
+        assertEquals(StreamRecorder.StopReason.CANCELLED, result.stopReason)
+        assertEquals(4L, result.bytesWritten)
+        assertEquals(listOf<Byte>(1, 1, 1, 1), output.toByteArray().toList())
+        assertEquals(2, reads)
+    }
 }
