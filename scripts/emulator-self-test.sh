@@ -740,6 +740,10 @@ for HLS_CASE in aes fmp4 dash; do
     echo "${HLS_CASE} recording did not match the plaintext (expected ${HLS_EXPECT} bytes, sha256 ${HLS_EXPECT_SHA})"
     cat "hls-${HLS_CASE}-report.txt" 2>/dev/null || echo "(no report file)"
     tail -20 hls-server.log 2>/dev/null || true
+    ls -la ci-hls/dash 2>/dev/null || true
+    curl -sS --max-time 5 -o /dev/null -w "runner fetch of ${HLS_PATH}: HTTP %{http_code}\n" "http://127.0.0.1:8770/${HLS_PATH}" || true
+    echo "app pid: $(adb shell pidof com.devtunasoft.tuneros 2>/dev/null || echo none)"
+    adb logcat -d -v time 2>/dev/null | tr -d '\r' | grep -E 'FATAL|AndroidRuntime|tuneros|DvrRecording|ActivityManager' | tail -150 | cut -c1-240 || true
     kill "$HLS_HTTP_PID" 2>/dev/null || true
     exit 1
   fi
