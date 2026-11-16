@@ -91,4 +91,17 @@ object RecordingPolicy {
     fun conflicts(left: RecordingRequest, right: RecordingRequest): Boolean =
         left.captureStartEpochSeconds < right.captureEndEpochSeconds &&
             right.captureStartEpochSeconds < left.captureEndEpochSeconds
+
+    /**
+     * A capture that reached its stop without writing a byte is a failure, never COMPLETED.
+     * A COMPLETED entry with an empty file would be offered for playback.
+     */
+    fun finalState(requested: RecordingState, bytesWritten: Long): RecordingState {
+        require(bytesWritten >= 0)
+        return if (requested == RecordingState.COMPLETED && bytesWritten == 0L) {
+            RecordingState.FAILED
+        } else {
+            requested
+        }
+    }
 }

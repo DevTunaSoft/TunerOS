@@ -10,6 +10,8 @@ import com.devtunasoft.tuneros.core.AbortableSlot
 import com.devtunasoft.tuneros.core.HlsByteRange
 import com.devtunasoft.tuneros.core.HlsCaptureEngine
 import com.devtunasoft.tuneros.core.HlsContentRange
+import com.devtunasoft.tuneros.core.RecordingPolicy
+import com.devtunasoft.tuneros.core.RecordingState
 import com.devtunasoft.tuneros.core.RecordingWorkerLifecycle
 import com.devtunasoft.tuneros.core.StreamRecorder
 import java.io.InputStream
@@ -394,11 +396,32 @@ class DvrRecordingService : Service() {
         }
     }
 
+    /**
+     * A capture that reached its stop without writing a byte is a failure, even at the scheduled
+     * deadline. Keeping it COMPLETED would offer an empty file for playback.
+     */
+    private fun settledOutcome(requested: CaptureOutcome): CaptureOutcome {
+        val state = RecordingPolicy.finalState(
+            RecordingState.valueOf(requested.state),
+            requested.bytesWritten,
+        ).name
+        return if (state == requested.state) {
+            requested
+        } else {
+            requested.copy(
+                state = state,
+                finalizeFile = false,
+                failureReason = "No bytes before scheduled stop",
+            )
+        }
+    }
+
     private fun applyOutcome(
         id: String,
         sink: RecordingSink,
-        outcome: CaptureOutcome,
+        requested: CaptureOutcome,
     ) {
+        val outcome = settledOutcome(requested)
         if (outcome.finalizeFile) {
             val finalizedLocation = sink.finalizeRecording()
             val state = if (finalizedLocation != null) "COMPLETED" else "PARTIAL"
