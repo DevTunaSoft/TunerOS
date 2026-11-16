@@ -18,6 +18,12 @@ data class LoadedDashManifest(
 interface DashCaptureSource {
     fun loadManifest(url: String): LoadedDashManifest
 
+    /**
+     * The bytes of [range] in [url], for a SegmentBase index. It is read once, before any byte is written, and its length
+     * is bounded by the index limit. A throw marks the index as unavailable.
+     */
+    fun loadRange(url: String, range: HlsByteRange): ByteArray
+
     fun copySegment(
         url: String,
         byteRange: HlsByteRange?,
@@ -76,6 +82,11 @@ class DashCaptureEngine {
         val plan = when (val outcome = DashManifest.plan(loaded.text)) {
             is DashPlanOutcome.Unsupported -> return Result(0, StopReason.UNSUPPORTED, outcome.reason)
             is DashPlanOutcome.Planned -> outcome.plan
+            is DashPlanOutcome.NeedsIndex -> when (val completed = planWithIndex(outcome, loaded, source)) {
+                is DashPlanOutcome.Unsupported -> return Result(0, StopReason.UNSUPPORTED, completed.reason)
+                is DashPlanOutcome.Planned -> completed.plan
+                is DashPlanOutcome.NeedsIndex -> return Result(0, StopReason.UNSUPPORTED, UNAVAILABLE_INDEX)
+            }
         }
         val base = baseOf(plan, loaded) ?: return Result(0, StopReason.UNSUPPORTED, UNSUPPORTED_RESOURCE)
         if (plan.timing is DashTiming.Live && plan.listedSegments != null) {
@@ -223,6 +234,8 @@ class DashCaptureEngine {
             val replanned = when (val outcome = DashManifest.plan(reloaded.text)) {
                 is DashPlanOutcome.Unsupported -> return Result(totalBytes, StopReason.UNSUPPORTED, outcome.reason)
                 is DashPlanOutcome.Planned -> outcome.plan
+                // A live SegmentBase is refused by the planner, so a refresh that asks for an index has changed shape.
+                is DashPlanOutcome.NeedsIndex -> return Result(totalBytes, StopReason.UNSUPPORTED, LIVE_CHANGED)
             }
             val replannedListing = replanned.listedSegments
             if (replanned.representationId != plan.representationId || replannedListing == null ||
@@ -238,6 +251,21 @@ class DashCaptureEngine {
             idleMillis = if (advanced) 0L else idleMillis + refreshMillisOf(plan)
             if (idleMillis >= STALL_LIMIT_MILLIS) return Result(totalBytes, StopReason.UNSUPPORTED, LIVE_STALLED)
         }
+    }
+
+    /** Reads a SegmentBase's index range and completes its plan. Nothing is written before this succeeds. */
+    private fun planWithIndex(
+        request: DashPlanOutcome.NeedsIndex,
+        loaded: LoadedDashManifest,
+        source: DashCaptureSource,
+    ): DashPlanOutcome {
+        val fileUrl = baseOf(request.partial, loaded) ?: return DashPlanOutcome.Unsupported(UNSUPPORTED_RESOURCE)
+        val bytes = try {
+            source.loadRange(fileUrl, request.indexRange)
+        } catch (unanswered: Exception) {
+            return DashPlanOutcome.Unsupported(UNAVAILABLE_INDEX)
+        }
+        return DashManifest.completeIndex(request, bytes)
     }
 
     /** Copies the initialization segment, when the plan has one: a SegmentList's or a SegmentTemplate's. */
@@ -426,6 +454,7 @@ class DashCaptureEngine {
         const val UNSUPPORTED_TOKEN = "DASH template uses a token that is not supported"
         const val UNAVAILABLE_INITIALIZATION = "DASH initialization segment is not available"
         const val UNAVAILABLE_SEGMENT = "DASH segment is not available"
+        const val UNAVAILABLE_INDEX = "DASH segment index is not available"
         const val UNPUBLISHED_LIVE_SEGMENT = "DASH live segment was not published in time"
         const val LIVE_LISTING_MISSING = "DASH live listing is missing"
         const val LIVE_FELL_BEHIND = "DASH live listing moved past the next segment"

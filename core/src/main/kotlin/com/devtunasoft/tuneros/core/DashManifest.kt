@@ -80,19 +80,26 @@ sealed class DashTiming {
 sealed class DashPlanOutcome {
     data class Planned(val plan: DashPlan) : DashPlanOutcome()
     data class Unsupported(val reason: String) : DashPlanOutcome()
+
+    /**
+     * A SegmentBase whose fragments the index locates. Read the bytes of [indexRange], then complete [partial] with
+     * [DashManifest.completeIndex].
+     */
+    data class NeedsIndex(val indexRange: HlsByteRange, val partial: DashPlan) : DashPlanOutcome()
 }
 
 /**
  * Bounded DASH planner for static and live manifests. It accepts one period with one video track, muxed or
  * video-only. Its representation is addressed by a SegmentTemplate, with `$Number$` or, with a SegmentTimeline,
- * `$Time$`; or by a SegmentList of URLs and byte ranges. A timeline must be contiguous: its entries follow one another,
+ * `$Time$`; or by a SegmentList of URLs and byte ranges, or by a static SegmentBase whose sidx index locates each
+ * fragment of one file. A timeline must be contiguous: its entries follow one another,
  * and their durations may differ. A static manifest carries a presentation duration or a timeline or list, and the
  * recorder counts its segments from it. A static timeline of one duration is read arithmetically; any other timeline is
  * listed segment by segment. A live manifest carries an availabilityStartTime with an offset. A live timeline that
  * repeats to the end is followed on that clock, since its one duration is promised to continue. Every other live
  * timeline, and a live SegmentList, is listed and read again at its minimum update period, and each listed segment is
  * fetched once it is complete (a SegmentList's are fetched as they are listed). It refuses everything else with a fixed
- * reason: separate audio or text renditions, protection, SegmentBase, timeline gaps, an irregular timeline that repeats
+ * reason: separate audio or text renditions, protection, a live SegmentBase, timeline gaps, an irregular timeline that repeats
  * to the end, DTDs and unknown template tokens. No manifest text, URL or exception message is kept.
  */
 object DashManifest {
@@ -160,6 +167,7 @@ object DashManifest {
         val set = videoSets[0]
         val setTemplate = set.childElements("SegmentTemplate").firstOrNull()
         val setList = set.childElements("SegmentList").firstOrNull()
+        val setBase = set.childElements("SegmentBase").firstOrNull()
         var chosen: Element? = null
         var chosenAddressing: Element? = null
         var chosenBandwidth = -1L
@@ -167,7 +175,8 @@ object DashManifest {
             // A representation's own addressing wins over the AdaptationSet's, and a template over a list.
             val addressing = representation.childElements("SegmentTemplate").firstOrNull()
                 ?: representation.childElements("SegmentList").firstOrNull()
-                ?: setTemplate ?: setList ?: continue
+                ?: representation.childElements("SegmentBase").firstOrNull()
+                ?: setTemplate ?: setList ?: setBase ?: continue
             val bandwidth = representation.attr("bandwidth")?.toLongOrNull() ?: 0L
             if (bandwidth > chosenBandwidth) {
                 chosen = representation
@@ -183,6 +192,9 @@ object DashManifest {
         val id = representation.attr("id") ?: return refuse("DASH representation has no id")
         if (addressing.nodeName == "SegmentList") {
             return planList(live, timing, topBaseUrls, representation, id, chosenBandwidth, addressing)
+        }
+        if (addressing.nodeName == "SegmentBase") {
+            return planSegmentBase(live, timing, topBaseUrls, representation, id, chosenBandwidth, addressing)
         }
         val template = addressing
         val media = template.attr("media") ?: return refuse("DASH SegmentTemplate has no media template")
@@ -376,6 +388,78 @@ object DashManifest {
         )
     }
 
+    /**
+     * A SegmentBase: one media file whose segment index, a sidx box, is named by indexRange and locates each fragment.
+     * The index must be read first, so this returns the request for it, and [completeIndex] finishes the plan. A live
+     * SegmentBase is refused, since its index would have to be read again on every refresh.
+     */
+    private fun planSegmentBase(
+        live: Boolean,
+        timing: DashTiming,
+        topBaseUrls: List<Element>,
+        representation: Element,
+        id: String,
+        bandwidth: Long,
+        base: Element,
+    ): DashPlanOutcome {
+        if (live) return refuse("DASH live SegmentBase is not supported")
+        val indexRange = base.attr("indexRange")?.let { parseRange(it) }
+            ?: return refuse("DASH SegmentBase needs a valid indexRange")
+        if (indexRange.length > DashSegmentIndex.MAX_INDEX_BYTES) return refuse("DASH SegmentBase index is too large")
+        val initialization = base.childElements("Initialization").firstOrNull()
+            ?: return refuse("DASH SegmentBase needs an Initialization range")
+        if (initialization.attr("sourceURL") != null) return refuse("DASH SegmentBase initialization must be in the media file")
+        val initRange = initialization.attr("range")?.let { parseRange(it) }
+            ?: return refuse("DASH SegmentBase needs an Initialization range")
+        val mediaBase = topBaseUrls.firstOrNull()?.textContent?.trim()?.takeIf { it.isNotEmpty() }
+        val representationBase = representationBaseUrl(representation)
+        if (mediaBase == null && representationBase == null) {
+            return refuse("DASH SegmentBase needs a BaseURL for its media file")
+        }
+        return DashPlanOutcome.NeedsIndex(
+            indexRange = indexRange,
+            partial = DashPlan(
+                baseUrl = mediaBase,
+                representationId = id,
+                bandwidth = bandwidth,
+                initializationTemplate = null,
+                mediaTemplate = "",
+                startNumber = 1L,
+                timescale = 1L,
+                startTimeTicks = 0L,
+                segmentDurationTicks = 1L,
+                segmentCount = null,
+                timing = timing,
+                representationBaseUrl = representationBase,
+                listedInitialization = DashListedInitialization(source = null, range = initRange),
+                listedSegments = null,
+            ),
+        )
+    }
+
+    /**
+     * Completes a SegmentBase plan from the bytes of its index range. Each media fragment becomes a listed byte range of
+     * the one file, in order, and the initialization range comes from the request.
+     */
+    fun completeIndex(request: DashPlanOutcome.NeedsIndex, bytes: ByteArray): DashPlanOutcome =
+        when (val index = DashSegmentIndex.parse(bytes, request.indexRange)) {
+            is DashSegmentIndex.Outcome.Refused -> refuse(index.reason)
+            is DashSegmentIndex.Outcome.Parsed -> {
+                val listed = index.references.mapIndexed { position, reference ->
+                    val number = 1L + position
+                    DashListedSegment(id = number, endId = number + 1, media = null, range = reference.range)
+                }
+                DashPlanOutcome.Planned(
+                    request.partial.copy(
+                        timescale = index.timescale,
+                        segmentDurationTicks = index.references[0].durationTicks,
+                        segmentCount = listed.size.toLong(),
+                        listedSegments = listed,
+                    ),
+                )
+            }
+        }
+
     private fun representationBaseUrl(representation: Element): String? =
         representation.childElements("BaseURL").firstOrNull()?.textContent?.trim()?.takeIf { it.isNotEmpty() }
 
@@ -523,7 +607,7 @@ object DashManifest {
         return TimelineOutcome.Listed(segments)
     }
 
-    private val UNSUPPORTED_ELEMENTS = listOf("ContentProtection", "SegmentBase")
+    private val UNSUPPORTED_ELEMENTS = listOf("ContentProtection")
 
     private fun refuse(reason: String): DashPlanOutcome = DashPlanOutcome.Unsupported(reason)
 

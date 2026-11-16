@@ -958,6 +958,77 @@ if ! grep -Fq "$(printf 'PASS\tqa-series-rules')" series-report.txt; then
   exit 1
 fi
 echo "series rules on the device: store, budget, exact title match and planner pass"
+# Single-file DASH with a SegmentBase on the device: the same MP4, with a sidx index box placed right after the
+# initialization. The MPD names the index with indexRange and the initialization with a range. The recorder reads the
+# index first, then the initialization and each fragment by range, so the stored file must equal the original MP4: the
+# index box is not media, so it is not recorded.
+rm -rf ci-base && mkdir -p ci-base
+cat > ci-base/make_base.py <<'PY'
+import struct
+import sys
+import xml.etree.ElementTree as ET
+
+SRC, OUT, MP4 = sys.argv[1], sys.argv[2], sys.argv[3]
+NS = "{urn:mpeg:dash:schema:mpd:2011}"
+segments = ET.parse(f"{SRC}/manifest.mpd").getroot().find(f".//{NS}SegmentList")
+timescale = int(segments.get("timescale", "1"))
+duration = int(segments.get("duration"))
+first_init, last_init = (int(v) for v in segments.find(f"{NS}Initialization").get("range").split("-"))
+fragments = [tuple(int(v) for v in s.get("mediaRange").split("-")) for s in segments.findall(f"{NS}SegmentURL")]
+with open(f"{SRC}/{MP4}", "rb") as f:
+    original = f.read()
+init = original[first_init:last_init + 1]
+media = b"".join(original[first:last + 1] for first, last in fragments)
+assert first_init == 0 and init + media == original, "the fragments must follow the initialization"
+payload = struct.pack(">I", 0)  # version 0, flags 0
+payload += struct.pack(">I", 1)  # reference_ID
+payload += struct.pack(">I", timescale)
+payload += struct.pack(">II", 0, 0)  # earliest_presentation_time, first_offset
+payload += struct.pack(">HH", 0, len(fragments))  # reserved, reference_count
+for first, last in fragments:
+    payload += struct.pack(">III", last - first + 1, duration, 0x90000000)  # a media reference that starts with a SAP
+index = struct.pack(">I", 8 + len(payload)) + b"sidx" + payload
+with open(f"{OUT}/indexed.mp4", "wb") as f:
+    f.write(init + index + media)
+mpd = f'''<?xml version="1.0" encoding="UTF-8"?>
+<MPD xmlns="urn:mpeg:dash:schema:mpd:2011" type="static" mediaPresentationDuration="PT9S" profiles="urn:mpeg:dash:profile:isoff-on-demand:2011">
+  <Period id="0" start="PT0S">
+    <AdaptationSet mimeType="video/mp4" contentType="video">
+      <Representation id="v1" bandwidth="100000" codecs="avc1.64000a" width="160" height="120">
+        <BaseURL>indexed.mp4</BaseURL>
+        <SegmentBase indexRange="{len(init)}-{len(init) + len(index) - 1}"><Initialization range="0-{len(init) - 1}"/></SegmentBase>
+      </Representation>
+    </AdaptationSet>
+  </Period>
+</MPD>
+'''
+with open(f"{OUT}/manifest.mpd", "w") as f:
+    f.write(mpd)
+PY
+python3 ci-base/make_base.py ci-single ci-base "$SINGLE_MP4"
+python3 ci-single/range_server.py ci-base 8779 indexed.mp4 >base-range-server.log 2>&1 &
+BASE_HTTP_PID=$!
+sleep 2
+adb shell run-as com.devtunasoft.tuneros rm -f files/tuneros-recording-report.txt 2>/dev/null || true
+adb shell am force-stop com.devtunasoft.tuneros
+adb shell am start -n com.devtunasoft.tuneros/.MainActivity --es tuneros.debug.record_url "http://10.0.2.2:8779/single/manifest.mpd"
+for attempt in $(seq 1 90); do
+  adb shell run-as com.devtunasoft.tuneros cat files/tuneros-recording-report.txt > base-report.txt 2>/dev/null || true
+  if grep -Eq '^(PASS|FAIL)[[:space:]]qa-recording-partial-eof' base-report.txt; then
+    break
+  fi
+  sleep 2
+done
+kill "$BASE_HTTP_PID" 2>/dev/null || true
+if ! grep -Eq "^PASS[[:space:]]qa-recording-partial-eof.* bytes=${SINGLE_BYTES}\$" base-report.txt \
+   || ! grep -Fq "storage=file sha256=${SINGLE_SHA} disk=${SINGLE_BYTES}" base-report.txt; then
+  echo "SegmentBase DASH recording is not the MP4 byte for byte (expected ${SINGLE_BYTES} bytes, sha256 ${SINGLE_SHA})"
+  cat base-report.txt 2>/dev/null || echo "(no report file)"
+  tail -20 base-range-server.log 2>/dev/null || true
+  exit 1
+fi
+echo "SegmentBase DASH recording matches the MP4 byte for byte: ${SINGLE_BYTES} bytes"
+
 # Refused start on the device: the recorder must enter the foreground before it refuses a request. Otherwise Android
 # crashes the calling app, and the report below is never written.
 adb shell run-as com.devtunasoft.tuneros rm -f files/tuneros-invalid-start-report.txt 2>/dev/null || true

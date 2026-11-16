@@ -391,4 +391,76 @@ $body
         assertEquals(HlsByteRange(length = 815, offset = 0), plan.listedInitialization?.range)
         assertEquals(HlsByteRange(length = 12775, offset = 815), plan.listedSegments?.get(0)?.range)
     }
+
+    /** A video set addressed by SegmentBase: one media file, whose segment index is named by [indexRange]. */
+    private fun baseSet(
+        indexRange: String = "1000-1043",
+        initRange: String = "0-999",
+        base: String? = "single.mp4",
+    ): String = """    <AdaptationSet mimeType="video/mp4">
+      <Representation id="v1" bandwidth="500000" codecs="avc1.64000a" width="160" height="120">
+        ${base?.let { "<BaseURL>$it</BaseURL>" }.orEmpty()}
+        <SegmentBase indexRange="$indexRange"><Initialization range="$initRange"/></SegmentBase>
+      </Representation>
+    </AdaptationSet>"""
+
+    private fun needsIndexOf(text: String): DashPlanOutcome.NeedsIndex {
+        val outcome = DashManifest.plan(text)
+        assertTrue(outcome is DashPlanOutcome.NeedsIndex, "expected an index request, got $outcome")
+        return outcome as DashPlanOutcome.NeedsIndex
+    }
+
+    @Test fun aSegmentBaseAsksForItsIndexRange() {
+        val needs = needsIndexOf(mpd(body = baseSet()))
+        assertEquals(HlsByteRange(length = 44, offset = 1000), needs.indexRange)
+        assertEquals(HlsByteRange(length = 1000, offset = 0), needs.partial.listedInitialization?.range)
+        assertEquals("single.mp4", needs.partial.representationBaseUrl)
+        assertEquals(DashTiming.Static(9.0), needs.partial.timing)
+    }
+
+    @Test fun aSegmentBaseIsCompletedFromItsIndexBytes() {
+        // Two fragments of 500 and 700 bytes follow the index box, which the index range names exactly.
+        val index = SidxBox.build(references = listOf(500L to 2_000L, 700L to 2_000L))
+        val end = 1000 + index.size - 1
+        val needs = needsIndexOf(mpd(body = baseSet(indexRange = "1000-$end")))
+        val plan = (DashManifest.completeIndex(needs, index) as DashPlanOutcome.Planned).plan
+        val anchor = 1000L + index.size
+        assertEquals(
+            listOf(HlsByteRange(length = 500, offset = anchor), HlsByteRange(length = 700, offset = anchor + 500)),
+            plan.listedSegments!!.map { it.range },
+        )
+        assertEquals(2L, plan.segmentCount)
+        assertEquals(HlsByteRange(length = 1000, offset = 0), plan.listedInitialization?.range)
+        assertEquals(DashTiming.Static(9.0), plan.timing)
+    }
+
+    @Test fun aSegmentBaseWithAnIndexLargerThanTheLimitIsRefused() {
+        assertTrue(refusalOf(mpd(body = baseSet(indexRange = "0-200000"))).contains("too large"))
+    }
+
+    @Test fun aLiveSegmentBaseIsRefused() {
+        val text = mpd(type = "dynamic", availabilityStart = "1970-01-01T00:16:40Z", body = baseSet())
+        assertTrue(refusalOf(text).contains("live SegmentBase"))
+    }
+
+    @Test fun aSegmentBaseNeedsItsInitializationRange() {
+        val body = """    <AdaptationSet mimeType="video/mp4">
+      <Representation id="v1" bandwidth="500000" codecs="avc1.64000a" width="160" height="120">
+        <BaseURL>single.mp4</BaseURL>
+        <SegmentBase indexRange="1000-1043"/>
+      </Representation>
+    </AdaptationSet>"""
+        assertTrue(refusalOf(mpd(body = body)).contains("Initialization"))
+    }
+
+    @Test fun aSegmentBaseNeedsAMediaBaseUrl() {
+        assertTrue(refusalOf(mpd(body = baseSet(base = null))).contains("BaseURL"))
+    }
+
+    @Test fun anIndexThatDoesNotParseFailsTheCompletion() {
+        val hierarchical = SidxBox.build(references = listOf(500L to 2_000L), hierarchicalFirst = true)
+        val needs = needsIndexOf(mpd(body = baseSet(indexRange = "1000-${1000 + hierarchical.size - 1}")))
+        val outcome = DashManifest.completeIndex(needs, hierarchical)
+        assertTrue(outcome is DashPlanOutcome.Unsupported && outcome.reason.contains("hierarchical"), "got $outcome")
+    }
 }

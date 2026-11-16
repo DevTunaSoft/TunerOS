@@ -73,6 +73,8 @@ $body
     ) : DashCaptureSource {
         val copied = ArrayList<String>()
 
+        override fun loadRange(url: String, range: HlsByteRange): ByteArray = error("no index in this fixture")
+
         override fun loadManifest(url: String): LoadedDashManifest = LoadedDashManifest(manifestUrl, manifest)
 
         override fun copySegment(
@@ -392,6 +394,11 @@ $body
     ) : DashCaptureSource {
         val requests = ArrayList<Pair<String, HlsByteRange?>>()
 
+        override fun loadRange(url: String, range: HlsByteRange): ByteArray {
+            val resource = resources[url] ?: error("No resource for $url")
+            return resource.copyOfRange(range.offset.toInt(), (range.offset + range.length).toInt())
+        }
+
         override fun loadManifest(url: String): LoadedDashManifest = LoadedDashManifest(manifestUrl, manifest)
 
         override fun copySegment(
@@ -473,6 +480,8 @@ $body
     ) : DashCaptureSource {
         val copied = ArrayList<String>()
         var manifestReads = 0
+
+        override fun loadRange(url: String, range: HlsByteRange): ByteArray = error("no index in this fixture")
 
         override fun loadManifest(url: String): LoadedDashManifest {
             manifestReads++
@@ -686,5 +695,49 @@ ${(first..last).joinToString("\n") { "          <SegmentURL media=\"chunk-v1-%05
         assertEquals(DashCaptureEngine.StopReason.END_LIST, result.stopReason)
         assertEquals(listOf(9, 9, 1, 2, 3, 4), out.toByteArray().map { it.toInt() })
         assertEquals(listOf(initUrl, irregularUrl(0), irregularUrl(3_000), irregularUrl(5_000), irregularUrl(9_000)), source.copied)
+    }
+
+    /** A video set addressed by SegmentBase, with the byte ranges of its index and its initialization. */
+    private fun segmentBaseSet(indexRange: String, initRange: String): String = """    <AdaptationSet mimeType="video/mp4">
+      <Representation id="v1" bandwidth="500000" codecs="avc1.64000a" width="160" height="120">
+        <BaseURL>single.mp4</BaseURL>
+        <SegmentBase indexRange="$indexRange"><Initialization range="$initRange"/></SegmentBase>
+      </Representation>
+    </AdaptationSet>"""
+
+    @Test fun staticSegmentBaseReadsItsIndexThenCopiesTheInitializationAndEachFragment() {
+        // One file: an initialization of 10 bytes, a sidx index of 44 bytes, then fragments of 12 and 8 bytes.
+        val initialization = ByteArray(10) { (0x10 + it).toByte() }
+        val index = SidxBox.build(references = listOf(12L to 2_000L, 8L to 2_000L))
+        val fragments = ByteArray(12) { 0x41.toByte() } + ByteArray(8) { 0x51.toByte() }
+        val file = initialization + index + fragments
+        val indexEnd = 10 + index.size - 1
+        val source = RangeDashSource(
+            mpd(body = segmentBaseSet(indexRange = "10-$indexEnd", initRange = "0-9")),
+            manifestUrl, mapOf(singleFileUrl to file),
+        )
+        val out = ByteArrayOutputStream()
+        val result = record(source, out)
+        assertEquals(DashCaptureEngine.StopReason.END_LIST, result.stopReason)
+        assertEquals((initialization + fragments).toList(), out.toByteArray().toList())
+        assertEquals(30L, result.bytesWritten)
+        assertEquals<List<Pair<String, HlsByteRange?>>>(
+            listOf(
+                singleFileUrl to HlsByteRange(length = 10, offset = 0),
+                singleFileUrl to HlsByteRange(length = 12, offset = 10L + index.size),
+                singleFileUrl to HlsByteRange(length = 8, offset = 10L + index.size + 12),
+            ),
+            source.requests,
+        )
+    }
+
+    @Test fun anUnavailableSegmentBaseIndexStopsBeforeAnyByteIsWritten() {
+        val source = RangeDashSource(mpd(body = segmentBaseSet(indexRange = "10-53", initRange = "0-9")), manifestUrl, emptyMap())
+        val out = ByteArrayOutputStream()
+        val result = record(source, out)
+        assertEquals(DashCaptureEngine.StopReason.UNSUPPORTED, result.stopReason)
+        assertEquals("DASH segment index is not available", result.detail)
+        assertEquals(0, out.size())
+        assertEquals(emptyList<Pair<String, HlsByteRange?>>(), source.requests)
     }
 }
