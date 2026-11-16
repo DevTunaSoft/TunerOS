@@ -47,6 +47,7 @@ import com.devtunasoft.tuneros.core.GuideDoctor
 import com.devtunasoft.tuneros.core.GuideParser
 import com.devtunasoft.tuneros.core.GuideSnapshot
 import com.devtunasoft.tuneros.core.GuideProgram
+import com.devtunasoft.tuneros.core.SeriesRules
 import com.devtunasoft.tuneros.core.SourceDownloader
 import com.devtunasoft.tuneros.core.SourceRecoveryPolicy
 import com.devtunasoft.tuneros.core.StreamDoctor
@@ -165,6 +166,7 @@ class MainActivity : Activity() {
         if (isInternalStorageLaunch()) recordingDestinations.clear()
         qaScheduledUrl()?.let { url -> worker.execute { OnDeviceSelfTest.runScheduledRecordingOnly(applicationContext, url) } }
         if (isInvalidStartLaunch()) worker.execute { OnDeviceSelfTest.runInvalidStartOnly(applicationContext) }
+        if (isSeriesCheckLaunch()) worker.execute { OnDeviceSelfTest.runSeriesRulesOnly(applicationContext) }
         qaRecordUrl()?.let { url ->
             val deadline = intent?.getStringExtra("tuneros.debug.record_mode") == "deadline"
             // The deadline recording is then played back from its own file (first video frame).
@@ -289,6 +291,7 @@ class MainActivity : Activity() {
         val dvrActions = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             addView(button("Record focused program") { recordFocusedProgram() })
+            addView(button("Series focused program") { toggleSeriesRule() })
             addView(button("Cancel scheduled recording") { cancelFocusedSchedule() })
             addView(button("Exact DVR timing") { openExactAlarmSettings() })
             addView(button("Stop recording") { stopRecording() })
@@ -695,6 +698,10 @@ class MainActivity : Activity() {
         (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0 &&
             intent?.getBooleanExtra("tuneros.debug.invalid_start", false) == true
 
+    private fun isSeriesCheckLaunch(): Boolean =
+        (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0 &&
+            intent?.getBooleanExtra("tuneros.debug.series_check", false) == true
+
     private fun isAlarmLaunch(): Boolean =
         (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0 &&
             intent?.getBooleanExtra("tuneros.debug.alarm", false) == true
@@ -1009,6 +1016,7 @@ class MainActivity : Activity() {
                     showStatus("Loaded ${it.programs.size} programs across ${it.channelNames.size} guide channels" +
                         if (warnings.isEmpty()) "" else "; WARNING: " + warnings.joinToString("; "))
                     renderChannels()
+                    evaluateSeriesRules(it)
                     observe(OnDeviceSelfTest.Event.GUIDE_IMPORTED, it.programs.size.toLong())
                     observe(OnDeviceSelfTest.Event.GUIDE_IMPORT_MILLIS,
                         SystemClock.elapsedRealtime() - startedAtMs)
@@ -1284,100 +1292,185 @@ class MainActivity : Activity() {
     }
 
 
+    /** What one scheduling request came to. Decided on the worker thread, reported on the UI thread. */
+    private sealed class Reservation {
+        class Scheduled(val mode: RecordingScheduler.Mode) : Reservation()
+        class Conflict(val title: String) : Reservation()
+        object AlreadyScheduled : Reservation()
+        object NotReserved : Reservation()
+        object SourceNotSaved : Reservation()
+        class Failed(val reason: String) : Reservation()
+    }
+
+    /** At most this many programmes are reserved for one guide load, so a broad series cannot stall the worker. */
+    private val maxSeriesReservations = 500
+
     private fun scheduleProgram(channel: Channel, program: GuideProgram) {
+        worker.execute {
+            val outcome = reserveRecording(channel, program)
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                showStatus(statusFor(outcome, program.title))
+            }
+        }
+    }
+
+    /** The status line for one reservation. */
+    private fun statusFor(outcome: Reservation, title: String): String = when (outcome) {
+        is Reservation.Conflict -> "Recording conflict with: " + outcome.title
+        Reservation.AlreadyScheduled -> "Recording already scheduled"
+        Reservation.NotReserved -> "Could not reserve DVR schedule"
+        Reservation.SourceNotSaved -> "Could not securely save the recording source"
+        is Reservation.Scheduled -> title + " · " + (
+            if (outcome.mode == RecordingScheduler.Mode.EXACT) "scheduled"
+            else "saved; enable Exact DVR timing before it can be armed")
+        is Reservation.Failed -> "Could not schedule recording: " + outcome.reason
+    }
+
+    /**
+     * Reserves one scheduled recording and arms it. Runs on the worker thread and shows nothing itself, so a manual
+     * request and a series rule take exactly the same steps.
+     */
+    private fun reserveRecording(channel: Channel, program: GuideProgram): Reservation {
         val safeChannel = channel.id.take(40).replace(Regex("[^A-Za-z0-9._-]"), "_")
         val id = "$safeChannel-${program.startEpochSeconds}"
         val sourceKey = "scheduled_recording.$id"
-        worker.execute {
-            val overlap = RecordingScheduleStore(this).use {
-                it.findOverlap(id, program.startEpochSeconds, program.endEpochSeconds)
-            }
-            if (overlap != null) {
-                runOnUiThread {
-                    if (!isFinishing && !isDestroyed) {
-                        showStatus("Recording conflict with: " + overlap.title)
-                    }
-                }
-                return@execute
-            }
-            val entry = RecordingScheduleEntry(
-                id = id,
-                title = program.title,
-                channelId = channel.id,
-                secureSourceKey = sourceKey,
-                startEpochSeconds = program.startEpochSeconds,
-                endEpochSeconds = program.endEpochSeconds,
-                // A process death here must never rearm an unencrypted source.
-                state = "PREPARING",
-                exactAlarm = false,
-                lastError = null,
+        val overlap = RecordingScheduleStore(this).use {
+            it.findOverlap(id, program.startEpochSeconds, program.endEpochSeconds)
+        }
+        if (overlap != null) return Reservation.Conflict(overlap.title)
+        val entry = RecordingScheduleEntry(
+            id = id,
+            title = program.title,
+            channelId = channel.id,
+            secureSourceKey = sourceKey,
+            startEpochSeconds = program.startEpochSeconds,
+            endEpochSeconds = program.endEpochSeconds,
+            // A process death here must never rearm an unencrypted source.
+            state = "PREPARING",
+            exactAlarm = false,
+            lastError = null,
+        )
+        val reservation = runCatching {
+            RecordingScheduleStore(this).use { it.insertIfAbsent(entry) }
+        }
+        if (!reservation.getOrDefault(false)) {
+            return if (reservation.isFailure) Reservation.NotReserved else Reservation.AlreadyScheduled
+        }
+
+        // Only the owner of the new row may write the deterministic source
+        // key. A second scheduling request cannot overwrite its credentials.
+        val saved = runCatching {
+            ScheduledRecordingSecrets.save(
+                secureSources, sourceKey,
+                ScheduledRecordingSource(
+                    channel.streamUrl, channel.userAgent, channel.referer,
+                ),
             )
-            val reservation = runCatching {
-                RecordingScheduleStore(this).use { it.insertIfAbsent(entry) }
-            }
-            if (!reservation.getOrDefault(false)) {
-                runOnUiThread {
-                    if (!isFinishing && !isDestroyed) {
-                        showStatus(if (reservation.isFailure) "Could not reserve DVR schedule"
-                            else "Recording already scheduled")
-                    }
+        }.getOrDefault(false)
+        if (!saved) {
+            runCatching {
+                RecordingScheduleStore(this).use {
+                    it.markFailed(id, "Unable to securely save recording source")
                 }
-                return@execute
+                ScheduledRecordingSecrets.delete(secureSources, sourceKey)
             }
+            return Reservation.SourceNotSaved
+        }
 
-            // Only the owner of the new row may write the deterministic source
-            // key. A second scheduling request cannot overwrite its credentials.
-            val saved = runCatching {
-                ScheduledRecordingSecrets.save(
-                    secureSources, sourceKey,
-                    ScheduledRecordingSource(
-                        channel.streamUrl, channel.userAgent, channel.referer,
-                    ),
-                )
-            }.getOrDefault(false)
-            if (!saved) {
-                runCatching {
-                    RecordingScheduleStore(this).use {
-                        it.markFailed(id, "Unable to securely save recording source")
-                    }
-                    ScheduledRecordingSecrets.delete(secureSources, sourceKey)
+        val result = runCatching {
+            check(RecordingScheduleStore(this).use {
+                it.markScheduledIfPreparing(id)
+            }) { "DVR schedule reservation no longer available" }
+            RecordingScheduler.schedule(this, entry.copy(state = "SCHEDULED"))
+        }
+        if (result.isFailure) {
+            runCatching {
+                RecordingScheduleStore(this).use {
+                    it.markFailed(id,
+                        result.exceptionOrNull()?.javaClass?.simpleName ?: "Schedule failure",
+                    )
                 }
-                runOnUiThread {
-                    if (!isFinishing && !isDestroyed) {
-                        showStatus("Could not securely save the recording source")
-                    }
-                }
-                return@execute
+                ScheduledRecordingSecrets.delete(secureSources, sourceKey)
             }
+        }
+        return result.fold(
+            onSuccess = { Reservation.Scheduled(it) },
+            onFailure = { Reservation.Failed(it.javaClass.simpleName) },
+        )
+    }
 
-            val result = runCatching {
-                check(RecordingScheduleStore(this).use {
-                    it.markScheduledIfPreparing(id)
-                }) { "DVR schedule reservation no longer available" }
-                RecordingScheduler.schedule(this, entry.copy(state = "SCHEDULED"))
-            }
-            if (result.isFailure) {
-                runCatching {
-                    RecordingScheduleStore(this).use {
-                        it.markFailed(id,
-                            result.exceptionOrNull()?.javaClass?.simpleName ?: "Schedule failure",
-                        )
+    /** Adds or removes the series rule for the focused programme's title on its guide channel. */
+    private fun toggleSeriesRule() {
+        val program = focusedProgram
+        if (program == null) {
+            showStatus("Focus a guide program first")
+            return
+        }
+        val rule = SeriesRules.ruleFor(program.title, program.channelId)
+        if (rule == null) {
+            showStatus("This program has no title to match a series on")
+            return
+        }
+        val snapshot = guide
+        worker.execute {
+            var added = false
+            val message = runCatching {
+                SeriesRuleStore(this).use { store ->
+                    if (store.contains(rule)) {
+                        if (store.remove(rule)) "Series removed: " + program.title
+                        else "Could not remove the series rule"
+                    } else {
+                        added = store.add(rule, System.currentTimeMillis() / 1000)
+                        if (added) "Series added: " + program.title
+                        else "Series list is full or could not be saved"
                     }
-                    ScheduledRecordingSecrets.delete(secureSources, sourceKey)
+                }
+            }.getOrDefault("Could not save the series rule")
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                showStatus(message)
+                if (added) evaluateSeriesRules(snapshot)
+            }
+        }
+    }
+
+    /**
+     * Schedules every programme in [snapshot] that a series rule names, on the worker thread. Each one goes through the
+     * same reservation as a manual request, so repeats and conflicts are handled the same way. A programme whose guide
+     * channel is not mapped to a playlist channel is skipped. Call from the UI thread.
+     */
+    private fun evaluateSeriesRules(snapshot: GuideSnapshot?) {
+        if (snapshot == null) return
+        val channelByGuide = HashMap<String, Channel>()
+        for (channel in effectiveChannels()) {
+            val guideId = channel.guideId ?: continue
+            channelByGuide.putIfAbsent(guideId, channel)
+        }
+        worker.execute {
+            val rules = runCatching { SeriesRuleStore(this).use { it.all() } }.getOrDefault(emptyList())
+            if (rules.isEmpty()) return@execute
+            val planned = SeriesRules.plan(rules, snapshot.programs, System.currentTimeMillis() / 1000)
+                .take(maxSeriesReservations)
+            var scheduled = 0
+            var skipped = 0
+            var failed = 0
+            for (program in planned) {
+                val channel = channelByGuide[program.channelId]
+                if (channel == null) {
+                    skipped++
+                    continue
+                }
+                when (reserveRecording(channel, program)) {
+                    is Reservation.Scheduled -> scheduled++
+                    is Reservation.Conflict, Reservation.AlreadyScheduled -> skipped++
+                    else -> failed++
                 }
             }
             runOnUiThread {
                 if (isFinishing || isDestroyed) return@runOnUiThread
-                result.onSuccess { mode ->
-                    val suffix = if (mode == RecordingScheduler.Mode.EXACT) {
-                        "scheduled"
-                    } else {
-                        "saved; enable Exact DVR timing before it can be armed"
-                    }
-                    showStatus(program.title + " · " + suffix)
-                }.onFailure {
-                    showStatus("Could not schedule recording: " + it.javaClass.simpleName)
-                }
+                showStatus("Series: $scheduled scheduled, $skipped already scheduled, in conflict or unmapped" +
+                    (if (failed == 0) "" else ", $failed failed"))
             }
         }
     }

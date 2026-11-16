@@ -940,6 +940,24 @@ if ! grep -Eq "^PASS[[:space:]]qa-recording-partial-eof.* bytes=${SINGLE_BYTES}\
 fi
 echo "single-file DASH recording matches the MP4 byte for byte: ${SINGLE_BYTES} bytes"
 
+# Series rules on the device: the store keeps one row per rule, lists and removes it, stops at its budget, and the planner
+# matches only the exact title on the rule's channel. It runs against a scratch database and touches no schedule.
+adb shell run-as com.devtunasoft.tuneros rm -f files/tuneros-series-report.txt 2>/dev/null || true
+adb shell am force-stop com.devtunasoft.tuneros
+adb shell am start -n com.devtunasoft.tuneros/.MainActivity --ez tuneros.debug.series_check true
+for attempt in $(seq 1 30); do
+  adb shell run-as com.devtunasoft.tuneros cat files/tuneros-series-report.txt > series-report.txt 2>/dev/null || true
+  if grep -Fq "$(printf 'PASS\tqa-series-rules')" series-report.txt; then
+    break
+  fi
+  sleep 2
+done
+if ! grep -Fq "$(printf 'PASS\tqa-series-rules')" series-report.txt; then
+  echo "Series rules did not pass on the device"
+  cat series-report.txt 2>/dev/null || echo "(no report file)"
+  exit 1
+fi
+echo "series rules on the device: store, budget, exact title match and planner pass"
 # Refused start on the device: the recorder must enter the foreground before it refuses a request. Otherwise Android
 # crashes the calling app, and the report below is never written.
 adb shell run-as com.devtunasoft.tuneros rm -f files/tuneros-invalid-start-report.txt 2>/dev/null || true
