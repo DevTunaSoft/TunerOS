@@ -43,6 +43,9 @@ import androidx.media3.ui.PlayerView
 import com.devtunasoft.tuneros.core.BackupContents
 import com.devtunasoft.tuneros.core.Channel
 import com.devtunasoft.tuneros.core.TunerBackup
+import com.devtunasoft.tuneros.core.ParentalAttemptLimit
+import com.devtunasoft.tuneros.core.ParentalPin
+import com.devtunasoft.tuneros.core.ParentalPolicy
 import com.devtunasoft.tuneros.core.ChannelVisibility
 import com.devtunasoft.tuneros.core.FavoriteChannels
 import com.devtunasoft.tuneros.core.GuideDoctor
@@ -134,6 +137,9 @@ class MainActivity : Activity() {
     private var player: ExoPlayer? = null
     // Reuse a single decoder for channels with identical provider request headers.
     private var playerHeaders: Map<String, String>? = null
+    /** The parental PIN and restricted groups. Unlocking lasts until the app process ends. */
+    private val parentalStore by lazy { ParentalControlsStore(this) }
+    private var parentalUnlocked = false
     private var playbackEvidence: FirstResponseRecorder? = null
     private var activeChannelName: String? = null
     private var focusedChannel: Channel? = null
@@ -301,6 +307,9 @@ class MainActivity : Activity() {
             addView(button("Stop recording") { stopRecording() })
             addView(button("Export backup") { exportBackup() })
             addView(button("Restore backup") { restoreBackup() })
+            addView(button("Parental PIN") { openParentalPin() })
+            addView(button("Restrict group") { restrictGroupPrompt(restricted = true) })
+            addView(button("Release group") { restrictGroupPrompt(restricted = false) })
             addView(button("Guide / Recordings") { toggleRecordings() })
             addView(button("Protect / Unprotect") { toggleFocusedRecordingProtection() })
             addView(button("Delete recording") { deleteFocusedRecording() })
@@ -412,6 +421,7 @@ class MainActivity : Activity() {
             worker.execute { OnDeviceSelfTest.runServiceStopOnly(applicationContext) }
         }
         if (isBackupCheckLaunch()) worker.execute { BackupQa.run(applicationContext) }
+        if (isParentalCheckLaunch()) worker.execute { ParentalQa.run(applicationContext) }
         if (isAlarmLaunch()) {
             worker.execute { OnDeviceSelfTest.runAlarmOnly(applicationContext) }
         }
@@ -744,6 +754,106 @@ class MainActivity : Activity() {
     private fun isBackupCheckLaunch(): Boolean =
         (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0 &&
             intent?.getBooleanExtra("tuneros.debug.backup_check", false) == true
+
+    private fun isParentalCheckLaunch(): Boolean =
+        (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0 &&
+            intent?.getBooleanExtra("tuneros.debug.parental_check", false) == true
+
+    /** Runs [onUnlocked] now when the session is unlocked, or after the PIN is entered and accepted. */
+    private fun requireParentalPin(onUnlocked: () -> Unit) {
+        if (parentalUnlocked) {
+            onUnlocked()
+            return
+        }
+        if (!parentalStore.hasPin()) {
+            showStatus("This channel is restricted: set a parental PIN with the Parental PIN button first")
+            return
+        }
+        val input = EditText(this).apply {
+            inputType = android.text.InputType.TYPE_CLASS_NUMBER or
+                android.text.InputType.TYPE_NUMBER_VARIATION_PASSWORD
+            hint = "PIN"
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Parental PIN")
+            .setView(input)
+            .setPositiveButton("Unlock") { _, _ ->
+                val pin = input.text.toString()
+                worker.execute {
+                    val outcome = parentalStore.verify(pin)
+                    runOnUiThread { handleParentalOutcome(outcome, onUnlocked) }
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun handleParentalOutcome(outcome: ParentalAttemptLimit.Outcome?, onUnlocked: () -> Unit) {
+        when (outcome) {
+            ParentalAttemptLimit.Outcome.Accepted -> {
+                parentalUnlocked = true
+                onUnlocked()
+            }
+            is ParentalAttemptLimit.Outcome.Rejected -> showStatus("Wrong PIN: ${outcome.attemptsLeft} tries left")
+            is ParentalAttemptLimit.Outcome.Locked -> {
+                val seconds = ((outcome.untilMillis - System.currentTimeMillis()) / 1000L).coerceAtLeast(1L)
+                showStatus("Too many wrong PINs: try again in $seconds seconds")
+            }
+            null -> showStatus("No parental PIN is set")
+        }
+    }
+
+    /** The Parental PIN button: sets the PIN the first time, and unlocks the session after that. */
+    private fun openParentalPin() {
+        if (parentalStore.hasPin()) {
+            requireParentalPin { showStatus("Parental controls are unlocked for this session") }
+            return
+        }
+        val input = EditText(this).apply {
+            inputType = android.text.InputType.TYPE_CLASS_NUMBER or
+                android.text.InputType.TYPE_NUMBER_VARIATION_PASSWORD
+            hint = "4 to 8 digits"
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Set a parental PIN")
+            .setView(input)
+            .setPositiveButton("Save") { _, _ ->
+                val pin = input.text.toString()
+                if (!ParentalPin.isValid(pin)) {
+                    showStatus("The PIN must be 4 to 8 digits")
+                    return@setPositiveButton
+                }
+                worker.execute {
+                    parentalStore.setPin(pin)
+                    runOnUiThread {
+                        parentalUnlocked = true
+                        showStatus("Parental PIN saved: restricted groups need it")
+                    }
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    /** Restricts or releases a channel group by name, after the PIN unlocks the session. */
+    private fun restrictGroupPrompt(restricted: Boolean) {
+        requireParentalPin {
+            val input = EditText(this).apply { hint = "Channel group name" }
+            AlertDialog.Builder(this)
+                .setTitle(if (restricted) "Restrict a channel group" else "Release a channel group")
+                .setView(input)
+                .setPositiveButton("Save") { _, _ ->
+                    try {
+                        parentalStore.restrict(input.text.toString(), restricted)
+                        showStatus(if (restricted) "Group restricted" else "Group released")
+                    } catch (error: IllegalArgumentException) {
+                        showStatus("Enter a group name; up to ${ParentalPolicy.MAX_RESTRICTED_GROUPS} groups can be restricted")
+                    }
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
+        }
+    }
 
     private fun isAlarmLaunch(): Boolean =
         (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0 &&
@@ -1215,6 +1325,11 @@ class MainActivity : Activity() {
     }
 
     private fun play(channel: Channel) {
+        // A restricted group waits for the PIN; the channel that is playing keeps playing until it is accepted.
+        if (ParentalPolicy.requiresPin(channel.group, parentalStore.restrictedGroups(), parentalUnlocked)) {
+            requireParentalPin { play(channel) }
+            return
+        }
         val headers = mutableMapOf<String, String>()
         channel.userAgent?.let { headers["User-Agent"] = it }
         channel.referer?.let { if (isHttpUrl(it)) headers["Referer"] = it }
