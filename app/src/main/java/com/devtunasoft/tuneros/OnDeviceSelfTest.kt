@@ -1142,7 +1142,10 @@ internal object OnDeviceSelfTest {
                 report.appendText(
                     "DETAIL\tstate=" + (entry?.state ?: "none") + " bytes=" + (entry?.bytesWritten ?: -1L) +
                         " disk=" + (onDisk ?: -1L) + " schedule=" + (schedule?.state ?: "none") +
-                        " secretsLeft=" + (ScheduledRecordingSecrets.load(secrets, key) != null) + "\n",
+                        " secretsLeft=" + (ScheduledRecordingSecrets.load(secrets, key) != null) +
+                        " armedEpoch=" + startSec + " stopEpoch=" + endSec +
+                        " startedEpoch=" + (entry?.startedEpochSeconds ?: -1L) +
+                        " stoppedEpoch=" + (entry?.stoppedEpochSeconds ?: -1L) + "\n",
                 )
                 entry != null && entry.state == "COMPLETED" && entry.bytesWritten > 0L &&
                     onDisk == entry.bytesWritten && schedule?.state == "STARTED" &&
