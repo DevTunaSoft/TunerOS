@@ -14,8 +14,17 @@ class TimeshiftWindow(val maxSegments: Int, val maxBytes: Long) {
         require(maxBytes > 0)
     }
 
-    /** One recorded segment: its media sequence number, its duration, its size and the name of its file in the window. */
-    data class Segment(val sequence: Long, val durationSeconds: Double, val bytes: Long, val fileName: String) {
+    /**
+     * One recorded segment: its media sequence number, its duration, its size, the name of its file in the window, and
+     * whether the source marked a discontinuity before it.
+     */
+    data class Segment(
+        val sequence: Long,
+        val durationSeconds: Double,
+        val bytes: Long,
+        val fileName: String,
+        val discontinuity: Boolean = false,
+    ) {
         init {
             require(sequence >= 0)
             require(durationSeconds > 0.0 && durationSeconds.isFinite())
@@ -70,6 +79,7 @@ class TimeshiftWindow(val maxSegments: Int, val maxBytes: Long) {
         out.append("#EXT-X-TARGETDURATION:").append(target).append('\n')
         out.append("#EXT-X-MEDIA-SEQUENCE:").append(window.first().sequence).append('\n')
         for (segment in window) {
+            if (segment.discontinuity) out.append("#EXT-X-DISCONTINUITY\n")
             out.append("#EXTINF:")
                 .append(String.format(Locale.ROOT, "%.3f", segment.durationSeconds))
                 .append(",\n")

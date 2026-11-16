@@ -82,4 +82,13 @@ class TimeshiftWindowTest {
         assertEquals(0, window.size)
         assertEquals(0L, window.bytes)
     }
+
+    @Test fun aDiscontinuousSegmentIsMarkedBeforeItsEntry() {
+        val window = TimeshiftWindow(maxSegments = 5, maxBytes = 10_000)
+        window.add(segment(0))
+        window.add(TimeshiftWindow.Segment(1, 2.0, 100, "seg-1.ts", discontinuity = true))
+        val playlist = window.playlist()
+        assertTrue(playlist.contains("#EXT-X-DISCONTINUITY\n#EXTINF:2.000,\nseg-1.ts\n"), playlist)
+        assertEquals(1, playlist.split("#EXT-X-DISCONTINUITY").size - 1, "only the marked segment is a discontinuity")
+    }
 }

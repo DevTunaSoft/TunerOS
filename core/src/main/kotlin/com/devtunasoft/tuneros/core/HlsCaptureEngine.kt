@@ -27,6 +27,14 @@ interface HlsCaptureSource {
     fun loadKey(url: String): ByteArray
 }
 
+/**
+ * Hears each media segment once its bytes are complete and verified, in playlist order. A timeshift uses this to keep one
+ * segment per file, since the engine has no other per-segment output.
+ */
+interface HlsSegmentListener {
+    fun onSegmentComplete(sequence: Long, durationSeconds: Double, bytes: Long, discontinuity: Boolean)
+}
+
 private const val MAX_CACHED_KEYS = 4
 
 class HlsCaptureEngine(
@@ -60,6 +68,7 @@ class HlsCaptureEngine(
         nowEpochSeconds: () -> Long,
         sleepMillis: (Long) -> Unit,
         onProgress: (Long) -> Unit = {},
+        segmentListener: HlsSegmentListener? = null,
     ): Result {
         require(endEpochSeconds > 0)
         var playlistUrl = initialUrl
@@ -192,6 +201,16 @@ class HlsCaptureEngine(
                         if (nowEpochSeconds() >= endEpochSeconds) {
                             return Result(totalBytes, lastSequence, StopReason.DEADLINE)
                         }
+                        // A timeshift lists each segment with its duration, so it refuses one without a usable duration.
+                        val duration = segment.durationSeconds
+                        if (segmentListener != null && (duration == null || !duration.isFinite() || duration <= 0.0)) {
+                            return Result(
+                                totalBytes,
+                                lastSequence,
+                                StopReason.UNSUPPORTED,
+                                "HLS segment duration is not usable for timeshift",
+                            )
+                        }
                         val keyed = !segment.keyMethod.equals("NONE", ignoreCase = true)
                         if (keyed && !segment.keyMethod.equals("AES-128", ignoreCase = true)) {
                             return Result(
@@ -220,6 +239,14 @@ class HlsCaptureEngine(
                         }
                         val mapUri = segment.initializationMapUri
                         if (mapUri != null) {
+                            if (segmentListener != null) {
+                                return Result(
+                                    totalBytes,
+                                    lastSequence,
+                                    StopReason.UNSUPPORTED,
+                                    "fMP4 initialization is not supported for timeshift",
+                                )
+                            }
                             val mapRange = segment.initializationMapByteRange
                             if (!initializationWritten && mediaWritten) {
                                 return Result(
@@ -320,7 +347,8 @@ class HlsCaptureEngine(
                             }
                         }
                         // Byte-range and body-length checks use ciphertext. Disk totals use plaintext.
-                        totalBytes = Math.addExact(totalBytes, decryptor?.plaintextBytes ?: copy.bytesWritten)
+                        val segmentBytes = decryptor?.plaintextBytes ?: copy.bytesWritten
+                        totalBytes = Math.addExact(totalBytes, segmentBytes)
 
                         when (copy.stopReason) {
                             StreamRecorder.StopReason.END_OF_STREAM -> {
@@ -337,6 +365,14 @@ class HlsCaptureEngine(
                                 lastSequence = segment.sequence
                                 mediaWritten = true
                                 onProgress(totalBytes)
+                                if (segmentListener != null && duration != null) {
+                                    segmentListener.onSegmentComplete(
+                                        segment.sequence,
+                                        duration,
+                                        segmentBytes,
+                                        segment.discontinuity,
+                                    )
+                                }
                             }
                             StreamRecorder.StopReason.CANCELLED ->
                                 return Result(totalBytes, lastSequence, StopReason.CANCELLED)
