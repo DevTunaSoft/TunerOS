@@ -19,7 +19,21 @@ class DashCaptureEngineTest {
       <Representation id="v1" bandwidth="500000" codecs="avc1.42c01e" width="160" height="120"/>
     </AdaptationSet>"""
 
-    private fun mpd(duration: String = "PT9S", type: String = "static", baseUrl: String? = null, availabilityStart: String? = null): String {
+    /** A video set whose SegmentTemplate carries [timeline] in place of a fixed duration. */
+    private fun timelineSet(timeline: String, media: String = "chunk-@Time@.m4s"): String = """    <AdaptationSet mimeType="video/mp4">
+      <SegmentTemplate timescale="1000" startNumber="1" initialization="init-@RepresentationID@.m4s" media="$media">
+        <SegmentTimeline>$timeline</SegmentTimeline>
+      </SegmentTemplate>
+      <Representation id="v1" bandwidth="500000" codecs="avc1.42c01e" width="160" height="120"/>
+    </AdaptationSet>"""
+
+    private fun mpd(
+        duration: String = "PT9S",
+        type: String = "static",
+        baseUrl: String? = null,
+        availabilityStart: String? = null,
+        body: String = videoSet,
+    ): String {
         val timing = if (type == "dynamic") {
             availabilityStart?.let { " availabilityStartTime=\"$it\"" }.orEmpty()
         } else {
@@ -28,7 +42,7 @@ class DashCaptureEngineTest {
         return """<?xml version="1.0" encoding="UTF-8"?>
 <MPD xmlns="urn:mpeg:dash:schema:mpd:2011" type="$type"$timing>
 ${baseUrl?.let { "  <BaseURL>$it</BaseURL>\n" }.orEmpty()}  <Period id="0" start="PT0S">
-$videoSet
+$body
   </Period>
 </MPD>
 """.replace('@', '$')
@@ -95,6 +109,14 @@ $videoSet
 
     /** Every live segment N is published when its media time has elapsed: 1000 + 3N seconds. */
     private fun publishedOnTime(): Map<String, Long> = (1..12).associate { chunk(it) to 1_000L + 3L * it }
+
+    /** Segment URLs addressed by time: segment N starts at 3000 * (N - 1) in a 1000-unit timeline. */
+    private fun timeUrl(number: Int): String = "https://example.test/dash/chunk-${3000 * (number - 1)}.m4s"
+
+    private val liveSegmentsByTime: Map<String, ByteArray> =
+        mapOf(initUrl to byteArrayOf(9, 9)) + (1..12).associate { timeUrl(it) to byteArrayOf(it.toByte()) }
+
+    private fun publishedOnTimeByTime(): Map<String, Long> = (1..12).associate { timeUrl(it) to 1_000L + 3L * it }
 
     private fun record(
         source: FakeDashSource,
@@ -291,5 +313,50 @@ $videoSet
         assertEquals(DashCaptureEngine.StopReason.UNSUPPORTED, result.stopReason)
         assertTrue(result.detail.orEmpty().contains("too many"))
         assertEquals(emptyList(), source.copied)
+    }
+
+    @Test fun staticTimelineWritesEverySegmentInOrderAddressedByTime() {
+        val byTime = mapOf(
+            initUrl to byteArrayOf(9, 9),
+            timeUrl(1) to byteArrayOf(1),
+            timeUrl(2) to byteArrayOf(2),
+            timeUrl(3) to byteArrayOf(3),
+        )
+        val source = FakeDashSource(mpd(body = timelineSet("""<S t="0" d="3000" r="2"/>""")), byTime, manifestUrl)
+        val out = ByteArrayOutputStream()
+        val result = record(source, out)
+        assertEquals(DashCaptureEngine.StopReason.END_LIST, result.stopReason)
+        assertEquals(listOf(9, 9, 1, 2, 3), out.toByteArray().map { it.toInt() })
+        assertEquals(listOf(initUrl, timeUrl(1), timeUrl(2), timeUrl(3)), source.copied)
+    }
+
+    @Test fun openLiveTimelineFollowsTheClockAndAddressesSegmentsByTime() {
+        val clock = FakeClock(1_010)
+        val source = FakeDashSource(
+            mpd(type = "dynamic", availabilityStart = liveStart, body = timelineSet("""<S t="0" d="3000" r="-1"/>""")),
+            liveSegmentsByTime, manifestUrl, clock = clock, publishedAtSeconds = publishedOnTimeByTime(),
+        )
+        val out = ByteArrayOutputStream()
+        val result = record(source, out, end = 1_025, clock = clock)
+        assertEquals(DashCaptureEngine.StopReason.DEADLINE, result.stopReason)
+        assertEquals(listOf(9, 9, 3, 4, 5, 6, 7, 8), out.toByteArray().map { it.toInt() })
+        assertEquals(listOf(initUrl) + (3..8).map { timeUrl(it) }, source.copied)
+    }
+
+    @Test fun aFiniteLiveTimelineWindowFollowsTheClockWithNumberAddressing() {
+        val clock = FakeClock(1_010)
+        val source = FakeDashSource(
+            mpd(
+                type = "dynamic",
+                availabilityStart = liveStart,
+                body = timelineSet("""<S t="0" d="3000" r="11"/>""", media = "chunk-@RepresentationID@-@Number%05d@.m4s"),
+            ),
+            liveSegments, manifestUrl, clock = clock, publishedAtSeconds = publishedOnTime(),
+        )
+        val out = ByteArrayOutputStream()
+        val result = record(source, out, end = 1_025, clock = clock)
+        assertEquals(DashCaptureEngine.StopReason.DEADLINE, result.stopReason)
+        assertEquals(listOf(9, 9, 3, 4, 5, 6, 7, 8), out.toByteArray().map { it.toInt() })
+        assertEquals(listOf(initUrl) + (3..8).map { chunk(it) }, source.copied)
     }
 }

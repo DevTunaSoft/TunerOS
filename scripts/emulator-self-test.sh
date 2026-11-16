@@ -682,10 +682,11 @@ fi
 
 # Encrypted, fMP4 and DASH recording on the device. One clip is cut into plain TS segments and encrypted with AES-128
 # (the IV is the media sequence number, the default). A second clip is cut into fMP4 segments with an initialization
-# section, and a third into a static DASH manifest. Each is recorded through the real service. The clip ends early,
+# section, and a third into a static DASH manifest, with and without a SegmentTimeline. Each is recorded through the real
+# service. The clip ends early,
 # so the result is PARTIAL, and the stored bytes must equal the plaintext (fMP4 and DASH: the initialization segment,
 # then the fragments) exactly.
-rm -rf ci-hls && mkdir -p ci-hls/plain ci-hls/aes ci-hls/fmp4 ci-hls/dash
+rm -rf ci-hls && mkdir -p ci-hls/plain ci-hls/aes ci-hls/fmp4 ci-hls/dash ci-hls/dash-timeline
 ffmpeg -y -loglevel error -f lavfi -i testsrc=duration=9:size=160x120:rate=10 -c:v libx264 -pix_fmt yuv420p -g 10 \
   -f hls -hls_time 3 -hls_list_size 0 -hls_playlist_type vod \
   -hls_segment_filename ci-hls/plain/seg%d.ts ci-hls/plain/index.m3u8
@@ -694,6 +695,8 @@ ffmpeg -y -loglevel error -f lavfi -i testsrc=duration=9:size=160x120:rate=10 -c
   -hls_fmp4_init_filename init.mp4 -hls_segment_filename ci-hls/fmp4/seg%d.m4s ci-hls/fmp4/index.m3u8
 ffmpeg -y -loglevel error -f lavfi -i testsrc=duration=9:size=160x120:rate=10 -c:v libx264 -pix_fmt yuv420p -g 10 \
   -f dash -seg_duration 3 -use_template 1 -use_timeline 0 ci-hls/dash/manifest.mpd
+ffmpeg -y -loglevel error -f lavfi -i testsrc=duration=9:size=160x120:rate=10 -c:v libx264 -pix_fmt yuv420p -g 10 \
+  -f dash -seg_duration 3 -use_template 1 -use_timeline 1 ci-hls/dash-timeline/manifest.mpd
 HLS_KEY_HEX=00112233445566778899aabbccddeeff
 python3 -c "import binascii,sys; sys.stdout.buffer.write(binascii.unhexlify('${HLS_KEY_HEX}'))" > ci-hls/aes/key.bin
 HLS_SEGMENTS=$(grep -v '^#' ci-hls/plain/index.m3u8 | grep -v '^$')
@@ -707,7 +710,7 @@ done
 python3 -m http.server 8770 --bind 0.0.0.0 --directory ci-hls >hls-server.log 2>&1 &
 HLS_HTTP_PID=$!
 sleep 2
-for HLS_CASE in aes fmp4 dash; do
+for HLS_CASE in aes fmp4 dash dash-timeline; do
   case "$HLS_CASE" in
     aes)
       HLS_PATH=aes/index.m3u8
@@ -722,6 +725,10 @@ for HLS_CASE in aes fmp4 dash; do
     dash)
       HLS_PATH=dash/manifest.mpd
       HLS_EXPECT=$({ cat ci-hls/dash/init-*.m4s; for f in $(ls ci-hls/dash/chunk-*.m4s | sort); do cat "$f"; done; } | tee ci-hls/expected-dash.bin | wc -c)
+      ;;
+    dash-timeline)
+      HLS_PATH=dash-timeline/manifest.mpd
+      HLS_EXPECT=$({ cat ci-hls/dash-timeline/init-*.m4s; for f in $(ls ci-hls/dash-timeline/chunk-*.m4s | sort); do cat "$f"; done; } | tee ci-hls/expected-dash-timeline.bin | wc -c)
       ;;
   esac
   HLS_EXPECT_SHA=$(sha256sum "ci-hls/expected-${HLS_CASE}.bin" | cut -d' ' -f1)
@@ -843,10 +850,11 @@ if ! grep -Fq "$(printf 'PASS\tqa-recording-playback-first-frame\tfirst video fr
   exit 1
 fi
 
-# Live DASH on the device. The runner serves a dynamic manifest of 2-second segments on the device's clock. The origin
-# answers the first request for each segment with 404, so the recorder must retry every segment inside its grace window.
-# The recording must reach the scheduled stop as COMPLETED, its stored bytes must be the initialization segment followed
-# by at least two consecutive segments, and the stored file must play back.
+# Live DASH on the device. The runner serves a dynamic manifest of 2-second segments on the device's clock, in three
+# forms: a fixed duration, a finite SegmentTimeline addressed by number (as ffmpeg lists it), and an open SegmentTimeline
+# addressed by time. The origin answers the first request for each segment with 404, so the recorder must retry every
+# segment inside its grace window. Each recording must reach the scheduled stop as COMPLETED, its stored bytes must be
+# the initialization segment followed by at least two consecutive segments, and the stored file must play back.
 rm -rf ci-live && mkdir -p ci-live/static
 ffmpeg -y -loglevel error -f lavfi -i testsrc=duration=60:size=160x120:rate=10 -c:v libx264 -pix_fmt yuv420p \
   -g 20 -keyint_min 20 -sc_threshold 0 -f dash -seg_duration 2 -use_template 1 -use_timeline 0 ci-live/static/manifest.mpd
@@ -863,10 +871,32 @@ PORT = int(sys.argv[2])
 START = float(sys.argv[3])  # runner epoch seconds at which the stream starts
 OFFSET = float(sys.argv[4])  # device clock minus runner clock: the manifest is written on the device's clock
 SEGMENTS = int(sys.argv[5])
+MODE = sys.argv[6]  # template, timeline-number or timeline-time
 SEGMENT_SECONDS = 2
+STEP = SEGMENT_SECONDS * 1000  # one segment in the 1000-unit timescale
 # The first request for each segment is answered 404, as an origin does before it publishes a segment; later requests
 # are served. Every segment therefore exercises the recorder's retry path, whatever the clocks and the poll phase.
 REQUESTS = {}
+
+if MODE == "template":
+    SEGMENT_TEMPLATE = (
+        f'<SegmentTemplate timescale="1000" duration="{STEP}" startNumber="1" initialization="init.m4s" '
+        'media="chunk-$Number%05d$.m4s"/>'
+    )
+elif MODE == "timeline-number":
+    # A finite window of entries, addressed by number.
+    SEGMENT_TEMPLATE = (
+        '<SegmentTemplate timescale="1000" startNumber="1" initialization="init.m4s" media="chunk-$Number%05d$.m4s">'
+        f'<SegmentTimeline><S t="0" d="{STEP}" r="{SEGMENTS - 1}"/></SegmentTimeline></SegmentTemplate>'
+    )
+elif MODE == "timeline-time":
+    # An open repeat, addressed by the start time of each segment.
+    SEGMENT_TEMPLATE = (
+        '<SegmentTemplate timescale="1000" startNumber="1" initialization="init.m4s" media="chunk-$Time$.m4s">'
+        f'<SegmentTimeline><S t="0" d="{STEP}" r="-1"/></SegmentTimeline></SegmentTemplate>'
+    )
+else:
+    raise SystemExit("unknown mode: " + MODE)
 
 STAMP = datetime.datetime.fromtimestamp(START + OFFSET, datetime.timezone.utc).isoformat(timespec="milliseconds")
 STAMP = STAMP.replace("+00:00", "Z")
@@ -874,7 +904,7 @@ MPD = f'''<?xml version="1.0" encoding="UTF-8"?>
 <MPD xmlns="urn:mpeg:dash:schema:mpd:2011" type="dynamic" availabilityStartTime="{STAMP}" minimumUpdatePeriod="PT2S" minBufferTime="PT2S" profiles="urn:mpeg:dash:profile:isoff-live:2011">
   <Period id="0" start="PT0S">
     <AdaptationSet mimeType="video/mp4" contentType="video">
-      <SegmentTemplate timescale="1000" duration="{SEGMENT_SECONDS * 1000}" startNumber="1" initialization="init.m4s" media="chunk-$Number%05d$.m4s"/>
+      {SEGMENT_TEMPLATE}
       <Representation id="v1" bandwidth="100000" codecs="avc1.42c01e" width="160" height="120"/>
     </AdaptationSet>
   </Period>
@@ -906,7 +936,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if path.startswith("/live/chunk-") and name.endswith(".m4s"):
             digits = name[len("chunk-"):-len(".m4s")]
             if digits.isdigit():
-                number = int(digits)
+                value = int(digits)
+                if MODE == "timeline-time":
+                    # $Time$ names a segment by its start; segment N starts at (N - 1) * STEP.
+                    number = value // STEP + 1 if value % STEP == 0 else 0
+                else:
+                    number = value
                 if 1 <= number <= SEGMENTS:
                     REQUESTS[number] = REQUESTS.get(number, 0) + 1
                     if REQUESTS[number] > 1:
@@ -919,39 +954,6 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
 http.server.ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()
 PY
-# The recorder compares segment times with the device clock, so the manifest's availability start must be on that clock.
-# Measure the device's offset from this runner once, and write the manifest in the device's time.
-RUNNER_NOW=$(date +%s)
-DEVICE_NOW=$(adb shell date +%s | tr -d '\r')
-case "$DEVICE_NOW" in
-  ''|*[!0-9]*) echo "Could not read the device clock: '${DEVICE_NOW}'"; exit 1 ;;
-esac
-LIVE_OFFSET=$((DEVICE_NOW - RUNNER_NOW))
-LIVE_START=$(python3 -c 'import time; print("%.3f" % time.time())')
-echo "live DASH clock: device minus runner offset ${LIVE_OFFSET} s"
-python3 ci-live/live_server.py ci-live/static 8771 "$LIVE_START" "$LIVE_OFFSET" "$LIVE_SEGMENTS" >live-server.log 2>&1 &
-LIVE_HTTP_PID=$!
-sleep 2
-adb shell run-as com.devtunasoft.tuneros rm -f files/tuneros-recording-report.txt 2>/dev/null || true
-adb shell am force-stop com.devtunasoft.tuneros
-adb shell am start -n com.devtunasoft.tuneros/.MainActivity --es tuneros.debug.record_url http://10.0.2.2:8771/live/manifest.mpd --es tuneros.debug.record_mode deadline
-for attempt in $(seq 1 90); do
-  adb shell run-as com.devtunasoft.tuneros cat files/tuneros-recording-report.txt > live-dash-report.txt 2>/dev/null || true
-  if grep -Eq '^(PASS|FAIL)[[:space:]]qa-recording-deadline-complete' live-dash-report.txt; then
-    break
-  fi
-  sleep 2
-done
-LIVE_DISK=$(sed -n 's/^DETAIL.* disk=\([0-9]*\)$/\1/p' live-dash-report.txt | tail -1)
-LIVE_SHA=$(sed -n 's/^DETAIL.* sha256=\([0-9a-f]*\) .*/\1/p' live-dash-report.txt | tail -1)
-if ! grep -Eq '^PASS[[:space:]]qa-recording-deadline-complete' live-dash-report.txt \
-   || [ -z "$LIVE_DISK" ] || [ "$LIVE_DISK" -le 0 ] || [ -z "$LIVE_SHA" ]; then
-  echo "Live DASH recording did not reach the scheduled stop as COMPLETED"
-  cat live-dash-report.txt 2>/dev/null || echo "(no report file)"
-  tail -20 live-server.log 2>/dev/null || true
-  kill "$LIVE_HTTP_PID" 2>/dev/null || true
-  exit 1
-fi
 # The stored bytes must be the initialization segment followed by at least two consecutive segments. The runner keeps no
 # copy of the recording, so the verifier rebuilds each candidate from the served segments and compares its size and
 # SHA-256 with the report.
@@ -985,40 +987,84 @@ for first in range(len(segments)):
 print("no candidate matches")
 sys.exit(1)
 PY
-LIVE_VERDICT=$(python3 ci-live/verify_live.py ci-live/static "$LIVE_DISK" "$LIVE_SHA") || true
-case "$LIVE_VERDICT" in
-  "init plus "*) ;;
-  *)
-    echo "Live DASH stored bytes are not the initialization followed by consecutive segments (${LIVE_DISK} bytes, sha256 ${LIVE_SHA}): ${LIVE_VERDICT}"
-    cat live-dash-report.txt 2>/dev/null || true
-    tail -20 live-server.log 2>/dev/null || true
+
+run_live_dash_case() {
+  local LIVE_MODE="$1"
+  local LIVE_PORT="$2"
+  local LIVE_LOG="live-server-${LIVE_MODE}.log"
+  # The recorder compares segment times with the device clock, so the manifest must be on that clock. Measure the
+  # device's offset from this runner, and write the manifest in the device's time.
+  local RUNNER_NOW DEVICE_NOW LIVE_OFFSET LIVE_START LIVE_HTTP_PID
+  RUNNER_NOW=$(date +%s)
+  DEVICE_NOW=$(adb shell date +%s | tr -d '\r')
+  case "$DEVICE_NOW" in
+    ''|*[!0-9]*) echo "Could not read the device clock: '${DEVICE_NOW}'"; exit 1 ;;
+  esac
+  LIVE_OFFSET=$((DEVICE_NOW - RUNNER_NOW))
+  LIVE_START=$(python3 -c 'import time; print("%.3f" % time.time())')
+  echo "live DASH ${LIVE_MODE} clock: device minus runner offset ${LIVE_OFFSET} s"
+  python3 ci-live/live_server.py ci-live/static "$LIVE_PORT" "$LIVE_START" "$LIVE_OFFSET" "$LIVE_SEGMENTS" "$LIVE_MODE" >"$LIVE_LOG" 2>&1 &
+  LIVE_HTTP_PID=$!
+  sleep 2
+  adb shell run-as com.devtunasoft.tuneros rm -f files/tuneros-recording-report.txt 2>/dev/null || true
+  adb shell am force-stop com.devtunasoft.tuneros
+  adb shell am start -n com.devtunasoft.tuneros/.MainActivity --es tuneros.debug.record_url "http://10.0.2.2:${LIVE_PORT}/live/manifest.mpd" --es tuneros.debug.record_mode deadline
+  for attempt in $(seq 1 90); do
+    adb shell run-as com.devtunasoft.tuneros cat files/tuneros-recording-report.txt > live-dash-report.txt 2>/dev/null || true
+    if grep -Eq '^(PASS|FAIL)[[:space:]]qa-recording-deadline-complete' live-dash-report.txt; then
+      break
+    fi
+    sleep 2
+  done
+  local LIVE_DISK LIVE_SHA LIVE_VERDICT LIVE_REFUSED
+  LIVE_DISK=$(sed -n 's/^DETAIL.* disk=\([0-9]*\)$/\1/p' live-dash-report.txt | tail -1)
+  LIVE_SHA=$(sed -n 's/^DETAIL.* sha256=\([0-9a-f]*\) .*/\1/p' live-dash-report.txt | tail -1)
+  if ! grep -Eq '^PASS[[:space:]]qa-recording-deadline-complete' live-dash-report.txt \
+     || [ -z "$LIVE_DISK" ] || [ "$LIVE_DISK" -le 0 ] || [ -z "$LIVE_SHA" ]; then
+    echo "Live DASH ${LIVE_MODE} recording did not reach the scheduled stop as COMPLETED"
+    cat live-dash-report.txt 2>/dev/null || echo "(no report file)"
+    tail -20 "$LIVE_LOG" 2>/dev/null || true
     kill "$LIVE_HTTP_PID" 2>/dev/null || true
     exit 1
-    ;;
-esac
-LIVE_REFUSED=$(grep -c '" 404 ' live-server.log || true)
-if [ "$LIVE_REFUSED" -lt 1 ]; then
-  echo "The live server answered no request with 404, so the retry path was not exercised"
-  tail -20 live-server.log 2>/dev/null || true
-  kill "$LIVE_HTTP_PID" 2>/dev/null || true
-  exit 1
-fi
-# The stored live file must also play back.
-for attempt in $(seq 1 60); do
-  adb shell run-as com.devtunasoft.tuneros cat files/tuneros-recording-report.txt > live-dash-report.txt 2>/dev/null || true
-  if grep -Eq '^(PASS|FAIL)[[:space:]]qa-recording-playback-first-frame' live-dash-report.txt; then
-    break
   fi
-  sleep 2
-done
-if ! grep -Fq "$(printf 'PASS\tqa-recording-playback-first-frame\tfirst video frame rendered')" live-dash-report.txt; then
-  echo "Live DASH recorded file playback check failed or never completed"
-  cat live-dash-report.txt 2>/dev/null || echo "(no report file)"
+  LIVE_VERDICT=$(python3 ci-live/verify_live.py ci-live/static "$LIVE_DISK" "$LIVE_SHA") || true
+  case "$LIVE_VERDICT" in
+    "init plus "*) ;;
+    *)
+      echo "Live DASH ${LIVE_MODE} stored bytes are not the initialization followed by consecutive segments (${LIVE_DISK} bytes, sha256 ${LIVE_SHA}): ${LIVE_VERDICT}"
+      cat live-dash-report.txt 2>/dev/null || true
+      tail -20 "$LIVE_LOG" 2>/dev/null || true
+      kill "$LIVE_HTTP_PID" 2>/dev/null || true
+      exit 1
+      ;;
+  esac
+  LIVE_REFUSED=$(grep -c '" 404 ' "$LIVE_LOG" || true)
+  if [ "$LIVE_REFUSED" -lt 1 ]; then
+    echo "The live server answered no request with 404 in ${LIVE_MODE}, so the retry path was not exercised"
+    tail -20 "$LIVE_LOG" 2>/dev/null || true
+    kill "$LIVE_HTTP_PID" 2>/dev/null || true
+    exit 1
+  fi
+  # The stored live file must also play back.
+  for attempt in $(seq 1 60); do
+    adb shell run-as com.devtunasoft.tuneros cat files/tuneros-recording-report.txt > live-dash-report.txt 2>/dev/null || true
+    if grep -Eq '^(PASS|FAIL)[[:space:]]qa-recording-playback-first-frame' live-dash-report.txt; then
+      break
+    fi
+    sleep 2
+  done
+  if ! grep -Fq "$(printf 'PASS\tqa-recording-playback-first-frame\tfirst video frame rendered')" live-dash-report.txt; then
+    echo "Live DASH ${LIVE_MODE} recorded file playback check failed or never completed"
+    cat live-dash-report.txt 2>/dev/null || echo "(no report file)"
+    kill "$LIVE_HTTP_PID" 2>/dev/null || true
+    exit 1
+  fi
   kill "$LIVE_HTTP_PID" 2>/dev/null || true
-  exit 1
-fi
-kill "$LIVE_HTTP_PID" 2>/dev/null || true
-echo "live DASH recording reached the scheduled stop: ${LIVE_DISK} bytes, ${LIVE_VERDICT}, ${LIVE_REFUSED} requests answered 404 on first attempt, at a ${LIVE_OFFSET} s device offset, and plays back"
+  echo "live DASH ${LIVE_MODE} recording reached the scheduled stop: ${LIVE_DISK} bytes, ${LIVE_VERDICT}, ${LIVE_REFUSED} requests answered 404 on first attempt, at a ${LIVE_OFFSET} s device offset, and plays back"
+}
+run_live_dash_case template 8771
+run_live_dash_case timeline-number 8772
+run_live_dash_case timeline-time 8773
 
 # Optional real-feed import: a public playlist supplied at dispatch time (never committed). The
 # guide stays a runner fixture so the expected programme count is fixed. Channel count must be > 0.

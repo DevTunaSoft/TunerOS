@@ -31,11 +31,11 @@ class DashSegmentNotPublishedException : IOException("DASH segment is not publis
 /**
  * Records one DASH video representation: the initialization segment once, then each media segment in order.
  *
- * A static presentation stops after the last segment its duration implies. A live presentation follows the
- * clock: it starts at the newest complete segment, waits until each following segment has elapsed, and runs to
- * the scheduled stop. A live segment the origin has not published yet is retried within a bounded grace window.
- * After that the recording stops with the bytes it has, so a gap is never written silently. Anything the planner
- * refuses is reported as UNSUPPORTED before any byte is written.
+ * A static presentation stops after the last segment its manifest lists or its duration implies. A live presentation
+ * follows the clock: it starts at the newest complete segment, waits until each following segment has elapsed, and
+ * runs to the scheduled stop. A live segment the origin has not published yet is retried within a bounded grace
+ * window. After that the recording stops with the bytes it has, so a gap is never written silently. Anything the
+ * planner refuses is reported as UNSUPPORTED before any byte is written.
  */
 class DashCaptureEngine {
     enum class StopReason { END_LIST, CANCELLED, DEADLINE, LOW_STORAGE, UNSUPPORTED }
@@ -66,18 +66,8 @@ class DashCaptureEngine {
             is DashPlanOutcome.Planned -> outcome.plan
         }
         val timing = plan.timing
-        // A static presentation ends at a known segment. A live one never does; the scheduled stop ends it.
-        val lastNumber = when (timing) {
-            is DashTiming.Static -> {
-                val count = Math.ceil(
-                    timing.mediaPresentationDurationSeconds / plan.segmentDurationSeconds - COUNT_TOLERANCE,
-                ).toLong()
-                if (count < 1) return Result(0, StopReason.UNSUPPORTED, "DASH manifest has no media segments")
-                if (count > MAX_SEGMENTS) return Result(0, StopReason.UNSUPPORTED, "DASH manifest has too many segments")
-                plan.startNumber + count - 1
-            }
-            is DashTiming.Live -> Long.MAX_VALUE
-        }
+        // A static presentation ends at its last listed segment. A live one never does; the scheduled stop ends it.
+        val lastNumber = plan.segmentCount?.let { plan.startNumber + it - 1 } ?: Long.MAX_VALUE
 
         val base = if (plan.baseUrl == null) {
             loaded.effectiveUrl
@@ -90,7 +80,7 @@ class DashCaptureEngine {
         val initializationTemplate = plan.initializationTemplate
         if (initializationTemplate != null) {
             val expanded = DashManifest.expand(
-                initializationTemplate, plan.representationId, plan.bandwidth, plan.startNumber,
+                initializationTemplate, plan.representationId, plan.bandwidth, plan.startNumber, plan.startTimeTicks,
             ) ?: return Result(0, StopReason.UNSUPPORTED, UNSUPPORTED_TOKEN)
             val url = resolveOrNull(base, expanded) ?: return Result(0, StopReason.UNSUPPORTED, UNSUPPORTED_RESOURCE)
             val before = totalBytes
@@ -126,8 +116,9 @@ class DashCaptureEngine {
                 sleepMillis(LIVE_POLL_MILLIS)
                 continue
             }
-            val expanded = DashManifest.expand(plan.mediaTemplate, plan.representationId, plan.bandwidth, number)
-                ?: return Result(totalBytes, StopReason.UNSUPPORTED, UNSUPPORTED_TOKEN)
+            val expanded = DashManifest.expand(
+                plan.mediaTemplate, plan.representationId, plan.bandwidth, number, timeTicks(plan, number),
+            ) ?: return Result(totalBytes, StopReason.UNSUPPORTED, UNSUPPORTED_TOKEN)
             val url = resolveOrNull(base, expanded) ?: return Result(totalBytes, StopReason.UNSUPPORTED, UNSUPPORTED_RESOURCE)
             val before = totalBytes
             val copy = try {
@@ -150,14 +141,21 @@ class DashCaptureEngine {
         }
     }
 
-    /** The newest segment whose media time has fully elapsed at [nowEpochSeconds]. */
-    private fun newestCompleteNumber(timing: DashTiming.Live, plan: DashPlan, nowEpochSeconds: Long): Long =
-        plan.startNumber +
-            Math.floor((nowEpochSeconds - timing.availabilityStartEpochSeconds) / plan.segmentDurationSeconds).toLong() - 1
+    /** Start time of segment [number] in timescale units: the first segment's start plus whole durations. */
+    private fun timeTicks(plan: DashPlan, number: Long): Long =
+        Math.addExact(plan.startTimeTicks, Math.multiplyExact(number - plan.startNumber, plan.segmentDurationTicks))
 
-    /** Segment N is published when its media time has elapsed: availabilityStart + (N - startNumber + 1) * duration. */
+    /** The newest segment whose end time has passed at [nowEpochSeconds], measured from availabilityStart. */
+    private fun newestCompleteNumber(timing: DashTiming.Live, plan: DashPlan, nowEpochSeconds: Long): Long {
+        val elapsedTicks =
+            (nowEpochSeconds - timing.availabilityStartEpochSeconds) * plan.timescale - plan.startTimeTicks
+        return plan.startNumber + Math.floor(elapsedTicks / plan.segmentDurationTicks).toLong() - 1
+    }
+
+    /** Segment [number] is complete when its end time has passed: availabilityStart + (start + duration) / timescale. */
     private fun completeAtEpochSeconds(timing: DashTiming.Live, plan: DashPlan, number: Long): Double =
-        timing.availabilityStartEpochSeconds + (number - plan.startNumber + 1) * plan.segmentDurationSeconds
+        timing.availabilityStartEpochSeconds +
+            (timeTicks(plan, number) + plan.segmentDurationTicks).toDouble() / plan.timescale.toDouble()
 
     private fun withinPublishGrace(timing: DashTiming.Live, plan: DashPlan, number: Long, nowEpochSeconds: Long): Boolean =
         nowEpochSeconds - completeAtEpochSeconds(timing, plan, number) <
@@ -175,11 +173,7 @@ class DashCaptureEngine {
     }.getOrNull()
 
     private companion object {
-        /** Counts whole segments, so a duration a few milliseconds past a segment boundary adds no segment. */
-        const val COUNT_TOLERANCE = 0.05
-        const val MAX_SEGMENTS = 100_000L
-
-        /** How long a live segment may stay unpublished after its media time has elapsed. */
+        /** How long a live segment may stay unpublished after its end time has passed. */
         const val LIVE_PUBLISH_GRACE_SECONDS = 10.0
 
         /** Live waits in half-second steps: prompt enough to stop on time, slow enough not to spin. */
