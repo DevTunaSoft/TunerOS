@@ -839,6 +839,7 @@ if ! grep -Eq '^PASS[[:space:]]qa-dvr-rearm' scheduled-report.txt \
   echo "Scheduled recording check failed (full stream ${SCHED_FULL_BYTES} bytes, recorded ${SCHED_BYTES:-none})"
   cat scheduled-report.txt 2>/dev/null || echo "(no report file)"
   tail -n 20 scheduled-throttle.log 2>/dev/null || true
+  adb logcat -d -v time 2>/dev/null | tr -d '\r' | grep -E 'RecordingAlarm|DvrRecording|AlarmManager|tuneros' | tail -60 | cut -c1-240 || true
   exit 1
 fi
 
