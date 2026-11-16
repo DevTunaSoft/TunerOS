@@ -164,6 +164,7 @@ class MainActivity : Activity() {
         if (isPickFolderLaunch()) android.os.Handler(mainLooper).post { chooseRecordingStorage() }
         if (isInternalStorageLaunch()) recordingDestinations.clear()
         qaScheduledUrl()?.let { url -> worker.execute { OnDeviceSelfTest.runScheduledRecordingOnly(applicationContext, url) } }
+        if (isInvalidStartLaunch()) worker.execute { OnDeviceSelfTest.runInvalidStartOnly(applicationContext) }
         qaRecordUrl()?.let { url ->
             val deadline = intent?.getStringExtra("tuneros.debug.record_mode") == "deadline"
             // The deadline recording is then played back from its own file (first video frame).
@@ -690,6 +691,10 @@ class MainActivity : Activity() {
         )
     }
 
+    private fun isInvalidStartLaunch(): Boolean =
+        (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0 &&
+            intent?.getBooleanExtra("tuneros.debug.invalid_start", false) == true
+
     private fun isAlarmLaunch(): Boolean =
         (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0 &&
             intent?.getBooleanExtra("tuneros.debug.alarm", false) == true
@@ -846,7 +851,7 @@ class MainActivity : Activity() {
         // Only one probe pass at once; use the app's existing serial worker.
         if (worker.isShutdown) return
         // The isolated service-stop launch must not share the process with the main pass.
-        if (isServiceStopLaunch() || isAlarmLaunch() || qaPlaybackUrl() != null || qaImportUrls() != null || isKeyLaunch() || isRotationLaunch() || qaRecordUrl() != null || qaScheduledUrl() != null || isPickFolderLaunch() || isInternalStorageLaunch() || qaRecoveryMode() != null) return
+        if (isServiceStopLaunch() || isAlarmLaunch() || isInvalidStartLaunch() || qaPlaybackUrl() != null || qaImportUrls() != null || isKeyLaunch() || isRotationLaunch() || qaRecordUrl() != null || qaScheduledUrl() != null || isPickFolderLaunch() || isInternalStorageLaunch() || qaRecoveryMode() != null) return
         if (selfTestsQueued) {
             // An import completed while a previous pass was running: do not lose its results.
             selfTestsDirty = true

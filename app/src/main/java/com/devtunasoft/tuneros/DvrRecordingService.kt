@@ -85,7 +85,12 @@ class DvrRecordingService : Service() {
                 if (activeRecordingId.get() == null) stopSelf(startId)
                 return START_NOT_STICKY
             }
-            ACTION_START -> startRecording(intent, startId)
+            ACTION_START -> {
+                // startForegroundService() obliges the service to call startForeground() at once, even for a request
+                // refused below. Otherwise Android crashes the caller. A busy service is already in the foreground.
+                if (activeRecordingId.get() == null) promoteToForeground()
+                startRecording(intent, startId)
+            }
             else -> if (activeRecordingId.get() == null) stopSelf(startId)
         }
         return START_NOT_STICKY
@@ -616,6 +621,21 @@ class DvrRecordingService : Service() {
         }
     }
 
+    private fun promoteToForeground() {
+        runCatching {
+            startForeground(
+                NOTIFICATION_ID,
+                android.app.Notification.Builder(this, CHANNEL_ID)
+                    .setSmallIcon(R.drawable.tuneros_icon)
+                    .setContentTitle("Recording")
+                    .setContentText("Checking request")
+                    .setOngoing(true)
+                    .setOnlyAlertOnce(true)
+                    .build(),
+            )
+        }
+    }
+
     private fun rejectInvalidStart(startId: Int) {
         if (activeRecordingId.get() == null) stopSelf(startId)
     }
@@ -637,10 +657,7 @@ class DvrRecordingService : Service() {
 
     private fun isRecordableUrl(value: String): Boolean = runCatching {
         val url = URL(value)
-        val path = url.path.lowercase()
-        (url.protocol == "http" || url.protocol == "https") &&
-            !url.host.isNullOrBlank() &&
-            !path.endsWith(".mpd")
+        (url.protocol == "http" || url.protocol == "https") && !url.host.isNullOrBlank()
     }.getOrDefault(false)
 
     private fun looksLikeHls(value: String): Boolean = runCatching {

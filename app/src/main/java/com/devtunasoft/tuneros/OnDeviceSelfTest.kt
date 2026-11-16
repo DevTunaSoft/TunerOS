@@ -110,6 +110,7 @@ internal object OnDeviceSelfTest {
     const val ALARM_REPORT = "tuneros-alarm-report.txt"
     const val RECORDING_REPORT = "tuneros-recording-report.txt"
     const val SCHEDULED_REPORT = "tuneros-scheduled-report.txt"
+    const val INVALID_START_REPORT = "tuneros-invalid-start-report.txt"
     private const val MAX_SHARE_EVENTS = 8 * 1024
     private const val CANARY_KEY = "tuneros_selftest_canary_v1"
     private const val RUN_MARKER = "tuneros-selftest-in-progress"
@@ -1161,6 +1162,31 @@ internal object OnDeviceSelfTest {
             result.state.name + "\t" + result.id + "\t" + result.detail +
                 (if (bytes != null) " bytes=" + bytes else "") + "\n",
         )
+    }
+
+    /**
+     * Isolated debug launch only: a start request the recorder must refuse. Android requires a service started with
+     * startForegroundService() to call startForeground() promptly, so a refusal that skips it crashes the app and this
+     * result is never written. The check passes only if the app is still alive after the refusal.
+     */
+    fun runInvalidStartOnly(context: Context) {
+        val report = File(context.filesDir, INVALID_START_REPORT)
+        report.writeText("RUNNING\n")
+        val result = check(
+            "qa-invalid-start-foreground",
+            "A refused start keeps the app alive; the service enters the foreground before refusing",
+        ) {
+            context.startForegroundService(
+                Intent(context, DvrRecordingService::class.java)
+                    .setAction(DvrRecordingService.ACTION_START)
+                    .putExtra(DvrRecordingService.EXTRA_ID, "qa-invalid-" + System.currentTimeMillis())
+                    .putExtra(DvrRecordingService.EXTRA_URL, "ftp://qa.invalid/stream.ts"),
+            )
+            // The refusal happens within moments. Wait well past it, so a crash cannot be missed.
+            Thread.sleep(4_000)
+            true
+        }
+        report.appendText(result.state.name + "\t" + result.id + "\t" + result.detail + "\n")
     }
 
     /**

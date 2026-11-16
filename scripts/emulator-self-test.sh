@@ -751,6 +751,26 @@ for HLS_CASE in aes fmp4 dash; do
 done
 kill "$HLS_HTTP_PID" 2>/dev/null || true
 
+# Refused start on the device: the recorder must enter the foreground before it refuses a request. Otherwise Android
+# crashes the calling app, and the report below is never written.
+adb shell run-as com.devtunasoft.tuneros rm -f files/tuneros-invalid-start-report.txt 2>/dev/null || true
+adb shell am force-stop com.devtunasoft.tuneros
+adb shell am start -n com.devtunasoft.tuneros/.MainActivity --ez tuneros.debug.invalid_start true
+for attempt in $(seq 1 30); do
+  adb shell run-as com.devtunasoft.tuneros cat files/tuneros-invalid-start-report.txt > invalid-start-report.txt 2>/dev/null || true
+  if grep -Fq "$(printf 'PASS\tqa-invalid-start-foreground')" invalid-start-report.txt; then
+    break
+  fi
+  sleep 2
+done
+if ! grep -Fq "$(printf 'PASS\tqa-invalid-start-foreground')" invalid-start-report.txt; then
+  echo "A refused start did not keep the app alive"
+  cat invalid-start-report.txt 2>/dev/null || echo "(no report file)"
+  adb logcat -d -v time 2>/dev/null | tr -d '\r' | grep -E 'FATAL|AndroidRuntime|ForegroundService' | tail -60 | cut -c1-240 || true
+  exit 1
+fi
+echo "A refused start kept the app alive"
+
 # Deadline mode: the runner serves the same file slowly, so the stream is still running when the
 # scheduled stop passes. The recorder must complete with a partial byte count on disk.
 cat > ci-playback/throttle.py <<'PY'
