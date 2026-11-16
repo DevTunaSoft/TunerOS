@@ -4,7 +4,15 @@ data class Channel(
     val id: String, val name: String, val streamUrl: String,
     val guideId: String? = null, val logoUrl: String? = null,
     val group: String? = null, val userAgent: String? = null, val referer: String? = null,
-)
+    /**
+     * Key for user data such as favorites and guide mappings. The playlist parser sets it from the guide ID, or the
+     * name when there is none, plus an occurrence number. It never uses the stream URL. Empty for channels built in code.
+     */
+    val stableKey: String = "",
+) {
+    /** The key user data is stored under. Falls back to [id] when no stable key was set. */
+    val storageKey: String get() = stableKey.ifEmpty { id }
+}
 
 data class GuideProgram(
     val channelId: String, val title: String, val startEpochSeconds: Long,
