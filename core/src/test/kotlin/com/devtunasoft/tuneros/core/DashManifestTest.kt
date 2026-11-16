@@ -291,6 +291,29 @@ $body
         assertTrue(refusalOf(mpd(body = listSet(body = ""))).contains("no segments"))
     }
 
+    @Test fun presentationTimeOffsetPlacesAFixedDurationTemplateAtItsMediaStart() {
+        val plan = planned(
+            mpd(type = "dynamic", availabilityStart = "1970-01-01T00:16:40Z",
+                body = videoSet.replace("startNumber=\"1\"", "startNumber=\"1\" presentationTimeOffset=\"600000\"")),
+        )
+        assertEquals(600000L, plan.startTimeTicks)
+        assertEquals(600000L, plan.presentationTimeOffsetTicks)
+    }
+
+    @Test fun presentationTimeOffsetIsReadFromALiveTimeline() {
+        val plan = planned(
+            mpd(
+                type = "dynamic",
+                availabilityStart = "1970-01-01T00:16:40Z",
+                body = timelineSet("""<S t="600000" d="3000" r="-1"/>""")
+                    .replace("startNumber=\"1\"", "startNumber=\"1\" presentationTimeOffset=\"600000\""),
+            ),
+        )
+        assertEquals(600000L, plan.startTimeTicks)
+        assertEquals(600000L, plan.presentationTimeOffsetTicks)
+        assertEquals("chunk-600000.m4s", DashManifest.expand(plan.mediaTemplate, plan.representationId, plan.bandwidth, 1, timeOf(plan, 1)))
+    }
+
     @Test fun aFfmpegSingleFileManifestIsPlannedAsByteRanges() {
         // Real output of ffmpeg -single_file 1: one MP4 whose SegmentList names its initialization and fragments by range.
         val text = DashManifestTest::class.java.getResource("/dash/ffmpeg-single-file.mpd")!!.readText()

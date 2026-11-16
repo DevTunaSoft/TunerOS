@@ -187,17 +187,27 @@ class DashCaptureEngine {
     private fun timeTicks(plan: DashPlan, number: Long): Long =
         Math.addExact(plan.startTimeTicks, Math.multiplyExact(number - plan.startNumber, plan.segmentDurationTicks))
 
+    /**
+     * The start of the first segment on the presentation timeline, which availability is measured on. Media time minus
+     * the presentation offset: zero for a manifest that starts its media at the period start.
+     */
+    private fun presentationStartTicks(plan: DashPlan): Long = plan.startTimeTicks - plan.presentationTimeOffsetTicks
+
     /** The newest segment whose end time has passed at [nowEpochSeconds], measured from availabilityStart. */
     private fun newestCompleteNumber(timing: DashTiming.Live, plan: DashPlan, nowEpochSeconds: Long): Long {
         val elapsedTicks =
-            (nowEpochSeconds - timing.availabilityStartEpochSeconds) * plan.timescale - plan.startTimeTicks
+            (nowEpochSeconds - timing.availabilityStartEpochSeconds) * plan.timescale - presentationStartTicks(plan)
         return plan.startNumber + Math.floor(elapsedTicks / plan.segmentDurationTicks).toLong() - 1
     }
 
-    /** Segment [number] is complete when its end time has passed: availabilityStart + (start + duration) / timescale. */
+    /**
+     * Segment [number] is complete when its presentation end time has passed:
+     * availabilityStart + (media start - offset + duration) / timescale.
+     */
     private fun completeAtEpochSeconds(timing: DashTiming.Live, plan: DashPlan, number: Long): Double =
         timing.availabilityStartEpochSeconds +
-            (timeTicks(plan, number) + plan.segmentDurationTicks).toDouble() / plan.timescale.toDouble()
+            (timeTicks(plan, number) - plan.presentationTimeOffsetTicks + plan.segmentDurationTicks).toDouble() /
+            plan.timescale.toDouble()
 
     private fun withinPublishGrace(timing: DashTiming.Live, plan: DashPlan, number: Long, nowEpochSeconds: Long): Boolean =
         nowEpochSeconds - completeAtEpochSeconds(timing, plan, number) <

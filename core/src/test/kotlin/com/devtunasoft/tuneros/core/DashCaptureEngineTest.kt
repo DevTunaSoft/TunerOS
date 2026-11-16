@@ -361,6 +361,29 @@ $body
         assertEquals(listOf(initUrl) + (3..8).map { chunk(it) }, source.copied)
     }
 
+    /** Media-time URLs of a timeline that starts at 600000 units, which a presentation offset maps to period time zero. */
+    private fun offsetUrl(number: Int): String = "https://example.test/dash/chunk-${600000L + 3000L * (number - 1)}.m4s"
+
+    @Test fun openLiveTimelineWithAPresentationOffsetFollowsThePresentationClock() {
+        val clock = FakeClock(1_010)
+        val segments = mapOf(initUrl to byteArrayOf(9, 9)) + (1..12).associate { offsetUrl(it) to byteArrayOf(it.toByte()) }
+        val published = (1..12).associate { offsetUrl(it) to 1_000L + 3L * it }
+        val source = FakeDashSource(
+            mpd(
+                type = "dynamic",
+                availabilityStart = liveStart,
+                body = timelineSet("""<S t="600000" d="3000" r="-1"/>""")
+                    .replace("startNumber=\"1\"", "startNumber=\"1\" presentationTimeOffset=\"600000\""),
+            ),
+            segments, manifestUrl, clock = clock, publishedAtSeconds = published,
+        )
+        val out = ByteArrayOutputStream()
+        val result = record(source, out, end = 1_025, clock = clock)
+        assertEquals(DashCaptureEngine.StopReason.DEADLINE, result.stopReason)
+        assertEquals(listOf(9, 9, 3, 4, 5, 6, 7, 8), out.toByteArray().map { it.toInt() })
+        assertEquals(listOf(initUrl) + (3..8).map { offsetUrl(it) }, source.copied)
+    }
+
     /** Serves byte ranges of named resources and records every request with its range. */
     private class RangeDashSource(
         private val manifest: String,

@@ -31,6 +31,8 @@ data class DashPlan(
     /** SegmentList addressing: the initialization, and the listed segments in order. Null for a SegmentTemplate. */
     val listedInitialization: DashListedInitialization? = null,
     val listedSegments: List<DashListedSegment>? = null,
+    /** Media time minus presentation time, from the SegmentTemplate. Zero when the manifest does not set one. */
+    val presentationTimeOffsetTicks: Long = 0L,
 ) {
     val segmentDurationSeconds: Double
         get() = segmentDurationTicks.toDouble() / timescale.toDouble()
@@ -176,9 +178,12 @@ object DashManifest {
         val startNumber = template.attr("startNumber")?.let { raw ->
             raw.toLongOrNull()?.takeIf { it >= 0 } ?: return refuse("DASH startNumber is not a valid number")
         } ?: 1L
-        val presentationTimeOffset = template.attr("presentationTimeOffset")?.toLongOrNull() ?: 0L
-        if (presentationTimeOffset != 0L) return refuse("DASH presentationTimeOffset is not supported")
-        val startTicks = timeline?.startTicks ?: 0L
+        // The offset maps media time to presentation time. Without a timeline, the first segment's media time is the
+        // offset itself, so its presentation time is zero.
+        val presentationTimeOffset = template.attr("presentationTimeOffset")?.let { raw ->
+            raw.toLongOrNull()?.takeIf { it >= 0 } ?: return refuse("DASH presentationTimeOffset is not valid")
+        } ?: 0L
+        val startTicks = timeline?.startTicks ?: presentationTimeOffset
         // $Time$ names a segment by its start time, which only a SegmentTimeline provides.
         val firstTime = if (timeline != null) startTicks else null
         if (expand(media, id, bandwidth = chosenBandwidth, number = startNumber, timeTicks = firstTime) == null) {
@@ -215,6 +220,7 @@ object DashManifest {
                 segmentCount = segmentCount,
                 timing = timing,
                 representationBaseUrl = representationBaseUrl(representation),
+                presentationTimeOffsetTicks = presentationTimeOffset,
             ),
         )
     }

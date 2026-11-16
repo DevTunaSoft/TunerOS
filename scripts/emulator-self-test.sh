@@ -1053,9 +1053,10 @@ PORT = int(sys.argv[2])
 START = float(sys.argv[3])  # runner epoch seconds at which the stream starts
 OFFSET = float(sys.argv[4])  # device clock minus runner clock: the manifest is written on the device's clock
 SEGMENTS = int(sys.argv[5])
-MODE = sys.argv[6]  # template, timeline-number or timeline-time
+MODE = sys.argv[6]  # template, timeline-number, timeline-time or timeline-offset
 SEGMENT_SECONDS = 2
 STEP = SEGMENT_SECONDS * 1000  # one segment in the 1000-unit timescale
+PRESENTATION_OFFSET = 600000  # media time of the first segment in timeline-offset mode
 # The first request for each segment is answered 404, as an origin does before it publishes a segment; later requests
 # are served. Every segment therefore exercises the recorder's retry path, whatever the clocks and the poll phase.
 REQUESTS = {}
@@ -1076,6 +1077,13 @@ elif MODE == "timeline-time":
     SEGMENT_TEMPLATE = (
         '<SegmentTemplate timescale="1000" startNumber="1" initialization="init.m4s" media="chunk-$Time$.m4s">'
         f'<SegmentTimeline><S t="0" d="{STEP}" r="-1"/></SegmentTimeline></SegmentTemplate>'
+    )
+elif MODE == "timeline-offset":
+    # An open repeat whose media times start at a presentation offset, as many live packagers write them.
+    SEGMENT_TEMPLATE = (
+        f'<SegmentTemplate timescale="1000" presentationTimeOffset="{PRESENTATION_OFFSET}" startNumber="1" '
+        'initialization="init.m4s" media="chunk-$Time$.m4s">'
+        f'<SegmentTimeline><S t="{PRESENTATION_OFFSET}" d="{STEP}" r="-1"/></SegmentTimeline></SegmentTemplate>'
     )
 else:
     raise SystemExit("unknown mode: " + MODE)
@@ -1119,9 +1127,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
             digits = name[len("chunk-"):-len(".m4s")]
             if digits.isdigit():
                 value = int(digits)
-                if MODE == "timeline-time":
-                    # $Time$ names a segment by its start; segment N starts at (N - 1) * STEP.
-                    number = value // STEP + 1 if value % STEP == 0 else 0
+                if MODE in ("timeline-time", "timeline-offset"):
+                    # $Time$ names a segment by its media start; segment N starts at base + (N - 1) * STEP.
+                    base = PRESENTATION_OFFSET if MODE == "timeline-offset" else 0
+                    number = (value - base) // STEP + 1 if value >= base and (value - base) % STEP == 0 else 0
                 else:
                     number = value
                 if 1 <= number <= SEGMENTS:
@@ -1247,6 +1256,7 @@ run_live_dash_case() {
 run_live_dash_case template 8771
 run_live_dash_case timeline-number 8772
 run_live_dash_case timeline-time 8773
+run_live_dash_case timeline-offset 8776
 
 # Optional real-feed import: a public playlist supplied at dispatch time (never committed). The
 # guide stays a runner fixture so the expected programme count is fixed. Channel count must be > 0.
