@@ -376,6 +376,35 @@ if ! grep -Fq "$FRAME_PASS" playback-report.txt; then
   adb logcat -d -v brief 2>/dev/null | grep -E "FATAL|AndroidRuntime|ExoPlayer|MediaCodec|ImageReader|tuneros|Playback|DecoderInit" | tail -120 || true
   exit 1
 fi
+# Playback diagnostics. The runner answers a missing path with HTTP 404, and serves an HTML page as text/html.
+# Neither is a stream, so each launch must fail and report its Stream Doctor evidence: a status code or a media
+# type, never a URL.
+printf '<!doctype html><title>not a stream</title>\n' > ci-playback/page.html
+python3 -m http.server 8765 --bind 0.0.0.0 --directory ci-playback >http-diag-server.log 2>&1 &
+DIAG_PID=$!
+sleep 2
+for diag_case in "missing.mp4|HTTP 404" "page.html|content type text/html"; do
+  DIAG_PATH="${diag_case%%|*}"
+  DIAG_EXPECT="${diag_case#*|}"
+  adb shell run-as com.devtunasoft.tuneros rm -f files/tuneros-playback-report.txt 2>/dev/null || true
+  adb shell am force-stop com.devtunasoft.tuneros
+  adb shell am start -n com.devtunasoft.tuneros/.MainActivity --es tuneros.debug.playback_url "http://10.0.2.2:8765/$DIAG_PATH"
+  for attempt in $(seq 1 45); do
+    adb shell run-as com.devtunasoft.tuneros cat files/tuneros-playback-report.txt > playback-diag-report.txt 2>/dev/null || true
+    if grep -Eq '^(PASS|FAIL)[[:space:]]qa-playback-first-frame' playback-diag-report.txt; then
+      break
+    fi
+    sleep 2
+  done
+  if ! grep -Eq "^FAIL[[:space:]]qa-playback-first-frame.*${DIAG_EXPECT}" playback-diag-report.txt; then
+    echo "Playback diagnostic for ${DIAG_PATH} did not report: ${DIAG_EXPECT}"
+    cat playback-diag-report.txt 2>/dev/null || echo "(no report file)"
+    kill "$DIAG_PID" 2>/dev/null || true
+    exit 1
+  fi
+  echo "Playback diagnostic ${DIAG_PATH}: $(grep -E '^FAIL[[:space:]]qa-playback-first-frame' playback-diag-report.txt | cut -c1-160)"
+done
+kill "$DIAG_PID" 2>/dev/null || true
 # Isolated launch for the real import path. Fixtures are generated on the runner and served to
 # the emulator; the app imports them without saving the URLs. Counts must match exactly.
 mkdir -p ci-import

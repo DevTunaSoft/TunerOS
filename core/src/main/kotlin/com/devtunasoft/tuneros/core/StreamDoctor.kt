@@ -3,6 +3,25 @@ package com.devtunasoft.tuneros.core
 /** One fixed, credential-free diagnostic for a Media3 PlaybackException numeric error code. */
 data class StreamDiagnosis(val issue: String, val nextStep: String)
 
+/** How a request failed below HTTP. Each label is fixed; no exception message is kept. */
+enum class TransportFault(val label: String) {
+    DNS("DNS lookup failed"),
+    TIMEOUT("connection timed out"),
+    REFUSED("connection refused"),
+    TLS("TLS handshake failed"),
+    IO("network read failed"),
+}
+
+/**
+ * Facts a failed request revealed, read by the Android layer. Nothing here can carry a URL, a header
+ * value, a response body or an exception message.
+ */
+data class StreamEvidence(
+    val httpStatus: Int? = null,
+    val contentType: String? = null,
+    val transport: TransportFault? = null,
+)
+
 /**
  * Pure Kotlin decision table. No Android dependency, network request, background thread,
  * exception-message access, stream URL, or provider header handling.
@@ -77,5 +96,26 @@ object StreamDoctor {
         else -> StreamDiagnosis(
             "Playback failed", "Try another channel and report this numeric code",
         )
+    }
+
+    /**
+     * A short detail for the diagnostic line, such as "HTTP 404; content type text/html". Values outside
+     * their safe form are dropped, never repaired.
+     */
+    fun describe(evidence: StreamEvidence): String {
+        val parts = ArrayList<String>(3)
+        evidence.httpStatus?.takeIf { it in 100..599 }?.let { parts += "HTTP $it" }
+        safeContentType(evidence.contentType)?.let { parts += "content type $it" }
+        evidence.transport?.let { parts += it.label }
+        return parts.joinToString("; ")
+    }
+
+    /** A bare lowercase type/subtype without parameters, or null. */
+    fun safeContentType(raw: String?): String? {
+        val value = raw?.substringBefore(';')?.trim()?.lowercase() ?: return null
+        if (value.length !in 3..64 || value.count { it == '/' } != 1) return null
+        if (value.startsWith('/') || value.endsWith('/')) return null
+        val safe = value.all { it in 'a'..'z' || it in '0'..'9' || it == '/' || it == '.' || it == '+' || it == '-' }
+        return if (safe) value else null
     }
 }
