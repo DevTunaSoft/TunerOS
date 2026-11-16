@@ -557,6 +557,18 @@ if [ -n "${PUBLIC_GUIDE_URL:-}" ]; then
   kill "$SOAK_HTTP_PID" 2>/dev/null || true
   echo "Soak result: three imports passed, and process $SOAK_PID stayed alive through five idle minutes"
 fi
+# A "not responding" dialog of another app can hold focus and drop every key. Stop that app, which Android restarts
+# when it is needed, so the test window can take focus. The focus requirement itself is unchanged.
+stop_unresponsive_focus() {
+  adb shell dumpsys window 2>/dev/null > focus-window.txt || true
+  local ANR_APP
+  ANR_APP=$(grep -o 'Application Not Responding: [A-Za-z0-9._]*' focus-window.txt | head -1 | sed 's/.*: //' || true)
+  if [ -n "$ANR_APP" ]; then
+    echo "Focus held by the not-responding dialog of ${ANR_APP}; stopping that app"
+    adb shell am force-stop "$ANR_APP" || true
+    sleep 2
+  fi
+}
 # Isolated launch for remote key input: keys are injected with adb after the app reports it
 # is armed. Each key must reach the activity's key dispatch, not a synthetic call.
 adb shell input keyevent 224 || true
@@ -584,6 +596,7 @@ for attempt in $(seq 1 45); do
   adb shell dumpsys activity activities 2>/dev/null > focus-activity.txt || true
   if grep -q 'mCurrentFocus=.*com.devtunasoft.tuneros' focus-window.txt; then FOCUSED=true; FOCUSED_BY=window; break; fi
   if ! grep -q 'mCurrentFocus=' focus-window.txt && grep -Eq '(topResumedActivity|mResumedActivity).*com.devtunasoft.tuneros' focus-activity.txt; then FOCUSED=true; FOCUSED_BY=top-activity; break; fi
+  stop_unresponsive_focus
   adb shell input keyevent 224 || true
   adb shell wm dismiss-keyguard || true
   adb shell cmd statusbar collapse || true
@@ -613,6 +626,7 @@ for round in 1 2 3; do
   if grep -Fq "$(printf 'PASS\tqa-remote-key-input\tkeys=4 focusChanged=')" key-report.txt; then break; fi
   if grep -q '^KEY' key-report.txt; then break; fi
   echo "Key round $round: no key event reached the app; checking focus before the next round"
+  stop_unresponsive_focus
   adb shell input keyevent 224 || true
   adb shell wm dismiss-keyguard || true
   adb shell cmd statusbar collapse || true
