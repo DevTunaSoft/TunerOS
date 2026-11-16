@@ -1,12 +1,29 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# Stop the emulator and the processes it started, with a bounded wait, on every exit path. The emulator runner sends
+# "emu kill" and does not wait for the emulator to exit. A qemu, netsim or crash-handler process that survives the kill
+# keeps this step's output open, so the step waits until the job's timeout and CI is cancelled after QA has passed.
+stop_emulator() {
+  timeout 20 adb -s emulator-5554 emu kill >/dev/null 2>&1 || true
+  for _ in $(seq 1 30); do
+    pgrep -f 'qemu-system|netsimd|crashpad_handler|emulator/emulator' >/dev/null 2>&1 || break
+    sleep 1
+  done
+  if pgrep -f 'qemu-system|netsimd|crashpad_handler|emulator/emulator' >/dev/null 2>&1; then
+    echo "Emulator processes were still running 30 seconds after the kill; stopping them"
+    pkill -KILL -f 'qemu-system|netsimd|crashpad_handler|emulator/emulator' >/dev/null 2>&1 || true
+  fi
+  jobs -p | xargs -r kill >/dev/null 2>&1 || true
+}
 # Capture a bounded crash/exception log while the emulator is
-# still running. Successful runs generate no logcat artifact.
+# still running, then stop it. Successful runs generate no logcat artifact.
 on_failure() {
   status=$?
   if [ "$status" -ne 0 ]; then
     adb logcat -d -t 1200 -v brief > emulator-failure-logcat.txt 2>/dev/null || true
   fi
+  stop_emulator
+  exit "$status"
 }
 trap on_failure EXIT
 adb install -r ci-apk/app-debug.apk
@@ -1627,6 +1644,8 @@ if ! grep -Eq '^PASS[[:space:]]qa-dvr-rearm' scheduled-report.txt \
   adb logcat -d -v time 2>/dev/null | tr -d '\r' | grep -E 'RecordingAlarm|DvrRecording|AlarmManager|tuneros' | tail -60 | cut -c1-240 || true
   exit 1
 fi
+# The window is measured from the moment the alarm is armed. The timing line shows how long the start took (epoch seconds).
+echo "scheduled recording timing: $(grep '^DETAIL' scheduled-report.txt | tail -n 1 | cut -f2- || true)"
 
 # Startup recovery: a user import saves the playlist and guide URLs encrypted, a cold start restores both with the
 # fixture counts, and a failed import leaves the saved playlist unchanged. Loopback fixtures only. The app report
