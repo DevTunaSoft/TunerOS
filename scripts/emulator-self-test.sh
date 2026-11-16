@@ -680,6 +680,61 @@ if ! grep -Eq "^PASS[[:space:]]qa-recording-partial-eof.* bytes=${RECORD_BYTES}\
   exit 1
 fi
 
+# Encrypted and fMP4 HLS on the device. One clip is cut into plain TS segments and encrypted with AES-128 (the IV is
+# the media sequence number, the default). A second clip is cut into fMP4 segments with an initialization section.
+# Each is recorded through the real service. The clip ends early, so the result is PARTIAL, and the stored bytes must
+# equal the plaintext segments (fMP4: the initialization segment, then the fragments) exactly.
+rm -rf ci-hls && mkdir -p ci-hls/plain ci-hls/aes ci-hls/fmp4
+ffmpeg -y -loglevel error -f lavfi -i testsrc=duration=9:size=160x120:rate=10 -c:v libx264 -pix_fmt yuv420p -g 10 \
+  -f hls -hls_time 3 -hls_list_size 0 -hls_playlist_type vod \
+  -hls_segment_filename ci-hls/plain/seg%d.ts ci-hls/plain/index.m3u8
+ffmpeg -y -loglevel error -f lavfi -i testsrc=duration=9:size=160x120:rate=10 -c:v libx264 -pix_fmt yuv420p -g 10 \
+  -f hls -hls_time 3 -hls_list_size 0 -hls_playlist_type vod -hls_segment_type fmp4 \
+  -hls_fmp4_init_filename init.mp4 -hls_segment_filename ci-hls/fmp4/seg%d.m4s ci-hls/fmp4/index.m3u8
+HLS_KEY_HEX=00112233445566778899aabbccddeeff
+python3 -c "import binascii,sys; sys.stdout.buffer.write(binascii.unhexlify('${HLS_KEY_HEX}'))" > ci-hls/aes/key.bin
+HLS_SEGMENTS=$(grep -v '^#' ci-hls/plain/index.m3u8 | grep -v '^$')
+HLS_INDEX=0
+for HLS_SEGMENT in $HLS_SEGMENTS; do
+  HLS_IV=$(printf '%032x' "$HLS_INDEX")
+  openssl enc -aes-128-cbc -K "$HLS_KEY_HEX" -iv "$HLS_IV" -in "ci-hls/plain/$HLS_SEGMENT" -out "ci-hls/aes/$HLS_SEGMENT"
+  HLS_INDEX=$((HLS_INDEX + 1))
+done
+{ head -n 1 ci-hls/plain/index.m3u8; echo '#EXT-X-KEY:METHOD=AES-128,URI="key.bin"'; tail -n +2 ci-hls/plain/index.m3u8; } > ci-hls/aes/index.m3u8
+python3 -m http.server 8770 --bind 0.0.0.0 --directory ci-hls >hls-server.log 2>&1 &
+HLS_HTTP_PID=$!
+sleep 2
+for HLS_CASE in aes fmp4; do
+  if [ "$HLS_CASE" = aes ]; then
+    HLS_LIST=$(grep -v '^#' ci-hls/plain/index.m3u8 | grep -v '^$' | sed 's#^#ci-hls/plain/#')
+    HLS_EXPECT=$(for f in $HLS_LIST; do cat "$f"; done | tee ci-hls/expected-aes.bin | wc -c)
+  else
+    HLS_LIST=$(grep -v '^#' ci-hls/fmp4/index.m3u8 | grep -v '^$' | sed 's#^#ci-hls/fmp4/#')
+    HLS_EXPECT=$({ cat ci-hls/fmp4/init.mp4; for f in $HLS_LIST; do cat "$f"; done; } | tee ci-hls/expected-fmp4.bin | wc -c)
+  fi
+  HLS_EXPECT_SHA=$(sha256sum "ci-hls/expected-${HLS_CASE}.bin" | cut -d' ' -f1)
+  adb shell run-as com.devtunasoft.tuneros rm -f files/tuneros-recording-report.txt 2>/dev/null || true
+  adb shell am force-stop com.devtunasoft.tuneros
+  adb shell am start -n com.devtunasoft.tuneros/.MainActivity --es tuneros.debug.record_url "http://10.0.2.2:8770/${HLS_CASE}/index.m3u8"
+  for attempt in $(seq 1 90); do
+    adb shell run-as com.devtunasoft.tuneros cat files/tuneros-recording-report.txt > "hls-${HLS_CASE}-report.txt" 2>/dev/null || true
+    if grep -Eq '^(PASS|FAIL)[[:space:]]qa-recording-partial-eof' "hls-${HLS_CASE}-report.txt"; then
+      break
+    fi
+    sleep 2
+  done
+  if ! grep -Eq "^PASS[[:space:]]qa-recording-partial-eof.* bytes=${HLS_EXPECT}\$" "hls-${HLS_CASE}-report.txt" \
+     || ! grep -Fq "storage=file sha256=${HLS_EXPECT_SHA} disk=${HLS_EXPECT}" "hls-${HLS_CASE}-report.txt"; then
+    echo "HLS ${HLS_CASE} recording did not match the plaintext segments (expected ${HLS_EXPECT} bytes, sha256 ${HLS_EXPECT_SHA})"
+    cat "hls-${HLS_CASE}-report.txt" 2>/dev/null || echo "(no report file)"
+    tail -20 hls-server.log 2>/dev/null || true
+    kill "$HLS_HTTP_PID" 2>/dev/null || true
+    exit 1
+  fi
+  echo "HLS ${HLS_CASE} recording matches the plaintext segments: ${HLS_EXPECT} bytes"
+done
+kill "$HLS_HTTP_PID" 2>/dev/null || true
+
 # Deadline mode: the runner serves the same file slowly, so the stream is still running when the
 # scheduled stop passes. The recorder must complete with a partial byte count on disk.
 cat > ci-playback/throttle.py <<'PY'
