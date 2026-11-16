@@ -1,5 +1,6 @@
 package com.devtunasoft.tuneros
 
+import com.devtunasoft.tuneros.core.BodyLength
 import com.devtunasoft.tuneros.core.HlsByteRange
 import com.devtunasoft.tuneros.core.HlsCaptureSource
 import com.devtunasoft.tuneros.core.HlsPlaylistParserCore
@@ -45,10 +46,7 @@ internal class AndroidHlsCaptureSource(
         return try {
             // Content-Length is meaningful for identity bodies, not transparently
             // decoded compressed responses. Unknown lengths remain supported.
-            val encoding = connection.contentEncoding
-            val expectedBytes = if (encoding == null ||
-                encoding.equals("identity", ignoreCase = true)
-            ) connection.contentLengthLong else -1L
+            val expectedBytes = BodyLength.expectedLength(connection.contentLengthLong, connection.contentEncoding)
             val result = connection.inputStream.use { input ->
                 recorder.copy(
                     input = input,
@@ -63,7 +61,8 @@ internal class AndroidHlsCaptureSource(
             // bytes for the catalog's PARTIAL result and never advance HLS sequence
             // after a declared HTTP body was truncated.
             if (result.stopReason == StreamRecorder.StopReason.END_OF_STREAM &&
-                expectedBytes >= 0L && result.bytesWritten != expectedBytes
+                BodyLength.verifyCleanEnd(expectedBytes, result.bytesWritten) ==
+                BodyLength.Verdict.TRUNCATED_OR_OVERRUN
             ) {
                 throw IOException("HLS segment HTTP body length mismatch")
             }
