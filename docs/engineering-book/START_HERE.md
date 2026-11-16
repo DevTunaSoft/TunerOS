@@ -1,5 +1,7 @@
 # TunerOS Engineering Takeover — Reading Order
 
+Read `CLAUDE.md` at the repository root first. It is the working agreement for coding sessions.
+
 1. `MASTER_HANDOFF.md` — original vision, history, rationale and succession.
 2. `ENGINEERING_CODING_DOSSIER.md` — component contracts and 300 proposed test scenarios.
 3. `DEEP_ENGINEERING_BOOK_VOLUME_III.md` — 27 detailed engineering chapters, decision records, fault injection, cross-component invariants and acceptance evidence.
