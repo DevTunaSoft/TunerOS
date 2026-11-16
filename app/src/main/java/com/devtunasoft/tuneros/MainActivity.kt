@@ -997,9 +997,9 @@ class MainActivity : Activity() {
 
     /** Long press on a channel row adds or removes a favorite. The guide and playback are unchanged. */
     private fun toggleFavorite(channel: Channel) {
-        favorites = FavoriteChannels.toggle(favorites, channel.id)
+        favorites = FavoriteChannels.toggle(favorites, channel.storageKey)
         val saved = favoriteStore.save(favorites)
-        val added = channel.id in favorites
+        val added = channel.storageKey in favorites
         showStatus(
             (if (added) "Added " else "Removed ") + channel.name +
                 (if (added) " to favorites" else " from favorites") +

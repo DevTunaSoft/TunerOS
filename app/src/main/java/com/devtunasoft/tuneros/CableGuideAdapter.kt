@@ -152,7 +152,7 @@ internal class CableGuideAdapter(
 
     private fun bind(holder: RowHolder, channel: Channel) {
         holder.boundChannel = channel
-        holder.channelView.text = if (channel.id in favoriteIds) "★ " + channel.name else channel.name
+        holder.channelView.text = if (channel.storageKey in favoriteIds) "★ " + channel.name else channel.name
 
         val snapshot = guide
         val guideId = channel.guideId

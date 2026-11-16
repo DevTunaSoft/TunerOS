@@ -39,4 +39,10 @@ class FavoriteChannelsTest {
     @Test fun favoritesOnlyWithoutFavoritesIsEmpty() {
         assertTrue(FavoriteChannels.filter(channels, emptySet<String>(), favoritesOnly = true).isEmpty())
     }
+
+    @Test fun favoritesFollowTheStableKeyNotTheChannelId() {
+        val rotated = Channel("new-url-id", "Alpha", "https://example.org/a?token=new", stableKey = "k-alpha")
+        val result = FavoriteChannels.filter(listOf(rotated), setOf("k-alpha"), favoritesOnly = true)
+        assertEquals(listOf("new-url-id"), result.map { it.id })
+    }
 }

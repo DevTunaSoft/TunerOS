@@ -16,5 +16,5 @@ object FavoriteChannels {
      * order they appear in [channels].
      */
     fun filter(channels: List<Channel>, favorites: Set<String>, favoritesOnly: Boolean): List<Channel> =
-        if (!favoritesOnly) channels else channels.filter { it.id in favorites }
+        if (!favoritesOnly) channels else channels.filter { it.storageKey in favorites }
 }
