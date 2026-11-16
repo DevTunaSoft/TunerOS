@@ -148,7 +148,8 @@ class TimeshiftCaptureTest {
         capture.output.write(bytes(2))
         capture.onSegmentComplete(1, 2.0, 1, discontinuity = true)
         val playlist = ring.playlists.last()
-        assertTrue(playlist.contains("#EXT-X-DISCONTINUITY\n#EXTINF:2.000,\nseg-1.ts\n"), playlist)
+        assertTrue(playlist.contains("#EXT-X-DISCONTINUITY\n#EXT-X-PROGRAM-DATE-TIME:"), playlist)
+        assertTrue(playlist.contains("\n#EXTINF:2.000,\nseg-1.ts\n"), playlist)
     }
 
     @Test fun theEngineWritesEachLiveSegmentIntoItsOwnFileAndTheWindowKeepsTheNewest() {
@@ -176,5 +177,20 @@ class TimeshiftCaptureTest {
         assertEquals(listOf("seg-0.ts"), ring.deleted.take(1), "the oldest segment leaves while recording")
         assertTrue(playlistBeforeStop.contains("#EXT-X-MEDIA-SEQUENCE:11\n"), playlistBeforeStop)
         assertTrue(ring.live().isEmpty(), "finish leaves nothing on disk: ${ring.live()}")
+    }
+
+    @Test fun eachCapturedSegmentIsListedWithItsWallClockStart() {
+        val ring = MemoryRing()
+        val capture = TimeshiftCapture(
+            TimeshiftWindow(maxSegments = 10, maxBytes = 10_000),
+            ring,
+            nowMillis = { 1_700_000_010_000L },
+        )
+        capture.output.write(bytes(1))
+        capture.onSegmentComplete(0, 2.0, 1, discontinuity = false)
+        assertTrue(
+            ring.playlists.last().contains("#EXT-X-PROGRAM-DATE-TIME:2023-11-14T22:13:28.000Z\n#EXTINF:2.000,\nseg-0.ts\n"),
+            ring.playlists.last(),
+        )
     }
 }

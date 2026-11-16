@@ -1,5 +1,8 @@
 package com.devtunasoft.tuneros.core
 
+import java.time.Instant
+import java.time.ZoneOffset
+import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 /**
@@ -24,6 +27,8 @@ class TimeshiftWindow(val maxSegments: Int, val maxBytes: Long) {
         val bytes: Long,
         val fileName: String,
         val discontinuity: Boolean = false,
+        /** When the segment starts, in epoch milliseconds. Null leaves the playlist without a program date. */
+        val programDateMillis: Long? = null,
     ) {
         init {
             require(sequence >= 0)
@@ -80,6 +85,9 @@ class TimeshiftWindow(val maxSegments: Int, val maxBytes: Long) {
         out.append("#EXT-X-MEDIA-SEQUENCE:").append(window.first().sequence).append('\n')
         for (segment in window) {
             if (segment.discontinuity) out.append("#EXT-X-DISCONTINUITY\n")
+            segment.programDateMillis?.let {
+                out.append("#EXT-X-PROGRAM-DATE-TIME:").append(programDate(it)).append('\n')
+            }
             out.append("#EXTINF:")
                 .append(String.format(Locale.ROOT, "%.3f", segment.durationSeconds))
                 .append(",\n")
@@ -96,3 +104,12 @@ class TimeshiftWindow(val maxSegments: Int, val maxBytes: Long) {
         return names
     }
 }
+
+private val PROGRAM_DATE: DateTimeFormatter =
+    DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'").withZone(ZoneOffset.UTC)
+
+/**
+ * The time HLS writes in EXT-X-PROGRAM-DATE-TIME: ISO 8601 in UTC with milliseconds. A live player needs these tags to
+ * know how far behind the live edge it is.
+ */
+fun programDate(epochMillis: Long): String = PROGRAM_DATE.format(Instant.ofEpochMilli(epochMillis))

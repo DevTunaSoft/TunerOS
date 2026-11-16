@@ -29,6 +29,7 @@ interface TimeshiftRing {
 class TimeshiftCapture(
     private val window: TimeshiftWindow,
     private val ring: TimeshiftRing,
+    private val nowMillis: () -> Long = { System.currentTimeMillis() },
 ) : HlsSegmentListener {
     private var nextFile = 0L
     private var openName: String? = null
@@ -60,7 +61,11 @@ class TimeshiftCapture(
         checkNotNull(openStream).close()
         openStream = null
         openName = null
-        val evicted = window.add(TimeshiftWindow.Segment(sequence, durationSeconds, bytes, name, discontinuity))
+        // A segment starts one duration before it completes, so its program date is the completion time less that duration.
+        val started = nowMillis() - (durationSeconds * 1000.0).toLong()
+        val evicted = window.add(
+            TimeshiftWindow.Segment(sequence, durationSeconds, bytes, name, discontinuity, started),
+        )
         evicted.forEach { ring.delete(it.fileName) }
         // A segment that cannot fit is never listed, so the playlist would skip it. Stop instead of listing a gap.
         if (evicted.any { it.fileName == name }) {

@@ -91,4 +91,14 @@ class TimeshiftWindowTest {
         assertTrue(playlist.contains("#EXT-X-DISCONTINUITY\n#EXTINF:2.000,\nseg-1.ts\n"), playlist)
         assertEquals(1, playlist.split("#EXT-X-DISCONTINUITY").size - 1, "only the marked segment is a discontinuity")
     }
+
+    @Test fun aSegmentWithAProgramDateIsListedWithItsWallClockStart() {
+        val window = TimeshiftWindow(maxSegments = 5, maxBytes = 10_000)
+        window.add(TimeshiftWindow.Segment(0, 2.0, 100, "seg-0.ts", programDateMillis = 1_700_000_008_000L))
+        assertEquals("2023-11-14T22:13:28.000Z", programDate(1_700_000_008_000L))
+        assertTrue(
+            window.playlist().contains("#EXT-X-PROGRAM-DATE-TIME:2023-11-14T22:13:28.000Z\n#EXTINF:2.000,\nseg-0.ts\n"),
+            window.playlist(),
+        )
+    }
 }
