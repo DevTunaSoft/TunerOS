@@ -50,7 +50,7 @@ class StreamEvidenceTest {
             assertNull(StreamDoctor.safeContentType(value))
         }
         val longType = "x".repeat(40) + "/" + "x".repeat(40)
-        val bounded = StreamDoctor.describe(StreamEvidence(httpStatus = 599, contentType = longType, transport = TransportFault.IO))
+        val bounded = StreamDoctor.describe(StreamEvidence(httpStatus = 599, contentType = longType, transport = TransportFault.TLS))
         assertTrue(bounded.length <= 120)
         assertFalse(StreamDoctor.describe(StreamEvidence(contentType = "http://a/b")).contains("http"))
     }

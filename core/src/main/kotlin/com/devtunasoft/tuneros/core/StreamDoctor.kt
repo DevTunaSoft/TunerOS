@@ -9,7 +9,6 @@ enum class TransportFault(val label: String) {
     TIMEOUT("connection timed out"),
     REFUSED("connection refused"),
     TLS("TLS handshake failed"),
-    IO("network read failed"),
 }
 
 /**

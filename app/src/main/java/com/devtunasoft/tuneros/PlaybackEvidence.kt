@@ -8,7 +8,6 @@ import androidx.media3.datasource.TransferListener
 import com.devtunasoft.tuneros.core.StreamDoctor
 import com.devtunasoft.tuneros.core.StreamEvidence
 import com.devtunasoft.tuneros.core.TransportFault
-import java.io.IOException
 import java.net.ConnectException
 import java.net.SocketTimeoutException
 import java.net.UnknownHostException
@@ -66,13 +65,11 @@ internal fun evidenceOf(error: PlaybackException, firstResponse: FirstResponseRe
         when (cause) {
             is HttpDataSource.InvalidResponseCodeException -> status = status ?: cause.responseCode
             is HttpDataSource.InvalidContentTypeException -> type = type ?: cause.contentType
-            // A wrapper: its own cause carries the transport detail.
-            is HttpDataSource.HttpDataSourceException -> Unit
+            // Only identified transport classes are named. A generic I/O error is not guessed at.
             is UnknownHostException -> transport = transport ?: TransportFault.DNS
             is SocketTimeoutException -> transport = transport ?: TransportFault.TIMEOUT
             is ConnectException -> transport = transport ?: TransportFault.REFUSED
             is SSLException -> transport = transport ?: TransportFault.TLS
-            is IOException -> transport = transport ?: TransportFault.IO
         }
         cause = cause.cause
         depth++
