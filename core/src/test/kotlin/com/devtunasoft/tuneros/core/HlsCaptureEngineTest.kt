@@ -818,4 +818,98 @@ class HlsCaptureEngineTest {
         assertTrue(result.detail.orEmpty().contains("IV"))
         assertEquals(emptyList(), source.copied.map { it.first })
     }
+
+    private class CompletedSegments : HlsSegmentListener {
+        val completed = ArrayList<String>()
+
+        override fun onSegmentComplete(sequence: Long, durationSeconds: Double, bytes: Long, discontinuity: Boolean) {
+            completed += "$sequence/$durationSeconds/$bytes/$discontinuity"
+        }
+    }
+
+    private fun endedPlaylist(url: String, vararg segments: HlsSegment) = LoadedHlsPlaylist(
+        url,
+        HlsMediaPlaylist(segments.first().sequence, 2L, true, segments.toList()),
+    )
+
+    @Test fun aSegmentListenerHearsEachCompletedSegmentWithItsDurationBytesAndDiscontinuity() {
+        val url = "https://example.test/vod.m3u8"
+        val source = FakeSource(
+            playlists = mapOf(
+                url to listOf(
+                    endedPlaylist(
+                        url,
+                        HlsSegment(5, "a.ts", 2.0, null, false, "NONE", null, null),
+                        HlsSegment(6, "b.ts", 1.5, null, true, "NONE", null, null),
+                    ),
+                ),
+            ),
+            segmentBytes = mapOf(
+                "https://example.test/a.ts" to byteArrayOf(1, 2, 3),
+                "https://example.test/b.ts" to byteArrayOf(4, 5),
+            ),
+        )
+        val listener = CompletedSegments()
+        val result = HlsCaptureEngine().record(
+            url, ByteArrayOutputStream(), 1_000, source, { false }, { 100 }, {}, segmentListener = listener,
+        )
+        assertEquals(HlsCaptureEngine.StopReason.END_LIST, result.stopReason)
+        assertEquals(listOf("5/2.0/3/false", "6/1.5/2/true"), listener.completed)
+    }
+
+    @Test fun aSegmentThatEndsShortIsNotHeardByTheListener() {
+        val url = "https://example.test/short.m3u8"
+        val source = FakeSource(
+            playlists = mapOf(
+                url to listOf(
+                    endedPlaylist(
+                        url,
+                        HlsSegment(5, "a.ts", 2.0, HlsByteRange(length = 10, offset = 0), false, "NONE", null, null),
+                    ),
+                ),
+            ),
+            segmentBytes = mapOf("https://example.test/a.ts" to byteArrayOf(1, 2, 3)),
+        )
+        val listener = CompletedSegments()
+        val result = HlsCaptureEngine().record(
+            url, ByteArrayOutputStream(), 1_000, source, { false }, { 100 }, {}, segmentListener = listener,
+        )
+        assertEquals(HlsCaptureEngine.StopReason.GAP, result.stopReason)
+        assertEquals(emptyList<String>(), listener.completed)
+    }
+
+    @Test fun timeshiftRefusesFmp4InitializationBeforeWritingAnyBytes() {
+        val url = "https://example.test/fmp4.m3u8"
+        val source = FakeSource(
+            playlists = mapOf(
+                url to listOf(
+                    endedPlaylist(url, HlsSegment(5, "a.m4s", 2.0, null, false, "NONE", null, "init.mp4")),
+                ),
+            ),
+        )
+        val output = ByteArrayOutputStream()
+        val listener = CompletedSegments()
+        val result = HlsCaptureEngine().record(url, output, 1_000, source, { false }, { 100 }, {}, segmentListener = listener)
+        assertEquals(HlsCaptureEngine.StopReason.UNSUPPORTED, result.stopReason)
+        assertEquals("fMP4 initialization is not supported for timeshift", result.detail)
+        assertEquals(0, output.size())
+        assertEquals(emptyList<String>(), listener.completed)
+    }
+
+    @Test fun timeshiftRefusesASegmentWithoutADurationBeforeWritingIt() {
+        val url = "https://example.test/nodur.m3u8"
+        val source = FakeSource(
+            playlists = mapOf(
+                url to listOf(endedPlaylist(url, HlsSegment(5, "a.ts", null, null, false, "NONE", null, null))),
+            ),
+        )
+        val output = ByteArrayOutputStream()
+        val result = HlsCaptureEngine().record(
+            url, output, 1_000, source, { false }, { 100 }, {}, segmentListener = CompletedSegments(),
+        )
+        assertEquals(HlsCaptureEngine.StopReason.UNSUPPORTED, result.stopReason)
+        assertEquals("HLS segment duration is not usable for timeshift", result.detail)
+        assertEquals(0, output.size())
+        assertEquals(emptyList<String>(), source.copied.map { it.first })
+    }
 }

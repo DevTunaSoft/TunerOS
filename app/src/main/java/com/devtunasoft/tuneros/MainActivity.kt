@@ -419,6 +419,7 @@ class MainActivity : Activity() {
             worker.execute { OnDeviceSelfTest.runAlarmOnly(applicationContext) }
         }
         qaPlaybackUrl()?.let { url -> root.post { runQaPlayback(url) } }
+        qaTimeshiftUrl()?.let { url -> root.post { runQaTimeshift(url) } }
         qaImportUrls()?.let { (playlist, guide) -> root.post { runQaImport(playlist, guide) } }
         // Debug-only startup-recovery QA. Runs synchronously, so the field and import state are set before the
         // startup restore callback that the worker posts to the UI thread.
@@ -652,15 +653,45 @@ class MainActivity : Activity() {
             null
         }
 
+    /** Debug-only: an http(s) URL for the timeshift check in an isolated CI launch. Never set for users. */
+    private fun qaTimeshiftUrl(): String? =
+        if ((applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0) {
+            intent?.getStringExtra("tuneros.debug.timeshift_url")
+                ?.takeIf { it.startsWith("http://") || it.startsWith("https://") }
+        } else {
+            null
+        }
+
+    /**
+     * Debug-only timeshift check on scratch data; see [TimeshiftQa]. The window size is a debug extra, so a short run
+     * fills it.
+     */
+    private fun runQaTimeshift(url: String) {
+        val connections = com.devtunasoft.tuneros.core.AbortableSlot<java.net.HttpURLConnection> { it.disconnect() }
+        val maxSegments = (intent?.getIntExtra("tuneros.debug.timeshift_segments", 6) ?: 6).coerceIn(2, 20)
+        val report = java.io.File(filesDir, "tuneros-timeshift-report.txt")
+        TimeshiftQa(
+            report = report,
+            ringDirectory = java.io.File(cacheDir, "timeshift-qa"),
+            handler = android.os.Handler(mainLooper),
+            openConnection = { value, range -> openSourceConnection(value, null, null, range, connections) },
+            playLocal = { uri, onFinished ->
+                runQaPlayback(uri, report, "qa-timeshift-playback", reset = false, onFinished = onFinished)
+            },
+        ).run(url, maxSegments)
+    }
+
     /**
      * Plays [url] with ExoPlayer into an off-screen ImageReader surface and waits for the first
      * rendered video frame. Writes its own report file; a 60 second deadline makes it FAIL.
+     * [onFinished] receives PASS or FAIL once the check has ended.
      */
     private fun runQaPlayback(
         url: String,
         report: java.io.File = java.io.File(filesDir, "tuneros-playback-report.txt"),
         checkId: String = "qa-playback-first-frame",
         reset: Boolean = true,
+        onFinished: ((String) -> Unit)? = null,
     ) {
         if (reset) report.writeText("RUNNING\n")
         val reader = android.media.ImageReader.newInstance(
@@ -684,6 +715,7 @@ class MainActivity : Activity() {
             report.appendText(state + "\t" + checkId + "\t" + detail + "\n")
             player.release()
             reader.close()
+            onFinished?.invoke(state)
         }
         player.setVideoSurface(reader.surface)
         player.addListener(object : Player.Listener {

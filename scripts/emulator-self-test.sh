@@ -1,12 +1,29 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# Stop the emulator and the processes it started, with a bounded wait, on every exit path. The emulator runner sends
+# "emu kill" and does not wait for the emulator to exit. A qemu, netsim or crash-handler process that survives the kill
+# keeps this step's output open, so the step waits until the job's timeout and CI is cancelled after QA has passed.
+stop_emulator() {
+  timeout 20 adb -s emulator-5554 emu kill >/dev/null 2>&1 || true
+  for _ in $(seq 1 30); do
+    pgrep -f 'qemu-system|netsimd|crashpad_handler|emulator/emulator' >/dev/null 2>&1 || break
+    sleep 1
+  done
+  if pgrep -f 'qemu-system|netsimd|crashpad_handler|emulator/emulator' >/dev/null 2>&1; then
+    echo "Emulator processes were still running 30 seconds after the kill; stopping them"
+    pkill -KILL -f 'qemu-system|netsimd|crashpad_handler|emulator/emulator' >/dev/null 2>&1 || true
+  fi
+  jobs -p | xargs -r kill >/dev/null 2>&1 || true
+}
 # Capture a bounded crash/exception log while the emulator is
-# still running. Successful runs generate no logcat artifact.
+# still running, then stop it. Successful runs generate no logcat artifact.
 on_failure() {
   status=$?
   if [ "$status" -ne 0 ]; then
     adb logcat -d -t 1200 -v brief > emulator-failure-logcat.txt 2>/dev/null || true
   fi
+  stop_emulator
+  exit "$status"
 }
 trap on_failure EXIT
 adb install -r ci-apk/app-debug.apk
@@ -1028,6 +1045,86 @@ if ! grep -Eq "^PASS[[:space:]]qa-recording-partial-eof.* bytes=${SINGLE_BYTES}\
   exit 1
 fi
 echo "SegmentBase DASH recording matches the MP4 byte for byte: ${SINGLE_BYTES} bytes"
+# Timeshift on the device: a live HLS channel (one 1-second MPEG-TS segment per second, served from a growing window) is
+# recorded into the app's scratch ring with a six-segment window. The ring must stay bounded and evict its oldest
+# segments, the local playlist must play through ExoPlayer, and stopping must leave no segment file behind.
+rm -rf ci-timeshift && mkdir -p ci-timeshift/live
+ffmpeg -y -loglevel error -f lavfi -i testsrc=duration=40:size=160x120:rate=10 -c:v libx264 -pix_fmt yuv420p -g 10 \
+  -f hls -hls_time 1 -hls_list_size 0 -hls_playlist_type vod -hls_segment_filename ci-timeshift/live/seg%d.ts \
+  ci-timeshift/live/source.m3u8
+cat > ci-timeshift/live_server.py <<'PY'
+import http.server
+import os
+import re
+import sys
+import time
+
+ROOT, PORT = sys.argv[1], int(sys.argv[2])
+STARTED = time.time()
+SEGMENT_SECONDS = 1.0
+WINDOW = 8
+TOTAL = len([name for name in os.listdir(ROOT) if re.fullmatch(r"seg\d+\.ts", name)])
+
+
+def published():
+    return min(TOTAL, int((time.time() - STARTED) / SEGMENT_SECONDS) + 1)
+
+
+class Handler(http.server.BaseHTTPRequestHandler):
+    def send_body(self, content_type, body):
+        self.send_response(200)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def do_GET(self):
+        name = self.path.split("?")[0].rsplit("/", 1)[-1]
+        available = published()
+        if name == "index.m3u8":
+            first = max(0, available - WINDOW)
+            lines = ["#EXTM3U", "#EXT-X-VERSION:3", "#EXT-X-TARGETDURATION:1", f"#EXT-X-MEDIA-SEQUENCE:{first}"]
+            for number in range(first, available):
+                lines += ["#EXTINF:1.000,", f"seg{number}.ts"]
+            self.send_body("application/vnd.apple.mpegurl", ("\n".join(lines) + "\n").encode())
+            return
+        match = re.fullmatch(r"seg(\d+)\.ts", name)
+        if match and int(match.group(1)) < available:
+            with open(os.path.join(ROOT, name), "rb") as segment:
+                self.send_body("video/mp2t", segment.read())
+            return
+        self.send_error(404)
+
+    def log_message(self, *args):
+        pass
+
+
+http.server.ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()
+PY
+python3 ci-timeshift/live_server.py ci-timeshift/live 8781 >timeshift-server.log 2>&1 &
+TIMESHIFT_HTTP_PID=$!
+sleep 2
+adb shell run-as com.devtunasoft.tuneros rm -f files/tuneros-timeshift-report.txt 2>/dev/null || true
+adb shell am force-stop com.devtunasoft.tuneros
+adb shell am start -n com.devtunasoft.tuneros/.MainActivity --es tuneros.debug.timeshift_url "http://10.0.2.2:8781/live/index.m3u8" --ei tuneros.debug.timeshift_segments 6
+for attempt in $(seq 1 60); do
+  adb shell run-as com.devtunasoft.tuneros cat files/tuneros-timeshift-report.txt > timeshift-report.txt 2>/dev/null || true
+  if grep -Eq '^(PASS|FAIL)[[:space:]]qa-timeshift-cleanup' timeshift-report.txt; then
+    break
+  fi
+  sleep 3
+done
+kill "$TIMESHIFT_HTTP_PID" 2>/dev/null || true
+for check in qa-timeshift-bounded qa-timeshift-playback qa-timeshift-cleanup; do
+  if ! grep -Fq "$(printf 'PASS\t%s\t' "$check")" timeshift-report.txt; then
+    echo "Timeshift check $check did not pass on the device"
+    cat timeshift-report.txt 2>/dev/null || echo "(no report file)"
+    tail -20 timeshift-server.log 2>/dev/null || true
+    exit 1
+  fi
+done
+cat timeshift-report.txt
+echo "timeshift on the device: window bounded at six segments, local playlist plays, stop leaves no segment files"
 
 # Refused start on the device: the recorder must enter the foreground before it refuses a request. Otherwise Android
 # crashes the calling app, and the report below is never written.
@@ -1519,6 +1616,8 @@ if ! grep -Eq '^PASS[[:space:]]qa-dvr-rearm' scheduled-report.txt \
   adb logcat -d -v time 2>/dev/null | tr -d '\r' | grep -E 'RecordingAlarm|DvrRecording|AlarmManager|tuneros' | tail -60 | cut -c1-240 || true
   exit 1
 fi
+# The window is measured from the moment the alarm is armed. The timing line shows how long the start took (epoch seconds).
+echo "scheduled recording timing: $(grep '^DETAIL' scheduled-report.txt | tail -n 1 | cut -f2- || true)"
 
 # Startup recovery: a user import saves the playlist and guide URLs encrypted, a cold start restores both with the
 # fixture counts, and a failed import leaves the saved playlist unchanged. Loopback fixtures only. The app report

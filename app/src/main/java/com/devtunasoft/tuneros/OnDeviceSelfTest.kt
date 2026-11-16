@@ -1109,9 +1109,12 @@ internal object OnDeviceSelfTest {
                 ScheduledRecordingSecrets.save(
                     secrets, key, ScheduledRecordingSource(url = url, userAgent = null, referer = null),
                 )
-                val startSec = now / 1000L
-                // Long enough to absorb a slow start (alarm, service, first read). The runner's throttle
-                // (0.5 s per KiB) keeps the file partial, because the stream outlasts this window.
+                // The window starts when the alarm is armed, not when this check started. Setup before this point (the
+                // rearm check and the first keystore use) must not use up the window: measured from the start of the check,
+                // a slow setup left the recording no time, and it stopped with 0 bytes. The runner's throttle (0.5 s per KiB)
+                // keeps the file partial, because the stream outlasts this window.
+                val armedMillis = System.currentTimeMillis()
+                val startSec = armedMillis / 1000L
                 val endSec = startSec + 20L
                 RecordingScheduleStore(context).use { store ->
                     store.insertIfAbsent(
@@ -1133,7 +1136,7 @@ internal object OnDeviceSelfTest {
                     PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
                 )
                 alarm.setExactAndAllowWhileIdle(
-                    AlarmManager.RTC_WAKEUP, now + 2_000L, pending,
+                    AlarmManager.RTC_WAKEUP, armedMillis + 2_000L, pending,
                 )
                 val entry = waitUntilValue(120_000) {
                     RecordingCatalog(context, catalogDb).use { catalog ->
