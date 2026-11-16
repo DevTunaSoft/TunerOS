@@ -1262,11 +1262,6 @@ class MainActivity : Activity() {
             showStatus("That program has already ended")
             return
         }
-        val lower = channel.streamUrl.substringBefore('?').lowercase()
-        if (lower.endsWith(".mpd")) {
-            showStatus("DASH recording is not enabled yet; playback is unaffected")
-            return
-        }
         if (now < program.startEpochSeconds) {
             scheduleProgram(channel, program)
             return
