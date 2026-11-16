@@ -1032,10 +1032,12 @@ if ! grep -Fq "$(printf 'PASS\tqa-recording-playback-first-frame\tfirst video fr
   exit 1
 fi
 
-# Live DASH on the device. The runner serves a dynamic manifest of 2-second segments on the device's clock, in five
+# Live DASH on the device. The runner serves a dynamic manifest of 2-second segments on the device's clock, in six
 # forms: a fixed duration, a finite SegmentTimeline addressed by number (as ffmpeg lists it), an open SegmentTimeline
-# addressed by time, the same with a presentation offset, and a sliding SegmentList of the newest four segments that the
-# recorder re-reads and follows. The origin answers the first request for each segment with 404, so the recorder must
+# addressed by time, the same with a presentation offset, a sliding SegmentList of the newest four segments, and a sliding
+# SegmentTimeline of irregular entries (2 and 3 seconds, alternating) addressed by time. The two sliding forms are re-read
+# and followed. The served media is the same 2-second segments in every form, so the irregular entries exercise the
+# listing, not the media length. The origin answers the first request for each segment with 404, so the recorder must
 # retry every segment inside its grace window. Each recording must reach the scheduled stop as COMPLETED, its stored
 # bytes must be the initialization segment and at least two consecutive segments, and the file must play back.
 rm -rf ci-live && mkdir -p ci-live/static
@@ -1054,7 +1056,7 @@ PORT = int(sys.argv[2])
 START = float(sys.argv[3])  # runner epoch seconds at which the stream starts
 OFFSET = float(sys.argv[4])  # device clock minus runner clock: the manifest is written on the device's clock
 SEGMENTS = int(sys.argv[5])
-MODE = sys.argv[6]  # template, timeline-number, timeline-time, timeline-offset or list-live
+MODE = sys.argv[6]  # template, timeline-number, timeline-time, timeline-offset, list-live or irregular-live
 SEGMENT_SECONDS = 2
 STEP = SEGMENT_SECONDS * 1000  # one segment in the 1000-unit timescale
 PRESENTATION_OFFSET = 600000  # media time of the first segment in timeline-offset mode
@@ -1086,8 +1088,8 @@ elif MODE == "timeline-offset":
         'initialization="init.m4s" media="chunk-$Time$.m4s">'
         f'<SegmentTimeline><S t="{PRESENTATION_OFFSET}" d="{STEP}" r="-1"/></SegmentTimeline></SegmentTemplate>'
     )
-elif MODE == "list-live":
-    # The manifest is built on each request (manifest_text), so its SegmentList slides with the clock.
+elif MODE in ("list-live", "irregular-live"):
+    # The manifest is built on each request (manifest_text), so its listing slides with the clock.
     SEGMENT_TEMPLATE = ""
 else:
     raise SystemExit("unknown mode: " + MODE)
@@ -1110,6 +1112,8 @@ LIST_WINDOW = 4  # listed segments in list-live mode: the newest four, slid forw
 
 
 def manifest_text():
+    if MODE == "irregular-live":
+        return sliding_timeline_text()
     if MODE != "list-live":
         return MPD
     # Segment N completes at START + N * SEGMENT_SECONDS on the runner clock, so the newest complete one is:
@@ -1128,6 +1132,47 @@ def manifest_text():
 {entries}
         </SegmentList>
       </Representation>
+    </AdaptationSet>
+  </Period>
+</MPD>
+'''
+
+
+# irregular-live: segment N lasts 2 s when odd and 3 s when even. Start times accumulate from zero, and each start is
+# the time that segment is addressed by.
+IRREGULAR_STARTS = [0]
+for _number in range(1, SEGMENTS + 1):
+    IRREGULAR_STARTS.append(IRREGULAR_STARTS[-1] + (2000 if _number % 2 else 3000))
+TIME_TO_NUMBER = {IRREGULAR_STARTS[n - 1]: n for n in range(1, SEGMENTS + 1)}
+
+
+PRE_ROLL_MS = 20000  # the stream started this long before the runner did, so its window starts with complete segments
+
+
+def sliding_timeline_text():
+    # Segment N completes at the stream origin plus IRREGULAR_STARTS[N] milliseconds, so the newest complete one is the
+    # last whose end has passed. The origin is on the device's clock, as the availability start of every other form is.
+    origin = START - PRE_ROLL_MS / 1000.0
+    stamp = datetime.datetime.fromtimestamp(origin + OFFSET, datetime.timezone.utc).isoformat(timespec="milliseconds")
+    stamp = stamp.replace("+00:00", "Z")
+    elapsed_ms = (time.time() - origin) * 1000
+    complete = [n for n in range(1, SEGMENTS + 1) if IRREGULAR_STARTS[n] <= elapsed_ms]
+    newest = max(1, complete[-1] if complete else 1)
+    first = max(1, newest - LIST_WINDOW + 1)
+    entries = "\n".join(
+        f'        <S t="{IRREGULAR_STARTS[n - 1]}" d="{IRREGULAR_STARTS[n] - IRREGULAR_STARTS[n - 1]}"/>'
+        for n in range(first, newest + 1)
+    )
+    return f'''<?xml version="1.0" encoding="UTF-8"?>
+<MPD xmlns="urn:mpeg:dash:schema:mpd:2011" type="dynamic" availabilityStartTime="{stamp}" minimumUpdatePeriod="PT2S" minBufferTime="PT2S" profiles="urn:mpeg:dash:profile:isoff-live:2011">
+  <Period id="0" start="PT0S">
+    <AdaptationSet mimeType="video/mp4" contentType="video">
+      <SegmentTemplate timescale="1000" startNumber="{first}" initialization="init.m4s" media="chunk-$Time$.m4s">
+        <SegmentTimeline>
+{entries}
+        </SegmentTimeline>
+      </SegmentTemplate>
+      <Representation id="v1" bandwidth="100000" codecs="avc1.42c01e" width="160" height="120"/>
     </AdaptationSet>
   </Period>
 </MPD>
@@ -1159,7 +1204,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
             digits = name[len("chunk-"):-len(".m4s")]
             if digits.isdigit():
                 value = int(digits)
-                if MODE in ("timeline-time", "timeline-offset"):
+                if MODE == "irregular-live":
+                    # Irregular segments are named by their start time, which TIME_TO_NUMBER maps back to the number.
+                    number = TIME_TO_NUMBER.get(value, 0)
+                elif MODE in ("timeline-time", "timeline-offset"):
                     # $Time$ names a segment by its media start; segment N starts at base + (N - 1) * STEP.
                     base = PRESENTATION_OFFSET if MODE == "timeline-offset" else 0
                     number = (value - base) // STEP + 1 if value >= base and (value - base) % STEP == 0 else 0
@@ -1290,6 +1338,7 @@ run_live_dash_case timeline-number 8772
 run_live_dash_case timeline-time 8773
 run_live_dash_case timeline-offset 8776
 run_live_dash_case list-live 8777
+run_live_dash_case irregular-live 8778
 
 # Optional real-feed import: a public playlist supplied at dispatch time (never committed). The
 # guide stays a runner fixture so the expected programme count is fixed. Channel count must be > 0.

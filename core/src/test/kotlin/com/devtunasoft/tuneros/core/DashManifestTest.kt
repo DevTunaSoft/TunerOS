@@ -105,12 +105,13 @@ $body
         assertEquals(0L, plan.startTimeTicks)
     }
 
-    @Test fun aFfmpegLiveTimelineWindowIsPlannedOnTheClock() {
-        // Real output of ffmpeg live DASH with a SegmentTimeline: a finite window that a refresh would extend. The
-        // recorder follows the clock, so it needs no refresh.
+    @Test fun aFfmpegLiveTimelineWindowIsPlannedAsATimedListing() {
+        // Real output of ffmpeg live DASH with a SegmentTimeline: a finite window that a refresh extends. Each listed
+        // segment is fetched once it is complete.
         val text = DashManifestTest::class.java.getResource("/dash/ffmpeg-live-timeline.mpd")!!.readText()
         val plan = planned(text)
         assertTrue(plan.timing is DashTiming.Live)
+        assertTrue(plan.listedTimed)
         assertNull(plan.segmentCount)
         assertEquals(2.0, plan.segmentDurationSeconds)
         assertEquals(0L, plan.startTimeTicks)
@@ -214,8 +215,58 @@ $body
         assertEquals(4L, plan.segmentCount)
     }
 
-    @Test fun irregularTimelineIsRefused() {
-        assertTrue(refusalOf(mpd(body = timelineSet("""<S t="0" d="3000" r="1"/><S d="2000"/>"""))).contains("irregular"))
+    @Test fun irregularStaticTimelineIsPlannedAsSegmentsAddressedByTime() {
+        val plan = planned(mpd(body = timelineSet("""<S t="0" d="3000"/><S d="2000"/><S d="4000" r="1"/>""")))
+        assertEquals(4L, plan.segmentCount)
+        val listed = plan.listedSegments!!
+        assertEquals(listOf(0L, 3_000L, 5_000L, 9_000L), listed.map { it.id })
+        assertEquals(listOf(3_000L, 5_000L, 9_000L, 13_000L), listed.map { it.endId })
+        assertEquals(listOf("chunk-0.m4s", "chunk-3000.m4s", "chunk-5000.m4s", "chunk-9000.m4s"), listed.map { it.media })
+    }
+
+    @Test fun irregularLiveTimelineIsPlannedAsAListingAddressedByTime() {
+        val plan = planned(
+            mpd(type = "dynamic", availabilityStart = "1970-01-01T00:16:40Z", body = timelineSet("""<S t="600000" d="2000"/><S d="3000"/>""")),
+        )
+        assertTrue(plan.timing is DashTiming.Live)
+        assertNull(plan.segmentCount)
+        val listed = plan.listedSegments!!
+        assertEquals(listOf(600_000L, 602_000L), listed.map { it.id })
+        assertEquals(listOf(602_000L, 605_000L), listed.map { it.endId })
+        assertEquals(listOf("chunk-600000.m4s", "chunk-602000.m4s"), listed.map { it.media })
+    }
+
+    @Test fun irregularLiveTimelineWithNumberAddressingFollowsTheWindowStartNumber() {
+        // The window's startNumber names its first segment, and each following entry takes the next number.
+        val text = mpd(
+            type = "dynamic",
+            availabilityStart = "1970-01-01T00:16:40Z",
+            body = timelineSet("""<S t="0" d="2000"/><S d="3000"/>""", media = "chunk-@Number%05d@.m4s")
+                .replace("startNumber=\"1\"", "startNumber=\"5\""),
+        )
+        assertEquals(listOf("chunk-00005.m4s", "chunk-00006.m4s"), planned(text).listedSegments!!.map { it.media })
+    }
+
+    @Test fun timedListingReadsThePresentationOffset() {
+        val plan = planned(
+            mpd(
+                type = "dynamic",
+                availabilityStart = "1970-01-01T00:16:40Z",
+                body = timelineSet("""<S t="600000" d="2000"/><S d="3000"/>""")
+                    .replace("startNumber=\"1\"", "startNumber=\"1\" presentationTimeOffset=\"600000\""),
+            ),
+        )
+        assertTrue(plan.listedTimed)
+        assertEquals(600_000L, plan.presentationTimeOffsetTicks)
+    }
+
+    @Test fun irregularLiveTimelineCannotRepeatToTheEnd() {
+        val text = mpd(type = "dynamic", availabilityStart = "1970-01-01T00:16:40Z", body = timelineSet("""<S t="0" d="2000"/><S d="3000" r="-1"/>"""))
+        assertTrue(refusalOf(text).contains("repeat to the end"))
+    }
+
+    @Test fun irregularTimelineAboveTheSegmentBoundIsRefused() {
+        assertTrue(refusalOf(mpd(body = timelineSet("""<S t="0" d="1000" r="5000"/><S d="2000" r="5000"/>"""))).contains("too many"))
     }
 
     @Test fun timelineWithAGapIsRefused() {
@@ -243,8 +294,8 @@ $body
         assertNull(plan.segmentCount)
     }
 
-    @Test fun finiteLiveTimelineWindowIsPlannedOnTheClockWithNumberAddressing() {
-        // A live packager lists a sliding window of entries. The recorder follows the clock, so the window needs no refresh.
+    @Test fun finiteLiveTimelineWindowIsPlannedAsATimedListingWithNumberAddressing() {
+        // A live packager lists a sliding window of entries. Each listed segment is fetched once it is complete.
         val plan = planned(
             mpd(
                 type = "dynamic",
@@ -253,7 +304,12 @@ $body
             ),
         )
         assertEquals(DashTiming.Live(1_000.0), plan.timing)
-        assertEquals("chunk-00002.m4s", DashManifest.expand(plan.mediaTemplate, plan.representationId, plan.bandwidth, 2))
+        assertTrue(plan.listedTimed)
+        assertNull(plan.segmentCount)
+        val listed = plan.listedSegments!!
+        assertEquals(listOf(0L, 3_000L, 6_000L), listed.map { it.id })
+        assertEquals(listOf(3_000L, 6_000L, 9_000L), listed.map { it.endId })
+        assertEquals("chunk-00002.m4s", listed[1].media)
     }
 
     @Test fun staticSegmentListIsPlannedWithItsByteRanges() {
