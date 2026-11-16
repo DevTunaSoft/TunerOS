@@ -1,12 +1,29 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# Stop the emulator and the processes it started, with a bounded wait, on every exit path. The emulator runner sends
+# "emu kill" and does not wait for the emulator to exit. A qemu, netsim or crash-handler process that survives the kill
+# keeps this step's output open, so the step waits until the job's timeout and CI is cancelled after QA has passed.
+stop_emulator() {
+  timeout 20 adb -s emulator-5554 emu kill >/dev/null 2>&1 || true
+  for _ in $(seq 1 30); do
+    pgrep -f 'qemu-system|netsimd|crashpad_handler|emulator/emulator' >/dev/null 2>&1 || break
+    sleep 1
+  done
+  if pgrep -f 'qemu-system|netsimd|crashpad_handler|emulator/emulator' >/dev/null 2>&1; then
+    echo "Emulator processes were still running 30 seconds after the kill; stopping them"
+    pkill -KILL -f 'qemu-system|netsimd|crashpad_handler|emulator/emulator' >/dev/null 2>&1 || true
+  fi
+  jobs -p | xargs -r kill >/dev/null 2>&1 || true
+}
 # Capture a bounded crash/exception log while the emulator is
-# still running. Successful runs generate no logcat artifact.
+# still running, then stop it. Successful runs generate no logcat artifact.
 on_failure() {
   status=$?
   if [ "$status" -ne 0 ]; then
     adb logcat -d -t 1200 -v brief > emulator-failure-logcat.txt 2>/dev/null || true
   fi
+  stop_emulator
+  exit "$status"
 }
 trap on_failure EXIT
 adb install -r ci-apk/app-debug.apk
@@ -940,6 +957,175 @@ if ! grep -Eq "^PASS[[:space:]]qa-recording-partial-eof.* bytes=${SINGLE_BYTES}\
 fi
 echo "single-file DASH recording matches the MP4 byte for byte: ${SINGLE_BYTES} bytes"
 
+# Series rules on the device: the store keeps one row per rule, lists and removes it, stops at its budget, and the planner
+# matches only the exact title on the rule's channel. It runs against a scratch database and touches no schedule.
+adb shell run-as com.devtunasoft.tuneros rm -f files/tuneros-series-report.txt 2>/dev/null || true
+adb shell am force-stop com.devtunasoft.tuneros
+adb shell am start -n com.devtunasoft.tuneros/.MainActivity --ez tuneros.debug.series_check true
+for attempt in $(seq 1 30); do
+  adb shell run-as com.devtunasoft.tuneros cat files/tuneros-series-report.txt > series-report.txt 2>/dev/null || true
+  if grep -Fq "$(printf 'PASS\tqa-series-rules')" series-report.txt; then
+    break
+  fi
+  sleep 2
+done
+if ! grep -Fq "$(printf 'PASS\tqa-series-rules')" series-report.txt; then
+  echo "Series rules did not pass on the device"
+  cat series-report.txt 2>/dev/null || echo "(no report file)"
+  exit 1
+fi
+echo "series rules on the device: store, budget, exact title match and planner pass"
+# Single-file DASH with a SegmentBase on the device: the same MP4, with a sidx index box placed right after the
+# initialization. The MPD names the index with indexRange and the initialization with a range. The recorder reads the
+# index first, then the initialization and each fragment by range, so the stored file must equal the original MP4: the
+# index box is not media, so it is not recorded.
+rm -rf ci-base && mkdir -p ci-base
+cat > ci-base/make_base.py <<'PY'
+import struct
+import sys
+import xml.etree.ElementTree as ET
+
+SRC, OUT, MP4 = sys.argv[1], sys.argv[2], sys.argv[3]
+NS = "{urn:mpeg:dash:schema:mpd:2011}"
+segments = ET.parse(f"{SRC}/manifest.mpd").getroot().find(f".//{NS}SegmentList")
+timescale = int(segments.get("timescale", "1"))
+duration = int(segments.get("duration"))
+first_init, last_init = (int(v) for v in segments.find(f"{NS}Initialization").get("range").split("-"))
+fragments = [tuple(int(v) for v in s.get("mediaRange").split("-")) for s in segments.findall(f"{NS}SegmentURL")]
+with open(f"{SRC}/{MP4}", "rb") as f:
+    original = f.read()
+init = original[first_init:last_init + 1]
+media = b"".join(original[first:last + 1] for first, last in fragments)
+assert first_init == 0 and init + media == original, "the fragments must follow the initialization"
+payload = struct.pack(">I", 0)  # version 0, flags 0
+payload += struct.pack(">I", 1)  # reference_ID
+payload += struct.pack(">I", timescale)
+payload += struct.pack(">II", 0, 0)  # earliest_presentation_time, first_offset
+payload += struct.pack(">HH", 0, len(fragments))  # reserved, reference_count
+for first, last in fragments:
+    payload += struct.pack(">III", last - first + 1, duration, 0x90000000)  # a media reference that starts with a SAP
+index = struct.pack(">I", 8 + len(payload)) + b"sidx" + payload
+with open(f"{OUT}/indexed.mp4", "wb") as f:
+    f.write(init + index + media)
+mpd = f'''<?xml version="1.0" encoding="UTF-8"?>
+<MPD xmlns="urn:mpeg:dash:schema:mpd:2011" type="static" mediaPresentationDuration="PT9S" profiles="urn:mpeg:dash:profile:isoff-on-demand:2011">
+  <Period id="0" start="PT0S">
+    <AdaptationSet mimeType="video/mp4" contentType="video">
+      <Representation id="v1" bandwidth="100000" codecs="avc1.64000a" width="160" height="120">
+        <BaseURL>indexed.mp4</BaseURL>
+        <SegmentBase indexRange="{len(init)}-{len(init) + len(index) - 1}"><Initialization range="0-{len(init) - 1}"/></SegmentBase>
+      </Representation>
+    </AdaptationSet>
+  </Period>
+</MPD>
+'''
+with open(f"{OUT}/manifest.mpd", "w") as f:
+    f.write(mpd)
+PY
+python3 ci-base/make_base.py ci-single ci-base "$SINGLE_MP4"
+python3 ci-single/range_server.py ci-base 8779 indexed.mp4 >base-range-server.log 2>&1 &
+BASE_HTTP_PID=$!
+sleep 2
+adb shell run-as com.devtunasoft.tuneros rm -f files/tuneros-recording-report.txt 2>/dev/null || true
+adb shell am force-stop com.devtunasoft.tuneros
+adb shell am start -n com.devtunasoft.tuneros/.MainActivity --es tuneros.debug.record_url "http://10.0.2.2:8779/single/manifest.mpd"
+for attempt in $(seq 1 90); do
+  adb shell run-as com.devtunasoft.tuneros cat files/tuneros-recording-report.txt > base-report.txt 2>/dev/null || true
+  if grep -Eq '^(PASS|FAIL)[[:space:]]qa-recording-partial-eof' base-report.txt; then
+    break
+  fi
+  sleep 2
+done
+kill "$BASE_HTTP_PID" 2>/dev/null || true
+if ! grep -Eq "^PASS[[:space:]]qa-recording-partial-eof.* bytes=${SINGLE_BYTES}\$" base-report.txt \
+   || ! grep -Fq "storage=file sha256=${SINGLE_SHA} disk=${SINGLE_BYTES}" base-report.txt; then
+  echo "SegmentBase DASH recording is not the MP4 byte for byte (expected ${SINGLE_BYTES} bytes, sha256 ${SINGLE_SHA})"
+  cat base-report.txt 2>/dev/null || echo "(no report file)"
+  tail -20 base-range-server.log 2>/dev/null || true
+  exit 1
+fi
+echo "SegmentBase DASH recording matches the MP4 byte for byte: ${SINGLE_BYTES} bytes"
+# Timeshift on the device: a live HLS channel (one 1-second MPEG-TS segment per second, served from a growing window) is
+# recorded into the app's scratch ring with a six-segment window. The ring must stay bounded and evict its oldest
+# segments, the local playlist must play through ExoPlayer, and stopping must leave no segment file behind.
+rm -rf ci-timeshift && mkdir -p ci-timeshift/live
+ffmpeg -y -loglevel error -f lavfi -i testsrc=duration=40:size=160x120:rate=10 -c:v libx264 -pix_fmt yuv420p -g 10 \
+  -f hls -hls_time 1 -hls_list_size 0 -hls_playlist_type vod -hls_segment_filename ci-timeshift/live/seg%d.ts \
+  ci-timeshift/live/source.m3u8
+cat > ci-timeshift/live_server.py <<'PY'
+import http.server
+import os
+import re
+import sys
+import time
+
+ROOT, PORT = sys.argv[1], int(sys.argv[2])
+STARTED = time.time()
+SEGMENT_SECONDS = 1.0
+WINDOW = 8
+TOTAL = len([name for name in os.listdir(ROOT) if re.fullmatch(r"seg\d+\.ts", name)])
+
+
+def published():
+    return min(TOTAL, int((time.time() - STARTED) / SEGMENT_SECONDS) + 1)
+
+
+class Handler(http.server.BaseHTTPRequestHandler):
+    def send_body(self, content_type, body):
+        self.send_response(200)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def do_GET(self):
+        name = self.path.split("?")[0].rsplit("/", 1)[-1]
+        available = published()
+        if name == "index.m3u8":
+            first = max(0, available - WINDOW)
+            lines = ["#EXTM3U", "#EXT-X-VERSION:3", "#EXT-X-TARGETDURATION:1", f"#EXT-X-MEDIA-SEQUENCE:{first}"]
+            for number in range(first, available):
+                lines += ["#EXTINF:1.000,", f"seg{number}.ts"]
+            self.send_body("application/vnd.apple.mpegurl", ("\n".join(lines) + "\n").encode())
+            return
+        match = re.fullmatch(r"seg(\d+)\.ts", name)
+        if match and int(match.group(1)) < available:
+            with open(os.path.join(ROOT, name), "rb") as segment:
+                self.send_body("video/mp2t", segment.read())
+            return
+        self.send_error(404)
+
+    def log_message(self, *args):
+        pass
+
+
+http.server.ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()
+PY
+python3 ci-timeshift/live_server.py ci-timeshift/live 8781 >timeshift-server.log 2>&1 &
+TIMESHIFT_HTTP_PID=$!
+sleep 2
+adb shell run-as com.devtunasoft.tuneros rm -f files/tuneros-timeshift-report.txt 2>/dev/null || true
+adb shell am force-stop com.devtunasoft.tuneros
+adb shell am start -n com.devtunasoft.tuneros/.MainActivity --es tuneros.debug.timeshift_url "http://10.0.2.2:8781/live/index.m3u8" --ei tuneros.debug.timeshift_segments 6
+for attempt in $(seq 1 60); do
+  adb shell run-as com.devtunasoft.tuneros cat files/tuneros-timeshift-report.txt > timeshift-report.txt 2>/dev/null || true
+  if grep -Eq '^(PASS|FAIL)[[:space:]]qa-timeshift-cleanup' timeshift-report.txt; then
+    break
+  fi
+  sleep 3
+done
+kill "$TIMESHIFT_HTTP_PID" 2>/dev/null || true
+for check in qa-timeshift-bounded qa-timeshift-playback qa-timeshift-cleanup; do
+  if ! grep -Fq "$(printf 'PASS\t%s\t' "$check")" timeshift-report.txt; then
+    echo "Timeshift check $check did not pass on the device"
+    cat timeshift-report.txt 2>/dev/null || echo "(no report file)"
+    tail -20 timeshift-server.log 2>/dev/null || true
+    exit 1
+  fi
+done
+cat timeshift-report.txt
+echo "timeshift on the device: window bounded at six segments, local playlist plays, stop leaves no segment files"
+
 # Refused start on the device: the recorder must enter the foreground before it refuses a request. Otherwise Android
 # crashes the calling app, and the report below is never written.
 adb shell run-as com.devtunasoft.tuneros rm -f files/tuneros-invalid-start-report.txt 2>/dev/null || true
@@ -1032,10 +1218,12 @@ if ! grep -Fq "$(printf 'PASS\tqa-recording-playback-first-frame\tfirst video fr
   exit 1
 fi
 
-# Live DASH on the device. The runner serves a dynamic manifest of 2-second segments on the device's clock, in five
+# Live DASH on the device. The runner serves a dynamic manifest of 2-second segments on the device's clock, in six
 # forms: a fixed duration, a finite SegmentTimeline addressed by number (as ffmpeg lists it), an open SegmentTimeline
-# addressed by time, the same with a presentation offset, and a sliding SegmentList of the newest four segments that the
-# recorder re-reads and follows. The origin answers the first request for each segment with 404, so the recorder must
+# addressed by time, the same with a presentation offset, a sliding SegmentList of the newest four segments, and a sliding
+# SegmentTimeline of irregular entries (2 and 3 seconds, alternating) addressed by time. The two sliding forms are re-read
+# and followed. The served media is the same 2-second segments in every form, so the irregular entries exercise the
+# listing, not the media length. The origin answers the first request for each segment with 404, so the recorder must
 # retry every segment inside its grace window. Each recording must reach the scheduled stop as COMPLETED, its stored
 # bytes must be the initialization segment and at least two consecutive segments, and the file must play back.
 rm -rf ci-live && mkdir -p ci-live/static
@@ -1054,7 +1242,7 @@ PORT = int(sys.argv[2])
 START = float(sys.argv[3])  # runner epoch seconds at which the stream starts
 OFFSET = float(sys.argv[4])  # device clock minus runner clock: the manifest is written on the device's clock
 SEGMENTS = int(sys.argv[5])
-MODE = sys.argv[6]  # template, timeline-number, timeline-time, timeline-offset or list-live
+MODE = sys.argv[6]  # template, timeline-number, timeline-time, timeline-offset, list-live or irregular-live
 SEGMENT_SECONDS = 2
 STEP = SEGMENT_SECONDS * 1000  # one segment in the 1000-unit timescale
 PRESENTATION_OFFSET = 600000  # media time of the first segment in timeline-offset mode
@@ -1086,8 +1274,8 @@ elif MODE == "timeline-offset":
         'initialization="init.m4s" media="chunk-$Time$.m4s">'
         f'<SegmentTimeline><S t="{PRESENTATION_OFFSET}" d="{STEP}" r="-1"/></SegmentTimeline></SegmentTemplate>'
     )
-elif MODE == "list-live":
-    # The manifest is built on each request (manifest_text), so its SegmentList slides with the clock.
+elif MODE in ("list-live", "irregular-live"):
+    # The manifest is built on each request (manifest_text), so its listing slides with the clock.
     SEGMENT_TEMPLATE = ""
 else:
     raise SystemExit("unknown mode: " + MODE)
@@ -1110,6 +1298,8 @@ LIST_WINDOW = 4  # listed segments in list-live mode: the newest four, slid forw
 
 
 def manifest_text():
+    if MODE == "irregular-live":
+        return sliding_timeline_text()
     if MODE != "list-live":
         return MPD
     # Segment N completes at START + N * SEGMENT_SECONDS on the runner clock, so the newest complete one is:
@@ -1128,6 +1318,47 @@ def manifest_text():
 {entries}
         </SegmentList>
       </Representation>
+    </AdaptationSet>
+  </Period>
+</MPD>
+'''
+
+
+# irregular-live: segment N lasts 2 s when odd and 3 s when even. Start times accumulate from zero, and each start is
+# the time that segment is addressed by.
+IRREGULAR_STARTS = [0]
+for _number in range(1, SEGMENTS + 1):
+    IRREGULAR_STARTS.append(IRREGULAR_STARTS[-1] + (2000 if _number % 2 else 3000))
+TIME_TO_NUMBER = {IRREGULAR_STARTS[n - 1]: n for n in range(1, SEGMENTS + 1)}
+
+
+PRE_ROLL_MS = 20000  # the stream started this long before the runner did, so its window starts with complete segments
+
+
+def sliding_timeline_text():
+    # Segment N completes at the stream origin plus IRREGULAR_STARTS[N] milliseconds, so the newest complete one is the
+    # last whose end has passed. The origin is on the device's clock, as the availability start of every other form is.
+    origin = START - PRE_ROLL_MS / 1000.0
+    stamp = datetime.datetime.fromtimestamp(origin + OFFSET, datetime.timezone.utc).isoformat(timespec="milliseconds")
+    stamp = stamp.replace("+00:00", "Z")
+    elapsed_ms = (time.time() - origin) * 1000
+    complete = [n for n in range(1, SEGMENTS + 1) if IRREGULAR_STARTS[n] <= elapsed_ms]
+    newest = max(1, complete[-1] if complete else 1)
+    first = max(1, newest - LIST_WINDOW + 1)
+    entries = "\n".join(
+        f'        <S t="{IRREGULAR_STARTS[n - 1]}" d="{IRREGULAR_STARTS[n] - IRREGULAR_STARTS[n - 1]}"/>'
+        for n in range(first, newest + 1)
+    )
+    return f'''<?xml version="1.0" encoding="UTF-8"?>
+<MPD xmlns="urn:mpeg:dash:schema:mpd:2011" type="dynamic" availabilityStartTime="{stamp}" minimumUpdatePeriod="PT2S" minBufferTime="PT2S" profiles="urn:mpeg:dash:profile:isoff-live:2011">
+  <Period id="0" start="PT0S">
+    <AdaptationSet mimeType="video/mp4" contentType="video">
+      <SegmentTemplate timescale="1000" startNumber="{first}" initialization="init.m4s" media="chunk-$Time$.m4s">
+        <SegmentTimeline>
+{entries}
+        </SegmentTimeline>
+      </SegmentTemplate>
+      <Representation id="v1" bandwidth="100000" codecs="avc1.42c01e" width="160" height="120"/>
     </AdaptationSet>
   </Period>
 </MPD>
@@ -1159,7 +1390,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
             digits = name[len("chunk-"):-len(".m4s")]
             if digits.isdigit():
                 value = int(digits)
-                if MODE in ("timeline-time", "timeline-offset"):
+                if MODE == "irregular-live":
+                    # Irregular segments are named by their start time, which TIME_TO_NUMBER maps back to the number.
+                    number = TIME_TO_NUMBER.get(value, 0)
+                elif MODE in ("timeline-time", "timeline-offset"):
                     # $Time$ names a segment by its media start; segment N starts at base + (N - 1) * STEP.
                     base = PRESENTATION_OFFSET if MODE == "timeline-offset" else 0
                     number = (value - base) // STEP + 1 if value >= base and (value - base) % STEP == 0 else 0
@@ -1290,6 +1524,7 @@ run_live_dash_case timeline-number 8772
 run_live_dash_case timeline-time 8773
 run_live_dash_case timeline-offset 8776
 run_live_dash_case list-live 8777
+run_live_dash_case irregular-live 8778
 
 # Optional real-feed import: a public playlist supplied at dispatch time (never committed). The
 # guide stays a runner fixture so the expected programme count is fixed. Channel count must be > 0.
@@ -1381,6 +1616,8 @@ if ! grep -Eq '^PASS[[:space:]]qa-dvr-rearm' scheduled-report.txt \
   adb logcat -d -v time 2>/dev/null | tr -d '\r' | grep -E 'RecordingAlarm|DvrRecording|AlarmManager|tuneros' | tail -60 | cut -c1-240 || true
   exit 1
 fi
+# The window is measured from the moment the alarm is armed. The timing line shows how long the start took (epoch seconds).
+echo "scheduled recording timing: $(grep '^DETAIL' scheduled-report.txt | tail -n 1 | cut -f2- || true)"
 
 # Startup recovery: a user import saves the playlist and guide URLs encrypted, a cold start restores both with the
 # fixture counts, and a failed import leaves the saved playlist unchanged. Loopback fixtures only. The app report

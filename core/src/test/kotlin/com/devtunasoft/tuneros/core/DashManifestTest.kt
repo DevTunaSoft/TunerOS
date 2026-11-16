@@ -105,12 +105,13 @@ $body
         assertEquals(0L, plan.startTimeTicks)
     }
 
-    @Test fun aFfmpegLiveTimelineWindowIsPlannedOnTheClock() {
-        // Real output of ffmpeg live DASH with a SegmentTimeline: a finite window that a refresh would extend. The
-        // recorder follows the clock, so it needs no refresh.
+    @Test fun aFfmpegLiveTimelineWindowIsPlannedAsATimedListing() {
+        // Real output of ffmpeg live DASH with a SegmentTimeline: a finite window that a refresh extends. Each listed
+        // segment is fetched once it is complete.
         val text = DashManifestTest::class.java.getResource("/dash/ffmpeg-live-timeline.mpd")!!.readText()
         val plan = planned(text)
         assertTrue(plan.timing is DashTiming.Live)
+        assertTrue(plan.listedTimed)
         assertNull(plan.segmentCount)
         assertEquals(2.0, plan.segmentDurationSeconds)
         assertEquals(0L, plan.startTimeTicks)
@@ -214,8 +215,58 @@ $body
         assertEquals(4L, plan.segmentCount)
     }
 
-    @Test fun irregularTimelineIsRefused() {
-        assertTrue(refusalOf(mpd(body = timelineSet("""<S t="0" d="3000" r="1"/><S d="2000"/>"""))).contains("irregular"))
+    @Test fun irregularStaticTimelineIsPlannedAsSegmentsAddressedByTime() {
+        val plan = planned(mpd(body = timelineSet("""<S t="0" d="3000"/><S d="2000"/><S d="4000" r="1"/>""")))
+        assertEquals(4L, plan.segmentCount)
+        val listed = plan.listedSegments!!
+        assertEquals(listOf(0L, 3_000L, 5_000L, 9_000L), listed.map { it.id })
+        assertEquals(listOf(3_000L, 5_000L, 9_000L, 13_000L), listed.map { it.endId })
+        assertEquals(listOf("chunk-0.m4s", "chunk-3000.m4s", "chunk-5000.m4s", "chunk-9000.m4s"), listed.map { it.media })
+    }
+
+    @Test fun irregularLiveTimelineIsPlannedAsAListingAddressedByTime() {
+        val plan = planned(
+            mpd(type = "dynamic", availabilityStart = "1970-01-01T00:16:40Z", body = timelineSet("""<S t="600000" d="2000"/><S d="3000"/>""")),
+        )
+        assertTrue(plan.timing is DashTiming.Live)
+        assertNull(plan.segmentCount)
+        val listed = plan.listedSegments!!
+        assertEquals(listOf(600_000L, 602_000L), listed.map { it.id })
+        assertEquals(listOf(602_000L, 605_000L), listed.map { it.endId })
+        assertEquals(listOf("chunk-600000.m4s", "chunk-602000.m4s"), listed.map { it.media })
+    }
+
+    @Test fun irregularLiveTimelineWithNumberAddressingFollowsTheWindowStartNumber() {
+        // The window's startNumber names its first segment, and each following entry takes the next number.
+        val text = mpd(
+            type = "dynamic",
+            availabilityStart = "1970-01-01T00:16:40Z",
+            body = timelineSet("""<S t="0" d="2000"/><S d="3000"/>""", media = "chunk-@Number%05d@.m4s")
+                .replace("startNumber=\"1\"", "startNumber=\"5\""),
+        )
+        assertEquals(listOf("chunk-00005.m4s", "chunk-00006.m4s"), planned(text).listedSegments!!.map { it.media })
+    }
+
+    @Test fun timedListingReadsThePresentationOffset() {
+        val plan = planned(
+            mpd(
+                type = "dynamic",
+                availabilityStart = "1970-01-01T00:16:40Z",
+                body = timelineSet("""<S t="600000" d="2000"/><S d="3000"/>""")
+                    .replace("startNumber=\"1\"", "startNumber=\"1\" presentationTimeOffset=\"600000\""),
+            ),
+        )
+        assertTrue(plan.listedTimed)
+        assertEquals(600_000L, plan.presentationTimeOffsetTicks)
+    }
+
+    @Test fun irregularLiveTimelineCannotRepeatToTheEnd() {
+        val text = mpd(type = "dynamic", availabilityStart = "1970-01-01T00:16:40Z", body = timelineSet("""<S t="0" d="2000"/><S d="3000" r="-1"/>"""))
+        assertTrue(refusalOf(text).contains("repeat to the end"))
+    }
+
+    @Test fun irregularTimelineAboveTheSegmentBoundIsRefused() {
+        assertTrue(refusalOf(mpd(body = timelineSet("""<S t="0" d="1000" r="5000"/><S d="2000" r="5000"/>"""))).contains("too many"))
     }
 
     @Test fun timelineWithAGapIsRefused() {
@@ -243,8 +294,8 @@ $body
         assertNull(plan.segmentCount)
     }
 
-    @Test fun finiteLiveTimelineWindowIsPlannedOnTheClockWithNumberAddressing() {
-        // A live packager lists a sliding window of entries. The recorder follows the clock, so the window needs no refresh.
+    @Test fun finiteLiveTimelineWindowIsPlannedAsATimedListingWithNumberAddressing() {
+        // A live packager lists a sliding window of entries. Each listed segment is fetched once it is complete.
         val plan = planned(
             mpd(
                 type = "dynamic",
@@ -253,7 +304,12 @@ $body
             ),
         )
         assertEquals(DashTiming.Live(1_000.0), plan.timing)
-        assertEquals("chunk-00002.m4s", DashManifest.expand(plan.mediaTemplate, plan.representationId, plan.bandwidth, 2))
+        assertTrue(plan.listedTimed)
+        assertNull(plan.segmentCount)
+        val listed = plan.listedSegments!!
+        assertEquals(listOf(0L, 3_000L, 6_000L), listed.map { it.id })
+        assertEquals(listOf(3_000L, 6_000L, 9_000L), listed.map { it.endId })
+        assertEquals("chunk-00002.m4s", listed[1].media)
     }
 
     @Test fun staticSegmentListIsPlannedWithItsByteRanges() {
@@ -334,5 +390,77 @@ $body
         assertEquals("single-stream0.mp4", plan.representationBaseUrl)
         assertEquals(HlsByteRange(length = 815, offset = 0), plan.listedInitialization?.range)
         assertEquals(HlsByteRange(length = 12775, offset = 815), plan.listedSegments?.get(0)?.range)
+    }
+
+    /** A video set addressed by SegmentBase: one media file, whose segment index is named by [indexRange]. */
+    private fun baseSet(
+        indexRange: String = "1000-1043",
+        initRange: String = "0-999",
+        base: String? = "single.mp4",
+    ): String = """    <AdaptationSet mimeType="video/mp4">
+      <Representation id="v1" bandwidth="500000" codecs="avc1.64000a" width="160" height="120">
+        ${base?.let { "<BaseURL>$it</BaseURL>" }.orEmpty()}
+        <SegmentBase indexRange="$indexRange"><Initialization range="$initRange"/></SegmentBase>
+      </Representation>
+    </AdaptationSet>"""
+
+    private fun needsIndexOf(text: String): DashPlanOutcome.NeedsIndex {
+        val outcome = DashManifest.plan(text)
+        assertTrue(outcome is DashPlanOutcome.NeedsIndex, "expected an index request, got $outcome")
+        return outcome as DashPlanOutcome.NeedsIndex
+    }
+
+    @Test fun aSegmentBaseAsksForItsIndexRange() {
+        val needs = needsIndexOf(mpd(body = baseSet()))
+        assertEquals(HlsByteRange(length = 44, offset = 1000), needs.indexRange)
+        assertEquals(HlsByteRange(length = 1000, offset = 0), needs.partial.listedInitialization?.range)
+        assertEquals("single.mp4", needs.partial.representationBaseUrl)
+        assertEquals(DashTiming.Static(9.0), needs.partial.timing)
+    }
+
+    @Test fun aSegmentBaseIsCompletedFromItsIndexBytes() {
+        // Two fragments of 500 and 700 bytes follow the index box, which the index range names exactly.
+        val index = SidxBox.build(references = listOf(500L to 2_000L, 700L to 2_000L))
+        val end = 1000 + index.size - 1
+        val needs = needsIndexOf(mpd(body = baseSet(indexRange = "1000-$end")))
+        val plan = (DashManifest.completeIndex(needs, index) as DashPlanOutcome.Planned).plan
+        val anchor = 1000L + index.size
+        assertEquals(
+            listOf(HlsByteRange(length = 500, offset = anchor), HlsByteRange(length = 700, offset = anchor + 500)),
+            plan.listedSegments!!.map { it.range },
+        )
+        assertEquals(2L, plan.segmentCount)
+        assertEquals(HlsByteRange(length = 1000, offset = 0), plan.listedInitialization?.range)
+        assertEquals(DashTiming.Static(9.0), plan.timing)
+    }
+
+    @Test fun aSegmentBaseWithAnIndexLargerThanTheLimitIsRefused() {
+        assertTrue(refusalOf(mpd(body = baseSet(indexRange = "0-200000"))).contains("too large"))
+    }
+
+    @Test fun aLiveSegmentBaseIsRefused() {
+        val text = mpd(type = "dynamic", availabilityStart = "1970-01-01T00:16:40Z", body = baseSet())
+        assertTrue(refusalOf(text).contains("live SegmentBase"))
+    }
+
+    @Test fun aSegmentBaseNeedsItsInitializationRange() {
+        val body = """    <AdaptationSet mimeType="video/mp4">
+      <Representation id="v1" bandwidth="500000" codecs="avc1.64000a" width="160" height="120">
+        <BaseURL>single.mp4</BaseURL>
+        <SegmentBase indexRange="1000-1043"/>
+      </Representation>
+    </AdaptationSet>"""
+        assertTrue(refusalOf(mpd(body = body)).contains("Initialization"))
+    }
+
+    @Test fun aSegmentBaseNeedsAMediaBaseUrl() {
+        assertTrue(refusalOf(mpd(body = baseSet(base = null))).contains("BaseURL"))
+    }
+
+    @Test fun anIndexThatDoesNotParseFailsTheCompletion() {
+        val hierarchical = SidxBox.build(references = listOf(500L to 2_000L), hierarchicalFirst = true)
+        val needs = needsIndexOf(mpd(body = baseSet(indexRange = "1000-${1000 + hierarchical.size - 1}")))
+        val outcome = DashManifest.completeIndex(needs, hierarchical)
+        assertTrue(outcome is DashPlanOutcome.Unsupported && outcome.reason.contains("hierarchical"), "got $outcome")
     }
 }
