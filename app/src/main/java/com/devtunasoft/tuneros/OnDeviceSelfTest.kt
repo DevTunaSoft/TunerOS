@@ -11,6 +11,7 @@ import android.os.SystemClock
 import com.devtunasoft.tuneros.core.AbortableSlot
 import com.devtunasoft.tuneros.core.Channel
 import com.devtunasoft.tuneros.core.ChannelVisibility
+import com.devtunasoft.tuneros.core.GuideDoctor
 import com.devtunasoft.tuneros.core.GuideProgram
 import com.devtunasoft.tuneros.core.GuideParser
 import com.devtunasoft.tuneros.core.GuideSnapshot
@@ -1304,6 +1305,47 @@ internal object OnDeviceSelfTest {
     }
 
     /**
+     * Debug-only: Guide Doctor on a scratch preference file. Finds channels without a schedule, applies a saved
+     * mapping, suggests only scheduled guide channels, and reloads the mapping from storage. The user's mappings
+     * are never read or written.
+     */
+    private fun debugGuideDoctor(context: Context): Boolean {
+        val scratch = "tuneros-guide-doctor-qa"
+        val store = GuideMappingStore(context, scratch)
+        try {
+            store.clear()
+            val channels = listOf(
+                Channel("qa-one", "QA One", "http://127.0.0.1/1"),
+                Channel("qa-four", "QA Four", "http://127.0.0.1/4"),
+                Channel("qa-five", "QA Five", "http://127.0.0.1/5", guideId = "qa.five"),
+                Channel("qa-bbc", "BBC One HD", "http://127.0.0.1/b", guideId = "bbc1"),
+            )
+            val guide = GuideSnapshot(
+                programs = listOf(GuideProgram("qa.one", "Show", 0L, 3600L)),
+                channelNames = mapOf("qa.one" to "QA One", "qa.five" to "QA Five", "bbc1" to "BBC One"),
+            )
+            val missingBefore = GuideDoctor.channelsWithoutSchedule(channels, guide).map { it.id }
+            val suggestion = GuideDoctor.suggestions(channels[0], guide.channelNames, guide::hasSchedule)
+                .firstOrNull()?.guideId
+            val mapping = mapOf("qa-one" to "qa.one")
+            val missingAfter = GuideDoctor.channelsWithoutSchedule(
+                GuideDoctor.applyMappings(channels, mapping), guide,
+            ).map { it.id }
+            val saved = store.save(mapping)
+            val reloaded = GuideMappingStore(context, scratch).load()
+            store.clear()
+            val cleared = store.load().isEmpty()
+            return missingBefore == listOf("qa-one", "qa-four", "qa-five", "qa-bbc") &&
+                suggestion == "qa.one" &&
+                missingAfter == listOf("qa-four", "qa-five", "qa-bbc") &&
+                saved && reloaded == mapping && cleared
+        } finally {
+            store.clear()
+            context.deleteSharedPreferences(scratch)
+        }
+    }
+
+    /**
      * Read one bounded event log for the latest result of each debug-only
      * Android UI probe. Avoid repeating file scans and per-line split lists.
      */
@@ -1332,7 +1374,13 @@ internal object OnDeviceSelfTest {
                 }
             }
         }
+        val guideDoctorPass = runCatching { debugGuideDoctor(context) }.getOrDefault(false)
+        val guideDoctorDetail = if (guideDoctorPass) "Guide Doctor finds unscheduled channels, applies a saved mapping and suggests only scheduled guide channels" else "Guide Doctor rules or storage failed"
         listOf(
+            Check(
+                "debug-guide-doctor", if (guideDoctorPass) State.PASS else State.FAIL,
+                guideDoctorDetail,
+            ),
             Check(
                 "debug-ui-focus", focus,
                 when (focus) {
