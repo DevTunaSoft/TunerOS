@@ -165,4 +165,23 @@ variant.m3u8
 """
         assertEquals(false, (HlsPlaylistParserCore.parse(plain.reader()) as HlsMediaPlaylist).segments.single().initializationMapHasByteRange)
     }
+    @Test fun aes128IvAndKeyFormatArePreservedOnEachSegment() {
+        val text = """#EXTM3U
+#EXT-X-TARGETDURATION:4
+#EXT-X-KEY:METHOD=AES-128,URI="key.bin",IV=0x000102030405060708090A0B0C0D0E0F,KEYFORMAT="identity"
+#EXTINF:4,
+1.ts
+#EXT-X-KEY:METHOD=NONE
+#EXTINF:4,
+2.ts
+#EXT-X-ENDLIST
+"""
+        val segments = (HlsPlaylistParserCore.parse(text.reader()) as HlsMediaPlaylist).segments
+        assertEquals("AES-128", segments[0].keyMethod)
+        assertEquals("key.bin", segments[0].keyUri)
+        assertEquals("0x000102030405060708090A0B0C0D0E0F", segments[0].keyIv)
+        assertEquals("identity", segments[0].keyFormat)
+        assertEquals(null, segments[1].keyIv)
+        assertEquals(null, segments[1].keyFormat)
+    }
 }

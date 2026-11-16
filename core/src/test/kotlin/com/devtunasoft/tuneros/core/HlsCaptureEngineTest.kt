@@ -3,6 +3,9 @@ package com.devtunasoft.tuneros.core
 import java.io.ByteArrayOutputStream
 import java.io.OutputStream
 import java.util.ArrayDeque
+import javax.crypto.Cipher
+import javax.crypto.spec.IvParameterSpec
+import javax.crypto.spec.SecretKeySpec
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -11,11 +14,18 @@ class HlsCaptureEngineTest {
     private class FakeSource(
         playlists: Map<String, List<LoadedHlsPlaylist>>,
         private val segmentBytes: Map<String, ByteArray> = emptyMap(),
+        private val keys: Map<String, ByteArray> = emptyMap(),
     ) : HlsCaptureSource {
         private val queues = playlists.mapValues { ArrayDeque(it.value) }
         val loadedUrls = ArrayList<String>()
         val requestedAfter = ArrayList<Long?>()
         val copied = ArrayList<Pair<String, HlsByteRange?>>()
+        val keyRequests = ArrayList<String>()
+
+        override fun loadKey(url: String): ByteArray {
+            keyRequests += url
+            return keys[url] ?: error("No fake key for $url")
+        }
 
         override fun loadPlaylist(
             url: String,
@@ -123,7 +133,7 @@ class HlsCaptureEngineTest {
                             segments = listOf(
                                 HlsSegment(
                                     1, "1.ts", 4.0, null, false,
-                                    "AES-128", "key.bin", null,
+                                    "SAMPLE-AES", "key.bin", null,
                                 ),
                             ),
                         ),
@@ -137,7 +147,7 @@ class HlsCaptureEngineTest {
         )
         assertEquals(HlsCaptureEngine.StopReason.UNSUPPORTED, result.stopReason)
         assertEquals(0, output.size())
-        assertTrue(result.detail.orEmpty().contains("AES-128"))
+        assertTrue(result.detail.orEmpty().contains("SAMPLE-AES"))
     }
 
     private val fmp4Url = "https://example.test/live.m3u8"
@@ -569,4 +579,176 @@ class HlsCaptureEngineTest {
         assertEquals(listOf("https://example.test/40.ts"), source.copied.map { it.first })
     }
 
+    private val aesKeyUrl = "https://example.test/key.bin"
+    private val aesKey = ByteArray(16) { (it + 1).toByte() }
+
+    private fun aesEncrypt(plain: ByteArray, key: ByteArray, iv: ByteArray): ByteArray =
+        Cipher.getInstance("AES/CBC/PKCS5Padding").let {
+            it.init(Cipher.ENCRYPT_MODE, SecretKeySpec(key, "AES"), IvParameterSpec(iv))
+            it.doFinal(plain)
+        }
+
+    private fun sequenceIv(sequence: Long): ByteArray = ByteArray(16).also { iv ->
+        for (index in 0 until 8) iv[15 - index] = (sequence ushr (8 * index)).toByte()
+    }
+
+    @Test fun aes128SegmentsAreDecryptedWithTheKeyFetchedOnce() {
+        val plainOne = ByteArray(1_000) { (it % 97).toByte() }
+        val plainTwo = ByteArray(77) { (it + 5).toByte() }
+        val url = "https://example.test/live.m3u8"
+        val source = FakeSource(
+            mapOf(
+                url to listOf(
+                    LoadedHlsPlaylist(
+                        url,
+                        HlsMediaPlaylist(1, 4, true, listOf(
+                            HlsSegment(1, "1.ts", 4.0, null, false, "AES-128", "key.bin", null),
+                            HlsSegment(2, "2.ts", 4.0, null, false, "AES-128", "key.bin", null),
+                        )),
+                    ),
+                ),
+            ),
+            mapOf(
+                "https://example.test/1.ts" to aesEncrypt(plainOne, aesKey, sequenceIv(1)),
+                "https://example.test/2.ts" to aesEncrypt(plainTwo, aesKey, sequenceIv(2)),
+            ),
+            mapOf(aesKeyUrl to aesKey),
+        )
+        val out = ByteArrayOutputStream()
+        val result = HlsCaptureEngine().record(url, out, 1_000, source, { false }, { 100 }, {})
+        assertEquals(HlsCaptureEngine.StopReason.END_LIST, result.stopReason)
+        assertTrue((plainOne + plainTwo).contentEquals(out.toByteArray()))
+        assertEquals((plainOne.size + plainTwo.size).toLong(), result.bytesWritten)
+        assertEquals(listOf(aesKeyUrl), source.keyRequests)
+    }
+
+    @Test fun aes128ExplicitIvIsUsedForTheSegment() {
+        val plain = ByteArray(40) { 3 }
+        val explicitIv = ByteArray(16) { (it * 3).toByte() }
+        val url = "https://example.test/live.m3u8"
+        val source = FakeSource(
+            mapOf(
+                url to listOf(
+                    LoadedHlsPlaylist(
+                        url,
+                        HlsMediaPlaylist(1, 4, true, listOf(
+                            HlsSegment(
+                                1, "1.ts", 4.0, null, false, "AES-128", "key.bin", null,
+                                keyIv = "0x" + explicitIv.joinToString("") { "%02X".format(it) },
+                            ),
+                        )),
+                    ),
+                ),
+            ),
+            mapOf("https://example.test/1.ts" to aesEncrypt(plain, aesKey, explicitIv)),
+            mapOf(aesKeyUrl to aesKey),
+        )
+        val out = ByteArrayOutputStream()
+        val result = HlsCaptureEngine().record(url, out, 1_000, source, { false }, { 100 }, {})
+        assertEquals(HlsCaptureEngine.StopReason.END_LIST, result.stopReason)
+        assertTrue(plain.contentEquals(out.toByteArray()))
+    }
+
+    @Test fun aes128WrongKeyFailsClosedAsUndecryptable() {
+        val url = "https://example.test/live.m3u8"
+        val source = FakeSource(
+            mapOf(
+                url to listOf(
+                    LoadedHlsPlaylist(
+                        url,
+                        HlsMediaPlaylist(1, 4, true, listOf(
+                            HlsSegment(1, "1.ts", 4.0, null, false, "AES-128", "key.bin", null),
+                        )),
+                    ),
+                ),
+            ),
+            mapOf("https://example.test/1.ts" to aesEncrypt(ByteArray(64) { 9 }, aesKey, sequenceIv(1))),
+            mapOf(aesKeyUrl to ByteArray(16) { 0x55 }),
+        )
+        val result = HlsCaptureEngine().record(url, ByteArrayOutputStream(), 1_000, source, { false }, { 100 }, {})
+        assertEquals(HlsCaptureEngine.StopReason.UNSUPPORTED, result.stopReason)
+        assertTrue(result.detail.orEmpty().contains("could not be decrypted"))
+    }
+
+    @Test fun aes128KeyOfTheWrongLengthFailsClosedBeforeAnySegmentIsRead() {
+        val url = "https://example.test/live.m3u8"
+        val source = FakeSource(
+            mapOf(
+                url to listOf(
+                    LoadedHlsPlaylist(
+                        url,
+                        HlsMediaPlaylist(1, 4, true, listOf(
+                            HlsSegment(1, "1.ts", 4.0, null, false, "AES-128", "key.bin", null),
+                        )),
+                    ),
+                ),
+            ),
+            keys = mapOf(aesKeyUrl to ByteArray(8) { 1 }),
+        )
+        val result = HlsCaptureEngine().record(url, ByteArrayOutputStream(), 1_000, source, { false }, { 100 }, {})
+        assertEquals(HlsCaptureEngine.StopReason.UNSUPPORTED, result.stopReason)
+        assertTrue(result.detail.orEmpty().contains("16 bytes"))
+        assertEquals(emptyList(), source.copied.map { it.first })
+    }
+
+    @Test fun aes128NonIdentityKeyFormatFailsClosed() {
+        val url = "https://example.test/live.m3u8"
+        val source = FakeSource(
+            mapOf(
+                url to listOf(
+                    LoadedHlsPlaylist(
+                        url,
+                        HlsMediaPlaylist(1, 4, true, listOf(
+                            HlsSegment(1, "1.ts", 4.0, null, false, "AES-128", "key.bin", null, keyFormat = "com.example.keys"),
+                        )),
+                    ),
+                ),
+            ),
+        )
+        val result = HlsCaptureEngine().record(url, ByteArrayOutputStream(), 1_000, source, { false }, { 100 }, {})
+        assertEquals(HlsCaptureEngine.StopReason.UNSUPPORTED, result.stopReason)
+        assertTrue(result.detail.orEmpty().contains("key format"))
+        assertEquals(emptyList(), source.keyRequests)
+    }
+
+    @Test fun aes128Fmp4InitializationFailsClosed() {
+        val url = "https://example.test/live.m3u8"
+        val source = FakeSource(
+            mapOf(
+                url to listOf(
+                    LoadedHlsPlaylist(
+                        url,
+                        HlsMediaPlaylist(1, 4, true, listOf(
+                            HlsSegment(1, "1.m4s", 4.0, null, false, "AES-128", "key.bin", "init.mp4"),
+                        )),
+                    ),
+                ),
+            ),
+        )
+        val result = HlsCaptureEngine().record(url, ByteArrayOutputStream(), 1_000, source, { false }, { 100 }, {})
+        assertEquals(HlsCaptureEngine.StopReason.UNSUPPORTED, result.stopReason)
+        assertTrue(result.detail.orEmpty().contains("initialization"))
+        assertEquals(emptyList(), source.copied.map { it.first })
+    }
+
+    @Test fun malformedAes128IvFailsClosed() {
+        val url = "https://example.test/live.m3u8"
+        val source = FakeSource(
+            mapOf(
+                url to listOf(
+                    LoadedHlsPlaylist(
+                        url,
+                        HlsMediaPlaylist(1, 4, true, listOf(
+                            HlsSegment(1, "1.ts", 4.0, null, false, "AES-128", "key.bin", null, keyIv = "0x1234"),
+                        )),
+                    ),
+                ),
+            ),
+            keys = mapOf(aesKeyUrl to aesKey),
+        )
+        val result = HlsCaptureEngine().record(url, ByteArrayOutputStream(), 1_000, source, { false }, { 100 }, {})
+        assertEquals(HlsCaptureEngine.StopReason.UNSUPPORTED, result.stopReason)
+        assertTrue(result.detail.orEmpty().contains("IV"))
+        assertEquals(emptyList(), source.copied.map { it.first })
+    }
 }

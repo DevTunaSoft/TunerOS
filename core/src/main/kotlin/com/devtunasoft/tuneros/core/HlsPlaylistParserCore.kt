@@ -33,6 +33,8 @@ data class HlsSegment(
     val keyUri: String?,
     val initializationMapUri: String?,
     val initializationMapHasByteRange: Boolean = false,
+    val keyIv: String? = null,
+    val keyFormat: String? = null,
 )
 
 data class HlsMediaPlaylist(
@@ -81,6 +83,8 @@ object HlsPlaylistParserCore {
         var pendingDiscontinuity = false
         var currentKeyMethod = "NONE"
         var currentKeyUri: String? = null
+        var currentKeyIv: String? = null
+        var currentKeyFormat: String? = null
         var currentMapUri: String? = null
         var currentMapHasByteRange = false
         var pendingVariantBandwidth: Long? = null
@@ -172,6 +176,8 @@ object HlsPlaylistParserCore {
                     require(!sawMasterTag) { "Mixed HLS master and media playlist" }
                     currentKeyMethod = attribute(line, "METHOD")?.uppercase() ?: "NONE"
                     currentKeyUri = if (currentKeyMethod == "NONE") null else attribute(line, "URI")
+                    currentKeyIv = if (currentKeyMethod == "NONE") null else attribute(line, "IV")
+                    currentKeyFormat = if (currentKeyMethod == "NONE") null else attribute(line, "KEYFORMAT")
                     sawMediaTag = true
                 }
                 line.startsWith("#EXT-X-MAP:", ignoreCase = true) -> {
@@ -245,6 +251,8 @@ object HlsPlaylistParserCore {
                             keyUri = currentKeyUri,
                             initializationMapUri = currentMapUri,
                             initializationMapHasByteRange = currentMapHasByteRange,
+                            keyIv = currentKeyIv,
+                            keyFormat = currentKeyFormat,
                         )
                     }
                     pendingDuration = null

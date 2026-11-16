@@ -1,6 +1,7 @@
 package com.devtunasoft.tuneros
 
 import com.devtunasoft.tuneros.core.BodyLength
+import com.devtunasoft.tuneros.core.HlsAes128
 import com.devtunasoft.tuneros.core.HlsByteRange
 import com.devtunasoft.tuneros.core.HlsCaptureSource
 import com.devtunasoft.tuneros.core.HlsPlaylistParserCore
@@ -67,6 +68,26 @@ internal class AndroidHlsCaptureSource(
                 throw IOException("HLS segment HTTP body length mismatch")
             }
             result
+        } finally {
+            connection.disconnect()
+        }
+    }
+
+    override fun loadKey(url: String): ByteArray {
+        val connection = openConnection(url, null)
+        return try {
+            connection.inputStream.use { input ->
+                // An AES-128 key is 16 bytes. Read one byte past that so an oversized response is rejected, not cut.
+                val buffer = ByteArray(HlsAes128.KEY_BYTES + 1)
+                var total = 0
+                while (total < buffer.size) {
+                    val read = input.read(buffer, total, buffer.size - total)
+                    if (read < 0) break
+                    total += read
+                }
+                if (total > HlsAes128.KEY_BYTES) throw IOException("HLS key response is larger than an AES-128 key")
+                buffer.copyOf(total)
+            }
         } finally {
             connection.disconnect()
         }

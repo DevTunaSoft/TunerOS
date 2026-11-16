@@ -1,5 +1,6 @@
 package com.devtunasoft.tuneros.core
 
+import java.io.IOException
 import java.io.OutputStream
 import java.net.URI
 
@@ -21,7 +22,12 @@ interface HlsCaptureSource {
         cancelled: () -> Boolean,
         onProgress: (Long) -> Unit,
     ): StreamRecorder.Result
+
+    /** Fetches an AES-128 key. The bytes stay in memory for one recording and are never logged. */
+    fun loadKey(url: String): ByteArray
 }
+
+private const val MAX_CACHED_KEYS = 4
 
 class HlsCaptureEngine(
     private val maxStalledPolls: Int = 6,
@@ -63,6 +69,16 @@ class HlsCaptureEngine(
         var selectedVariant = false
         var initializationUri: String? = null
         var mediaWritten = false
+        val keys = LinkedHashMap<String, ByteArray>()
+        // Keys are cached by absolute URL, a few at a time, so rotating keys cannot grow memory.
+        fun keyFor(resolvedUrl: String): ByteArray? {
+            keys[resolvedUrl]?.let { return it }
+            val fetched = source.loadKey(resolvedUrl)
+            if (fetched.size != HlsAes128.KEY_BYTES) return null
+            if (keys.size >= MAX_CACHED_KEYS) keys.remove(keys.keys.first())
+            keys[resolvedUrl] = fetched
+            return fetched
+        }
 
         while (true) {
             if (cancelled()) return Result(totalBytes, lastSequence, StopReason.CANCELLED)
@@ -174,12 +190,30 @@ class HlsCaptureEngine(
                         if (nowEpochSeconds() >= endEpochSeconds) {
                             return Result(totalBytes, lastSequence, StopReason.DEADLINE)
                         }
-                        if (!segment.keyMethod.equals("NONE", ignoreCase = true)) {
+                        val keyed = !segment.keyMethod.equals("NONE", ignoreCase = true)
+                        if (keyed && !segment.keyMethod.equals("AES-128", ignoreCase = true)) {
                             return Result(
                                 totalBytes,
                                 lastSequence,
                                 StopReason.UNSUPPORTED,
-                                "Encrypted HLS is not supported yet (${segment.keyMethod})",
+                                "Encrypted HLS method is not supported (${segment.keyMethod})",
+                            )
+                        }
+                        val keyFormat = segment.keyFormat
+                        if (keyed && keyFormat != null && !keyFormat.equals("identity", ignoreCase = true)) {
+                            return Result(
+                                totalBytes,
+                                lastSequence,
+                                StopReason.UNSUPPORTED,
+                                "Encrypted HLS key format is not supported",
+                            )
+                        }
+                        if (keyed && segment.initializationMapUri != null) {
+                            return Result(
+                                totalBytes,
+                                lastSequence,
+                                StopReason.UNSUPPORTED,
+                                "Encrypted fMP4 initialization is not supported",
                             )
                         }
                         val mapUri = segment.initializationMapUri
@@ -243,14 +277,45 @@ class HlsCaptureEngine(
 
                         val segmentUrl = resolveHttp(loaded.effectiveUrl, segment.uri)
                         val before = totalBytes
+                        val decryptor = if (keyed) {
+                            val keyUri = segment.keyUri ?: return Result(
+                                totalBytes, lastSequence, StopReason.UNSUPPORTED, "AES-128 key URI is missing",
+                            )
+                            val key = keyFor(resolveHttp(loaded.effectiveUrl, keyUri)) ?: return Result(
+                                totalBytes, lastSequence, StopReason.UNSUPPORTED, "AES-128 key must be 16 bytes",
+                            )
+                            val iv = HlsAes128.initializationVector(segment.keyIv, segment.sequence) ?: return Result(
+                                totalBytes, lastSequence, StopReason.UNSUPPORTED, "AES-128 IV is malformed",
+                            )
+                            HlsAes128.Decryptor(key, iv, output)
+                        } else {
+                            null
+                        }
                         val copy = source.copySegment(
                             url = segmentUrl,
                             byteRange = segment.byteRange,
-                            output = output,
+                            output = decryptor ?: output,
                             cancelled = cancelled,
-                            onProgress = { segmentBytes -> onProgress(before + segmentBytes) },
+                            // Progress counts plaintext on disk. The copy counts the ciphertext it read.
+                            onProgress = { segmentBytes ->
+                                onProgress(before + (decryptor?.plaintextBytes ?: segmentBytes))
+                            },
                         )
-                        totalBytes = Math.addExact(totalBytes, copy.bytesWritten)
+                        if (decryptor != null && copy.stopReason == StreamRecorder.StopReason.END_OF_STREAM) {
+                            try {
+                                decryptor.finish()
+                            } catch (error: IOException) {
+                                totalBytes = Math.addExact(totalBytes, decryptor.plaintextBytes)
+                                return Result(
+                                    totalBytes,
+                                    lastSequence,
+                                    StopReason.UNSUPPORTED,
+                                    "Encrypted HLS segment could not be decrypted",
+                                )
+                            }
+                        }
+                        // Byte-range and body-length checks use ciphertext. Disk totals use plaintext.
+                        totalBytes = Math.addExact(totalBytes, decryptor?.plaintextBytes ?: copy.bytesWritten)
 
                         when (copy.stopReason) {
                             StreamRecorder.StopReason.END_OF_STREAM -> {
