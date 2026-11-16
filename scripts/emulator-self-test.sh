@@ -843,10 +843,10 @@ if ! grep -Fq "$(printf 'PASS\tqa-recording-playback-first-frame\tfirst video fr
   exit 1
 fi
 
-# Live DASH on the device. The runner serves a dynamic manifest whose 2-second segments appear on the clock, each one
-# second after its media time has elapsed. The recorder therefore sees a 404 for each segment at first and must retry it
-# inside its grace window. The recording must reach the scheduled stop as COMPLETED, its stored bytes must be the
-# initialization segment followed by consecutive segments, and the stored file must play back.
+# Live DASH on the device. The runner serves a dynamic manifest of 2-second segments on the device's clock. The origin
+# answers the first request for each segment with 404, so the recorder must retry every segment inside its grace window.
+# The recording must reach the scheduled stop as COMPLETED, its stored bytes must be the initialization segment followed
+# by at least two consecutive segments, and the stored file must play back.
 rm -rf ci-live && mkdir -p ci-live/static
 ffmpeg -y -loglevel error -f lavfi -i testsrc=duration=60:size=160x120:rate=10 -c:v libx264 -pix_fmt yuv420p \
   -g 20 -keyint_min 20 -sc_threshold 0 -f dash -seg_duration 2 -use_template 1 -use_timeline 0 ci-live/static/manifest.mpd
@@ -864,9 +864,9 @@ START = float(sys.argv[3])  # runner epoch seconds at which the stream starts
 OFFSET = float(sys.argv[4])  # device clock minus runner clock: the manifest is written on the device's clock
 SEGMENTS = int(sys.argv[5])
 SEGMENT_SECONDS = 2
-# A segment is published this long after its media time has elapsed. It must exceed the recorder's first-attempt lag
-# (its poll interval, clock rounding and the measured offset error), so its first request is always refused.
-PUBLISH_DELAY = 4.0
+# The first request for each segment is answered 404, as an origin does before it publishes a segment; later requests
+# are served. Every segment therefore exercises the recorder's retry path, whatever the clocks and the poll phase.
+REQUESTS = {}
 
 STAMP = datetime.datetime.fromtimestamp(START + OFFSET, datetime.timezone.utc).isoformat(timespec="milliseconds")
 STAMP = STAMP.replace("+00:00", "Z")
@@ -907,8 +907,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
             digits = name[len("chunk-"):-len(".m4s")]
             if digits.isdigit():
                 number = int(digits)
-                if 1 <= number <= SEGMENTS and time.time() >= START + SEGMENT_SECONDS * number + PUBLISH_DELAY:
-                    return send(self, read("chunk-stream0-%05d.m4s" % number), "video/mp4")
+                if 1 <= number <= SEGMENTS:
+                    REQUESTS[number] = REQUESTS.get(number, 0) + 1
+                    if REQUESTS[number] > 1:
+                        return send(self, read("chunk-stream0-%05d.m4s" % number), "video/mp4")
         self.send_error(404)
 
     def log_message(self, format, *args):
@@ -996,7 +998,7 @@ case "$LIVE_VERDICT" in
 esac
 LIVE_REFUSED=$(grep -c '" 404 ' live-server.log || true)
 if [ "$LIVE_REFUSED" -lt 1 ]; then
-  echo "The live server refused no segment before publication, so the retry path was not exercised"
+  echo "The live server answered no request with 404, so the retry path was not exercised"
   tail -20 live-server.log 2>/dev/null || true
   kill "$LIVE_HTTP_PID" 2>/dev/null || true
   exit 1
@@ -1016,7 +1018,7 @@ if ! grep -Fq "$(printf 'PASS\tqa-recording-playback-first-frame\tfirst video fr
   exit 1
 fi
 kill "$LIVE_HTTP_PID" 2>/dev/null || true
-echo "live DASH recording reached the scheduled stop: ${LIVE_DISK} bytes, ${LIVE_VERDICT}, ${LIVE_REFUSED} segment requests refused before publication at a ${LIVE_OFFSET} s device offset, and plays back"
+echo "live DASH recording reached the scheduled stop: ${LIVE_DISK} bytes, ${LIVE_VERDICT}, ${LIVE_REFUSED} requests answered 404 on first attempt, at a ${LIVE_OFFSET} s device offset, and plays back"
 
 # Optional real-feed import: a public playlist supplied at dispatch time (never committed). The
 # guide stays a runner fixture so the expected programme count is fixed. Channel count must be > 0.
