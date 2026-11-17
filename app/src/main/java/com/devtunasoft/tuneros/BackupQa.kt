@@ -23,6 +23,7 @@ internal object BackupQa {
         guideMappings = mapOf("qa-one" to "guide.qa.one"),
         seriesRules = listOf(SeriesRule("qa show", "qa-one"), SeriesRule("qa news", null)),
         restrictedGroups = setOf("qa-adult"),
+        restrictedChannels = setOf("qa-channel"),
     )
 
     fun run(context: Context) {

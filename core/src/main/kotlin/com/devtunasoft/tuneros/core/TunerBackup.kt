@@ -9,6 +9,7 @@ data class BackupContents(
     val guideMappings: Map<String, String>,
     val seriesRules: List<SeriesRule>,
     val restrictedGroups: Set<String>,
+    val restrictedChannels: Set<String> = emptySet(),
 )
 
 /**
@@ -39,6 +40,9 @@ object TunerBackup {
         for (group in contents.restrictedGroups.sorted()) {
             lines += "restricted\t" + field(group, allowEmpty = false)
         }
+        for (channel in contents.restrictedChannels.sorted()) {
+            lines += "restricted-channel\t" + field(channel, allowEmpty = false)
+        }
         require(lines.size <= MAX_RECORDS) { "the backup holds too many records" }
         val text = HEADER + "\n" + lines.joinToString("") { it + "\n" }
         require(text.toByteArray(Charsets.UTF_8).size <= MAX_BYTES) { "the backup is too large" }
@@ -53,6 +57,7 @@ object TunerBackup {
         val mappings = LinkedHashMap<String, String>()
         val series = ArrayList<SeriesRule>()
         val restricted = LinkedHashSet<String>()
+        val channels = LinkedHashSet<String>()
         var records = 0
         for (line in lines.drop(1)) {
             if (line.isEmpty()) continue
@@ -77,10 +82,20 @@ object TunerBackup {
                     require(fields.size == 2) { "a restricted record has the wrong number of fields" }
                     restricted += value(fields[1], allowEmpty = false)
                 }
+                "restricted-channel" -> {
+                    require(fields.size == 2) { "a restricted channel record has the wrong number of fields" }
+                    channels += value(fields[1], allowEmpty = false)
+                }
                 else -> throw IllegalArgumentException("the backup holds a record kind this version does not read")
             }
         }
-        return BackupContents(favorites, mappings, series, ParentalPolicy.normalizeAll(restricted))
+        return BackupContents(
+            favorites,
+            mappings,
+            series,
+            ParentalPolicy.normalizeAll(restricted),
+            ParentalPolicy.normalizeAll(channels),
+        )
     }
 
     /** Checks a value before it is written, then escapes it for its record. */

@@ -91,6 +91,20 @@ class TunerBackupTest {
         assertEquals(setOf("adult"), restored.restrictedGroups)
     }
 
+    @Test fun restrictedChannelsSurviveARoundTripAndAreStoredNormalized() {
+        val withChannels = sample.copy(restrictedChannels = setOf(" News Three "))
+        assertEquals(setOf("news three"), TunerBackup.decode(TunerBackup.encode(withChannels)).restrictedChannels)
+    }
+
+    @Test fun aBackupWithTooManyRestrictedChannelsIsRefused() {
+        val channels = (1..ParentalPolicy.MAX_RESTRICTED_GROUPS + 1).joinToString("") { "restricted-channel\tchannel-$it\n" }
+        assertFailsWith<IllegalArgumentException> { TunerBackup.decode(TunerBackup.HEADER + "\n" + channels) }
+    }
+
+    @Test fun aBackupWithABlankRestrictedChannelIsRefused() {
+        assertFailsWith<IllegalArgumentException> { TunerBackup.decode(TunerBackup.HEADER + "\nrestricted-channel\t   \n") }
+    }
+
     @Test fun aValueOverTheLengthLimitIsRefused() {
         val long = "a".repeat(TunerBackup.MAX_VALUE_CHARS + 1)
         assertFailsWith<IllegalArgumentException> { TunerBackup.encode(sample.copy(favorites = setOf(long))) }

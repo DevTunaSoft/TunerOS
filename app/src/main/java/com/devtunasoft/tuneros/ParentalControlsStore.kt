@@ -65,6 +65,11 @@ internal class ParentalControlsStore(context: Context, prefsName: String = PREFS
 
     fun restrictedChannels(): Set<String> = prefs.getStringSet(KEY_RESTRICTED_CHANNELS, null).orEmpty().toSet()
 
+    /** Replaces the restricted channel names in one write. The whole list is checked first. */
+    fun replaceRestrictedChannels(channels: Set<String>) {
+        prefs.edit().putStringSet(KEY_RESTRICTED_CHANNELS, ParentalPolicy.normalizeAll(channels).toMutableSet()).apply()
+    }
+
     /** Adds or removes [channel] from the restricted channel names. Refuses an empty name or too many entries. */
     fun restrictChannel(channel: String, restricted: Boolean) {
         val next = ParentalPolicy.restrict(restrictedChannels(), channel, restricted)

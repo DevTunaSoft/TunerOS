@@ -24,6 +24,7 @@ internal class BackupRestore(
             guideMappings = mappings.load(),
             seriesRules = series.all(),
             restrictedGroups = restrictions.restrictedGroups(),
+            restrictedChannels = restrictions.restrictedChannels(),
         ),
     )
 
@@ -31,12 +32,14 @@ internal class BackupRestore(
     fun apply(contents: BackupContents) {
         // The restricted groups are checked before any store changes, so a refused backup leaves every store as it was.
         val restricted = ParentalPolicy.normalizeAll(contents.restrictedGroups)
+        val channels = ParentalPolicy.normalizeAll(contents.restrictedChannels)
         check(favorites.save(contents.favorites)) { "the favorites could not be saved" }
         check(mappings.save(contents.guideMappings)) { "the guide mappings could not be saved" }
         val now = nowEpochSeconds()
         for (rule in series.all()) series.remove(rule)
         for (rule in contents.seriesRules) series.add(rule, now)
         restrictions.replaceRestrictedGroups(restricted)
+        restrictions.replaceRestrictedChannels(channels)
     }
 
     companion object {
