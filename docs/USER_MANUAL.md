@@ -24,7 +24,7 @@ The on-device report is private until explicitly shared. Do not paste an M3U/XML
 
 The player and DVR remain alpha quality. Remote focus behavior, all provider stream formats, true recording recovery, disconnected removable storage, and low-memory stress behavior have **not** passed autonomous hardware acceptance. See [the QA coverage ledger](ON_DEVICE_QA.md).
 
-Encrypted HLS: AES-128 segments can be recorded. SAMPLE-AES segments of MPEG-TS can be recorded, but not for timeshift, and that path is unverified against real streams. FairPlay and encrypted fMP4 streams are refused, so nothing is recorded from them and they fail closed.
+Encrypted HLS: AES-128 segments can be recorded. SAMPLE-AES and FairPlay streams are refused, so nothing is recorded from them and they fail closed.
 
 ## Testing behavior (debug vs. normal installs)
 

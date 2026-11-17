@@ -133,7 +133,7 @@ class HlsCaptureEngineTest {
                             segments = listOf(
                                 HlsSegment(
                                     1, "1.ts", 4.0, null, false,
-                                    "SAMPLE-AES-CTR", "key.bin", null,
+                                    "SAMPLE-AES", "key.bin", null,
                                 ),
                             ),
                         ),
@@ -894,120 +894,6 @@ class HlsCaptureEngineTest {
         assertEquals("fMP4 initialization is not supported for timeshift", result.detail)
         assertEquals(0, output.size())
         assertEquals(emptyList<String>(), listener.completed)
-    }
-
-    @Test fun sampleAesSegmentIsRewrittenToItsClearTransportStreamWhenRecording() {
-        val clear = SampleAesFixtures.segment(
-            SampleAesFixtures.annexB(SampleAesFixtures.nal(0x65, ByteArray(300) { (4 + it % 200).toByte() })),
-            audio = SampleAesFixtures.adts(ByteArray(64) { 9 }),
-        )
-        val url = "https://example.test/live.m3u8"
-        val encrypted = SampleAes.encryptSegment(clear, aesKey, sequenceIv(1))!!
-        val source = FakeSource(
-            mapOf(
-                url to listOf(
-                    LoadedHlsPlaylist(
-                        url,
-                        HlsMediaPlaylist(1, 4, true, listOf(
-                            HlsSegment(1, "1.ts", 4.0, null, false, "SAMPLE-AES", "key.bin", null),
-                        )),
-                    ),
-                ),
-            ),
-            mapOf("https://example.test/1.ts" to encrypted),
-            mapOf(aesKeyUrl to aesKey),
-        )
-        val out = ByteArrayOutputStream()
-        val result = HlsCaptureEngine().record(url, out, 1_000, source, { false }, { 100 }, {})
-        assertEquals(HlsCaptureEngine.StopReason.END_LIST, result.stopReason)
-        assertTrue(clear.contentEquals(out.toByteArray()))
-        assertEquals(clear.size.toLong(), result.bytesWritten)
-        assertEquals(listOf(aesKeyUrl), source.keyRequests)
-    }
-
-    @Test fun sampleAesIsRefusedForTimeshiftBeforeAnyKeyIsFetched() {
-        val url = "https://example.test/vod.m3u8"
-        val source = FakeSource(
-            playlists = mapOf(
-                url to listOf(
-                    endedPlaylist(url, HlsSegment(5, "a.ts", 2.0, null, false, "SAMPLE-AES", "key.bin", null)),
-                ),
-            ),
-        )
-        val output = ByteArrayOutputStream()
-        val result = HlsCaptureEngine().record(
-            url, output, 1_000, source, { false }, { 100 }, {}, segmentListener = CompletedSegments(),
-        )
-        assertEquals(HlsCaptureEngine.StopReason.UNSUPPORTED, result.stopReason)
-        assertEquals("SAMPLE-AES is not supported for timeshift", result.detail)
-        assertEquals(0, output.size())
-        assertEquals(emptyList<String>(), source.keyRequests)
-    }
-
-    @Test fun sampleAesWithAFairPlayKeyUriFailsBeforeAnyKeyIsFetched() {
-        val url = "https://example.test/live.m3u8"
-        val source = FakeSource(
-            mapOf(
-                url to listOf(
-                    LoadedHlsPlaylist(
-                        url,
-                        HlsMediaPlaylist(1, 4, true, listOf(
-                            HlsSegment(1, "1.ts", 4.0, null, false, "SAMPLE-AES", "skd://keys/1", null),
-                        )),
-                    ),
-                ),
-            ),
-        )
-        val result = HlsCaptureEngine().record(url, ByteArrayOutputStream(), 1_000, source, { false }, { 100 }, {})
-        assertEquals(HlsCaptureEngine.StopReason.UNSUPPORTED, result.stopReason)
-        assertTrue(result.detail.orEmpty().contains("FairPlay"))
-        assertEquals(emptyList<String>(), source.keyRequests)
-    }
-
-    @Test fun sampleAesSegmentLargerThanTheLimitFailsClosedWithNoBytesWritten() {
-        val url = "https://example.test/live.m3u8"
-        val source = FakeSource(
-            mapOf(
-                url to listOf(
-                    LoadedHlsPlaylist(
-                        url,
-                        HlsMediaPlaylist(1, 4, true, listOf(
-                            HlsSegment(1, "1.ts", 4.0, null, false, "SAMPLE-AES", "key.bin", null),
-                        )),
-                    ),
-                ),
-            ),
-            mapOf("https://example.test/1.ts" to ByteArray(SampleAes.MAX_SEGMENT_BYTES + 1)),
-            mapOf(aesKeyUrl to aesKey),
-        )
-        val output = ByteArrayOutputStream()
-        val result = HlsCaptureEngine().record(url, output, 1_000, source, { false }, { 100 }, {})
-        assertEquals(HlsCaptureEngine.StopReason.UNSUPPORTED, result.stopReason)
-        assertTrue(result.detail.orEmpty().contains("larger than"))
-        assertEquals(0, output.size())
-    }
-
-    @Test fun sampleAesSegmentThatIsNotATransportStreamFailsClosed() {
-        val url = "https://example.test/live.m3u8"
-        val source = FakeSource(
-            mapOf(
-                url to listOf(
-                    LoadedHlsPlaylist(
-                        url,
-                        HlsMediaPlaylist(1, 4, true, listOf(
-                            HlsSegment(1, "1.ts", 4.0, null, false, "SAMPLE-AES", "key.bin", null),
-                        )),
-                    ),
-                ),
-            ),
-            mapOf("https://example.test/1.ts" to ByteArray(376) { 1 }),
-            mapOf(aesKeyUrl to aesKey),
-        )
-        val output = ByteArrayOutputStream()
-        val result = HlsCaptureEngine().record(url, output, 1_000, source, { false }, { 100 }, {})
-        assertEquals(HlsCaptureEngine.StopReason.UNSUPPORTED, result.stopReason)
-        assertTrue(result.detail.orEmpty().contains("could not be decrypted"))
-        assertEquals(0, output.size())
     }
 
     @Test fun timeshiftRefusesASegmentWithoutADurationBeforeWritingIt() {

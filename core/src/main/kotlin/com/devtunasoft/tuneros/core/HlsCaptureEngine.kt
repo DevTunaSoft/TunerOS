@@ -1,6 +1,5 @@
 package com.devtunasoft.tuneros.core
 
-import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.io.OutputStream
 import java.net.URI
@@ -37,29 +36,6 @@ interface HlsSegmentListener {
 }
 
 private const val MAX_CACHED_KEYS = 4
-
-/**
- * Holds one SAMPLE-AES segment in memory. Bytes past [limit] are dropped and [overflowed] is set, so the copy can stop
- * without the segment growing past the limit.
- */
-private class BoundedSegmentBuffer(private val limit: Int) : OutputStream() {
-    private val bytes = ByteArrayOutputStream()
-
-    var overflowed = false
-        private set
-
-    override fun write(b: Int) {
-        if (bytes.size() < limit) bytes.write(b) else overflowed = true
-    }
-
-    override fun write(b: ByteArray, off: Int, len: Int) {
-        val room = limit - bytes.size()
-        if (len > room) overflowed = true
-        if (room > 0) bytes.write(b, off, minOf(len, room))
-    }
-
-    fun toByteArray(): ByteArray = bytes.toByteArray()
-}
 
 class HlsCaptureEngine(
     private val maxStalledPolls: Int = 6,
@@ -236,21 +212,12 @@ class HlsCaptureEngine(
                             )
                         }
                         val keyed = !segment.keyMethod.equals("NONE", ignoreCase = true)
-                        val sampleAes = keyed && segment.keyMethod.equals("SAMPLE-AES", ignoreCase = true)
-                        if (keyed && !sampleAes && !segment.keyMethod.equals("AES-128", ignoreCase = true)) {
+                        if (keyed && !segment.keyMethod.equals("AES-128", ignoreCase = true)) {
                             return Result(
                                 totalBytes,
                                 lastSequence,
                                 StopReason.UNSUPPORTED,
                                 "Encrypted HLS method is not supported (${segment.keyMethod})",
-                            )
-                        }
-                        if (sampleAes && segmentListener != null) {
-                            return Result(
-                                totalBytes,
-                                lastSequence,
-                                StopReason.UNSUPPORTED,
-                                "SAMPLE-AES is not supported for timeshift",
                             )
                         }
                         val keyFormat = segment.keyFormat
@@ -342,44 +309,28 @@ class HlsCaptureEngine(
 
                         val segmentUrl = resolveHttp(loaded.effectiveUrl, segment.uri)
                         val before = totalBytes
-                        val keyMaterial = if (keyed) {
+                        val decryptor = if (keyed) {
                             val keyUri = segment.keyUri ?: return Result(
-                                totalBytes, lastSequence, StopReason.UNSUPPORTED, "Encrypted HLS key URI is missing",
+                                totalBytes, lastSequence, StopReason.UNSUPPORTED, "AES-128 key URI is missing",
                             )
-                            if (sampleAes && keyUri.startsWith("skd:", ignoreCase = true)) {
-                                return Result(
-                                    totalBytes,
-                                    lastSequence,
-                                    StopReason.UNSUPPORTED,
-                                    "FairPlay key delivery is not supported",
-                                )
-                            }
                             val key = keyFor(resolveHttp(loaded.effectiveUrl, keyUri)) ?: return Result(
-                                totalBytes, lastSequence, StopReason.UNSUPPORTED, "Encrypted HLS key must be 16 bytes",
+                                totalBytes, lastSequence, StopReason.UNSUPPORTED, "AES-128 key must be 16 bytes",
                             )
                             val iv = HlsAes128.initializationVector(segment.keyIv, segment.sequence) ?: return Result(
-                                totalBytes, lastSequence, StopReason.UNSUPPORTED, "Encrypted HLS IV is malformed",
+                                totalBytes, lastSequence, StopReason.UNSUPPORTED, "AES-128 IV is malformed",
                             )
-                            key to iv
-                        } else {
-                            null
-                        }
-                        // AES-128 streams through its decryptor. SAMPLE-AES rewrites whole transport packets, so the
-                        // segment is held in memory (up to a limit) and written once it has been decrypted.
-                        val sampleBuffer = if (sampleAes) BoundedSegmentBuffer(SampleAes.MAX_SEGMENT_BYTES) else null
-                        val decryptor = if (keyMaterial != null && !sampleAes) {
-                            HlsAes128.Decryptor(keyMaterial.first, keyMaterial.second, output)
+                            HlsAes128.Decryptor(key, iv, output)
                         } else {
                             null
                         }
                         val copy = source.copySegment(
                             url = segmentUrl,
                             byteRange = segment.byteRange,
-                            output = sampleBuffer ?: decryptor ?: output,
-                            cancelled = { cancelled() || sampleBuffer?.overflowed == true },
+                            output = decryptor ?: output,
+                            cancelled = cancelled,
                             // Progress counts plaintext on disk. The copy counts the ciphertext it read.
-                            onProgress = { read ->
-                                if (sampleBuffer == null) onProgress(before + (decryptor?.plaintextBytes ?: read))
+                            onProgress = { segmentBytes ->
+                                onProgress(before + (decryptor?.plaintextBytes ?: segmentBytes))
                             },
                         )
                         if (decryptor != null && copy.stopReason == StreamRecorder.StopReason.END_OF_STREAM) {
@@ -395,37 +346,8 @@ class HlsCaptureEngine(
                                 )
                             }
                         }
-                        var rewrittenBytes = 0L
-                        if (sampleBuffer != null) {
-                            if (sampleBuffer.overflowed) {
-                                return Result(
-                                    totalBytes,
-                                    lastSequence,
-                                    StopReason.UNSUPPORTED,
-                                    "SAMPLE-AES segment is larger than ${SampleAes.MAX_SEGMENT_BYTES} bytes",
-                                )
-                            }
-                            if (keyMaterial != null && copy.stopReason == StreamRecorder.StopReason.END_OF_STREAM) {
-                                val clear = SampleAes.decryptSegment(
-                                    sampleBuffer.toByteArray(),
-                                    keyMaterial.first,
-                                    keyMaterial.second,
-                                ) ?: return Result(
-                                    totalBytes,
-                                    lastSequence,
-                                    StopReason.UNSUPPORTED,
-                                    "Encrypted HLS segment could not be decrypted",
-                                )
-                                output.write(clear)
-                                rewrittenBytes = clear.size.toLong()
-                            }
-                        }
                         // Byte-range and body-length checks use ciphertext. Disk totals use plaintext.
-                        val segmentBytes = when {
-                            decryptor != null -> decryptor.plaintextBytes
-                            sampleBuffer != null -> rewrittenBytes
-                            else -> copy.bytesWritten
-                        }
+                        val segmentBytes = decryptor?.plaintextBytes ?: copy.bytesWritten
                         totalBytes = Math.addExact(totalBytes, segmentBytes)
 
                         when (copy.stopReason) {
