@@ -159,6 +159,9 @@ class MainActivity : Activity() {
     // Window shift requests from the guide. The guide focus checks read these instead of the screen.
     private var guideWindowShiftCount = 0
     private var lastGuideWindowShift = 0
+    // The guide row that UP or DOWN focuses once the list has laid it out, and how many layout passes to wait for it.
+    private var pendingRowFocus: android.view.ViewTreeObserver.OnGlobalLayoutListener? = null
+    private val rowFocusLayoutPasses = 5
     private val guideWindowSeconds = 3 * 3600L
     private val guideStepSeconds = 30 * 60L
     private val timeFormatter = DateTimeFormatter.ofPattern("h:mm a")
@@ -374,6 +377,8 @@ class MainActivity : Activity() {
             adapter = channelAdapter
             isFocusable = true
             dividerHeight = 0
+            // The list takes UP and DOWN for its own selection. This listener sees them first and moves the focus between rows.
+            setOnKeyListener { _, keyCode, event -> moveFocusBetweenRows(keyCode, event) }
         }
         root.addView(channelList, LinearLayout.LayoutParams(-1, 0, 1.3f))
         if (retained != null) {
@@ -1439,6 +1444,73 @@ class MainActivity : Activity() {
     private fun shiftGuideWindow(deltaSeconds: Long) {
         guideWindowStart += deltaSeconds
         renderChannels()
+    }
+
+    /**
+     * UP and DOWN move the focus to the same kind of view in the neighbouring guide row. ListView takes these keys for its own
+     * selection, so the focus would otherwise stay on the row it was on. A row that is off screen is shown first, and the focus
+     * follows once the list has laid it out. Returns false when there is no neighbouring row, so the list keeps the key.
+     */
+    private fun moveFocusBetweenRows(keyCode: Int, event: KeyEvent): Boolean {
+        if (event.action != KeyEvent.ACTION_DOWN) return false
+        val step = when (keyCode) {
+            KeyEvent.KEYCODE_DPAD_UP -> -1
+            KeyEvent.KEYCODE_DPAD_DOWN -> 1
+            else -> return false
+        }
+        val focused = currentFocus ?: return false
+        val row = guideRowOf(focused) ?: return false
+        val position = channelList.getPositionForView(row)
+        val target = position + step
+        if (position < 0 || target < 0 || target >= channelAdapter.count) return false
+        val shown = channelList.getChildAt(target - channelList.firstVisiblePosition)
+        if (shown != null) return focusSameKind(focused, shown)
+
+        // The neighbour is off screen. Show it at the edge the focus comes from, then focus it once the list has laid it out.
+        pendingRowFocus?.let { channelList.viewTreeObserver.removeOnGlobalLayoutListener(it) }
+        val listener = object : android.view.ViewTreeObserver.OnGlobalLayoutListener {
+            private var passes = 0
+
+            override fun onGlobalLayout() {
+                val laidOut = channelList.getChildAt(target - channelList.firstVisiblePosition)
+                passes++
+                if (laidOut == null && passes < rowFocusLayoutPasses) return
+                channelList.viewTreeObserver.removeOnGlobalLayoutListener(this)
+                if (pendingRowFocus === this) pendingRowFocus = null
+                if (laidOut != null) focusSameKind(focused, laidOut)
+            }
+        }
+        pendingRowFocus = listener
+        val rowHeight = row.height
+        channelList.setSelectionFromTop(target, if (step > 0) channelList.height - rowHeight else 0)
+        channelList.viewTreeObserver.addOnGlobalLayoutListener(listener)
+        return true
+    }
+
+    /** The guide row that holds [view], or null when the view is not in the guide list. */
+    private fun guideRowOf(view: View): View? {
+        var current: View? = view
+        while (current != null) {
+            val parent = current.parent as? View
+            if (parent === channelList) return current
+            current = parent
+        }
+        return null
+    }
+
+    /**
+     * Gives the focus to the view in [row] that is of the same kind as [from]: the channel cell, or else the programme timeline.
+     * A remote key leaves touch mode before the view sees it. The keys that the device checks send do not, so the request makes
+     * that transition with requestFocusFromTouch(). With a remote the window has already left touch mode, so nothing changes.
+     */
+    private fun focusSameKind(from: View, row: View): Boolean {
+        val group = row as? android.view.ViewGroup ?: return false
+        for (index in 0 until group.childCount) {
+            val child = group.getChildAt(index)
+            val sameKind = if (from is TextView) child is TextView else child is ProgramTimelineView
+            if (sameKind) return child.requestFocusFromTouch()
+        }
+        return false
     }
 
     private fun updateTimeRail() {
