@@ -1765,10 +1765,18 @@ for attempt in $(seq 1 120); do
   sleep 2
 done
 cat ui-report.txt 2>/dev/null || echo "(no report file)"
-if ! grep -Fq 'ui-right-pin-plays' ui-report.txt 2>/dev/null || grep -q '^FAIL' ui-report.txt; then
-  echo "In-app device checks failed or did not finish"
+if grep -q '^FAIL' ui-report.txt 2>/dev/null; then
+  echo "In-app device checks failed"
+  cat ui-report.txt
   exit 1
 fi
+for check in ui-right-pin-plays focus-reach-parental-pin focus-ok-opens-pin-dialog focus-returns-after-dialog; do
+  if ! grep -Fq "$(printf 'PASS\t%s\t' "$check")" ui-report.txt 2>/dev/null; then
+    echo "In-app device check $check did not pass or did not finish"
+    cat ui-report.txt 2>/dev/null || true
+    exit 1
+  fi
+done
 echo "In-app device checks: the app drove the parental PIN dialogs and the playback gate on its own screens"
 
 if grep -q '^FAIL[[:space:]]' on-device-report.txt; then

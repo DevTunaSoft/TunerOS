@@ -1981,6 +1981,7 @@ class MainActivity : Activity() {
             }
             val plays = waitForScreen(60_000) { currentStatusText() == "Playing: Adult One" }
             record("ui-right-pin-plays", askedAgain && plays, "the right PIN starts the restricted channel")
+            DeviceFocusChecks(this, screenDriver()) { check, passed, detail -> record(check, passed, detail) }.run()
         } catch (error: Exception) {
             record("ui-checks-error", false, error.javaClass.simpleName)
         } finally {
@@ -1996,6 +1997,17 @@ class MainActivity : Activity() {
             onUi { showStatus("Device checks: ${lines.size - failed} PASS, $failed FAIL. Report: $uiCheckReport") }
             uiChecksRunning = false
         }
+    }
+
+    /** Screen access for the focus checks: every call reaches the UI thread, or runs there. */
+    private fun screenDriver(): ScreenDriver = object : ScreenDriver {
+        override fun onUi(block: () -> Unit) = this@MainActivity.onUi(block)
+        override fun onUiBool(block: () -> Boolean): Boolean = this@MainActivity.onUiBool(block)
+        override fun waitForScreen(timeoutMillis: Long, condition: () -> Boolean): Boolean =
+            this@MainActivity.waitForScreen(timeoutMillis, condition)
+        override fun activeDialog(): AlertDialog? = this@MainActivity.activeDialog
+        override fun parentalSessionUnlocked(): Boolean = this@MainActivity.onUiBool { parentalUnlocked }
+        override fun setParentalSessionUnlocked(unlocked: Boolean) = this@MainActivity.onUi { parentalUnlocked = unlocked }
     }
 
     private fun uiCheckChannel(name: String, group: String): Channel = Channel(
