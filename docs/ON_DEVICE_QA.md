@@ -304,6 +304,7 @@ The Android 35 emulator job still runs the app's 15 automatic assertions. To mak
 
 ## 2026-11-17 — SAMPLE-AES recording, restore channels, channel focus ring
 
+- **Update:** SAMPLE-AES recording was removed again at the user's request, so SAMPLE-AES segments are refused, as before. The code remains in commit `261d889` for later restoration. The SAMPLE-AES bullets below describe the state before that revert.
 - **What changed:**
   - **SAMPLE-AES (built unverified):** recording decrypts `METHOD=SAMPLE-AES` MPEG-TS segments with an identity key. The sample rules come from Apple's archived notes and have not been checked against a packager or player. Timeshift, fMP4, FairPlay (`skd://`), and AC-3, E-AC-3, HEVC, MPEG, LATM and PES private-data segments are refused. The emulator script does not run a SAMPLE-AES stream, so the evidence for it is the JVM tests and the build job, not a device or provider stream.
   - **Restore names restricted channels:** the confirmation, the saved-backup message and the debug restore check include restricted channels.
