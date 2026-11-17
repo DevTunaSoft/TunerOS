@@ -41,23 +41,46 @@ internal class GuideRowList(context: Context) : ListView(context) {
         if (shown != null) return focusSameKind(focused, shown)
 
         // The neighbour is off screen. Show it at the edge the focus comes from, then focus it once the list has laid it out.
+        // Scrolling detaches the focused row, and the list can then take the focus to itself after the request. So the request
+        // is repeated on later layout passes until the focus has stayed on the neighbour after a request.
         pendingRowFocus?.let { viewTreeObserver.removeOnGlobalLayoutListener(it) }
         val listener = object : ViewTreeObserver.OnGlobalLayoutListener {
             private var passes = 0
+            private var requested = false
 
             override fun onGlobalLayout() {
-                val laidOut = getChildAt(target - firstVisiblePosition)
                 passes++
-                if (laidOut == null && passes < ROW_FOCUS_LAYOUT_PASSES) return
+                val laidOut = getChildAt(target - firstVisiblePosition)
+                if (laidOut != null) {
+                    if (holdsFocusWithin(laidOut)) {
+                        if (requested) finish()
+                    } else {
+                        focusSameKind(focused, laidOut)
+                        requested = true
+                    }
+                }
+                if (passes >= ROW_FOCUS_LAYOUT_PASSES) finish()
+            }
+
+            private fun finish() {
                 viewTreeObserver.removeOnGlobalLayoutListener(this)
                 if (pendingRowFocus === this) pendingRowFocus = null
-                if (laidOut != null) focusSameKind(focused, laidOut)
             }
         }
         pendingRowFocus = listener
         setSelectionFromTop(target, if (step > 0) height - row.height else 0)
         viewTreeObserver.addOnGlobalLayoutListener(listener)
         return true
+    }
+
+    /** Whether the focus is on [row] or on a view inside it. */
+    private fun holdsFocusWithin(row: View): Boolean {
+        var current: View? = findFocus()
+        while (current != null) {
+            if (current === row) return true
+            current = current.parent as? View
+        }
+        return false
     }
 
     /** The row of this list that holds [view], or null when [view] is not inside the list. */
@@ -87,6 +110,6 @@ internal class GuideRowList(context: Context) : ListView(context) {
     }
 
     private companion object {
-        const val ROW_FOCUS_LAYOUT_PASSES = 5
+        const val ROW_FOCUS_LAYOUT_PASSES = 8
     }
 }
