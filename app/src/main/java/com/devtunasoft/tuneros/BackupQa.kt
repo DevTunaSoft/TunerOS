@@ -7,13 +7,14 @@ import com.devtunasoft.tuneros.core.TunerBackup
 import java.io.File
 
 /**
- * Debug-only backup check on scratch stores, never the real ones. It seeds scratch favorites, guide mappings and series
- * rules, exports them, and checks that the file is clean. It empties the stores, restores the export, and checks that the
- * stores match it again. Then it checks that a file holding a URL is refused and changes nothing. Each check writes one PASS
- * or FAIL line to the backup report.
+ * Debug-only backup check on scratch stores, never the real ones. It seeds scratch favorites, guide mappings, series rules
+ * and restricted groups, exports them, and checks that the file is clean. It empties the stores, restores the export, and
+ * checks that the stores match it again. Then it checks that a file holding a URL is refused and changes nothing. Each check
+ * writes one PASS or FAIL line to the backup report.
  */
 internal object BackupQa {
     private const val SCRATCH_PREFS = "tuneros-backup-qa"
+    private const val SCRATCH_PARENTAL_PREFS = "tuneros-backup-qa-parental"
     private const val SCRATCH_DATABASE = "tuneros-backup-qa.db"
     private const val NOW = 1_700_000_000L
 
@@ -21,7 +22,7 @@ internal object BackupQa {
         favorites = setOf("qa-one", "qa-two"),
         guideMappings = mapOf("qa-one" to "guide.qa.one"),
         seriesRules = listOf(SeriesRule("qa show", "qa-one"), SeriesRule("qa news", null)),
-        restrictedGroups = emptySet(),
+        restrictedGroups = setOf("qa-adult"),
     )
 
     fun run(context: Context) {
@@ -30,8 +31,9 @@ internal object BackupQa {
         try {
             val favorites = FavoriteChannelStore(context, SCRATCH_PREFS)
             val mappings = GuideMappingStore(context, SCRATCH_PREFS)
+            val parental = ParentalControlsStore(context, SCRATCH_PARENTAL_PREFS)
             SeriesRuleStore(context, SCRATCH_DATABASE).use { series ->
-                val restore = BackupRestore(favorites, mappings, series, nowEpochSeconds = { NOW })
+                val restore = BackupRestore(favorites, mappings, series, parental, nowEpochSeconds = { NOW })
 
                 restore.apply(fixture)
                 val text = restore.exportText()
@@ -41,6 +43,7 @@ internal object BackupQa {
                 record(report, "qa-backup-export-clean", clean, "bytes=${text.toByteArray(Charsets.UTF_8).size}")
 
                 restore.apply(BackupContents(emptySet(), emptyMap(), emptyList(), emptySet()))
+                val cleared = parental.restrictedGroups().isEmpty()
                 restore.apply(TunerBackup.decode(text))
                 val restored = restore.exportText()
                 record(
@@ -48,6 +51,14 @@ internal object BackupQa {
                     "qa-backup-round-trip",
                     restored == text,
                     "favorites=${favorites.load().size} series=${series.all().size}",
+                )
+                record(
+                    report,
+                    "qa-backup-restricted-groups",
+                    cleared &&
+                        text.contains("\nrestricted\tqa-adult\n") &&
+                        parental.restrictedGroups() == setOf("qa-adult"),
+                    "cleared=$cleared restored=${parental.restrictedGroups().size}",
                 )
 
                 val hostile = TunerBackup.HEADER + "\nfavorite\thttps://qa.example/list.m3u8\n"
@@ -64,6 +75,7 @@ internal object BackupQa {
             record(report, "qa-backup-error", false, error.javaClass.simpleName)
         } finally {
             context.deleteSharedPreferences(SCRATCH_PREFS)
+            context.deleteSharedPreferences(SCRATCH_PARENTAL_PREFS)
             context.deleteDatabase(SCRATCH_DATABASE)
         }
     }

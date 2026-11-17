@@ -1979,7 +1979,10 @@ class MainActivity : Activity() {
         }
     }
 
-    /** Asks where to save the backup. The file holds favorites, guide mappings and series rules, and nothing else. */
+    /**
+     * Asks where to save the backup. The file holds favorites, guide mappings, series rules and restricted groups, and
+     * nothing else.
+     */
     private fun exportBackup() {
         runCatching {
             startActivityForResult(
@@ -2012,14 +2015,14 @@ class MainActivity : Activity() {
             worker.execute {
                 val saved = runCatching {
                     val text = SeriesRuleStore(this).use { series ->
-                        BackupRestore(favoriteStore, guideMappingStore, series).exportText()
+                        BackupRestore(favoriteStore, guideMappingStore, series, parentalStore).exportText()
                     }
                     val output = contentResolver.openOutputStream(uri) ?: error("no output stream")
                     output.use { it.write(text.toByteArray(Charsets.UTF_8)) }
                 }.isSuccess
                 runOnUiThread {
                     showStatus(
-                        if (saved) "Backup saved: favorites, guide mappings and series rules"
+                        if (saved) "Backup saved: favorites, guide mappings, series rules and restricted groups"
                         else "The backup could not be saved",
                     )
                 }
@@ -2049,14 +2052,15 @@ class MainActivity : Activity() {
         AlertDialog.Builder(this)
             .setTitle("Restore backup?")
             .setMessage(
-                "Replace the favorites, guide mappings and series rules with ${contents.favorites.size} favorites, " +
-                    "${contents.guideMappings.size} guide mappings and ${contents.seriesRules.size} series rules?",
+                "Replace the favorites, guide mappings, series rules and restricted groups with " +
+                    "${contents.favorites.size} favorites, ${contents.guideMappings.size} guide mappings, " +
+                    "${contents.seriesRules.size} series rules and ${contents.restrictedGroups.size} restricted groups?",
             )
             .setPositiveButton("Restore") { _, _ ->
                 worker.execute {
                     val restored = runCatching {
                         SeriesRuleStore(this).use { series ->
-                            BackupRestore(favoriteStore, guideMappingStore, series).apply(contents)
+                            BackupRestore(favoriteStore, guideMappingStore, series, parentalStore).apply(contents)
                         }
                     }.isSuccess
                     runOnUiThread {

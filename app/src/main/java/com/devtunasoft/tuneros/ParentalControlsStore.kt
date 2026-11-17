@@ -55,6 +55,14 @@ internal class ParentalControlsStore(context: Context, prefsName: String = PREFS
         prefs.edit().putStringSet(KEY_RESTRICTED, next.toMutableSet()).apply()
     }
 
+    /**
+     * Replaces the restricted set with [groups] in one write. The whole list is checked first, so an empty name or too many
+     * groups saves nothing.
+     */
+    fun replaceRestrictedGroups(groups: Set<String>) {
+        prefs.edit().putStringSet(KEY_RESTRICTED, ParentalPolicy.normalizeAll(groups).toMutableSet()).apply()
+    }
+
     private fun restoredLimit(): ParentalAttemptLimit = ParentalAttemptLimit(
         maxFailures = MAX_FAILURES,
         lockMillis = LOCK_MILLIS,

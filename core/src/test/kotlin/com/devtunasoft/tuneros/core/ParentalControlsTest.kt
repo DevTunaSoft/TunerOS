@@ -93,4 +93,12 @@ class ParentalControlsTest {
         assertFailsWith<IllegalArgumentException> { ParentalPolicy.restrict(full, "one more", restricted = true) }
         assertFailsWith<IllegalArgumentException> { ParentalPolicy.restrict(emptySet(), "   ", restricted = true) }
     }
+
+    @Test fun aWholeListIsNormalizedOrRefusedBeforeAnyOfItIsStored() {
+        assertEquals(setOf("adult", "news"), ParentalPolicy.normalizeAll(setOf(" Adult ", "adult", "News")))
+        assertFailsWith<IllegalArgumentException> { ParentalPolicy.normalizeAll(setOf("adult", "  ")) }
+        val most = (1..ParentalPolicy.MAX_RESTRICTED_GROUPS).map { "group$it" }.toSet()
+        assertEquals(most, ParentalPolicy.normalizeAll(most))
+        assertFailsWith<IllegalArgumentException> { ParentalPolicy.normalizeAll(most + "one more") }
+    }
 }

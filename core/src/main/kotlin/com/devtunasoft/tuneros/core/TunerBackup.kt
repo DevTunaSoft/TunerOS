@@ -80,7 +80,7 @@ object TunerBackup {
                 else -> throw IllegalArgumentException("the backup holds a record kind this version does not read")
             }
         }
-        return BackupContents(favorites, mappings, series, restricted)
+        return BackupContents(favorites, mappings, series, ParentalPolicy.normalizeAll(restricted))
     }
 
     /** Checks a value before it is written, then escapes it for its record. */

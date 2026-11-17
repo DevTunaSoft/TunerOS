@@ -71,6 +71,26 @@ class TunerBackupTest {
         assertFailsWith<IllegalArgumentException> { TunerBackup.decode(file) }
     }
 
+    @Test fun aBackupWithTooManyRestrictedGroupsIsRefused() {
+        val groups = (1..ParentalPolicy.MAX_RESTRICTED_GROUPS + 1).joinToString("") { "restricted\tgroup-$it\n" }
+        assertFailsWith<IllegalArgumentException> { TunerBackup.decode(TunerBackup.HEADER + "\n" + groups) }
+    }
+
+    @Test fun aBackupWithTheMostRestrictedGroupsIsAccepted() {
+        val groups = (1..ParentalPolicy.MAX_RESTRICTED_GROUPS).joinToString("") { "restricted\tgroup-$it\n" }
+        val restored = TunerBackup.decode(TunerBackup.HEADER + "\n" + groups)
+        assertEquals(ParentalPolicy.MAX_RESTRICTED_GROUPS, restored.restrictedGroups.size)
+    }
+
+    @Test fun aBackupWithABlankRestrictedGroupIsRefused() {
+        assertFailsWith<IllegalArgumentException> { TunerBackup.decode(TunerBackup.HEADER + "\nrestricted\t   \n") }
+    }
+
+    @Test fun anImportedRestrictedGroupIsStoredNormalized() {
+        val restored = TunerBackup.decode(TunerBackup.HEADER + "\nrestricted\t Adult \n")
+        assertEquals(setOf("adult"), restored.restrictedGroups)
+    }
+
     @Test fun aValueOverTheLengthLimitIsRefused() {
         val long = "a".repeat(TunerBackup.MAX_VALUE_CHARS + 1)
         assertFailsWith<IllegalArgumentException> { TunerBackup.encode(sample.copy(favorites = setOf(long))) }

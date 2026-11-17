@@ -105,4 +105,15 @@ object ParentalPolicy {
         require(next.size <= MAX_RESTRICTED_GROUPS) { "at most $MAX_RESTRICTED_GROUPS groups can be restricted" }
         return next
     }
+
+    /**
+     * Returns [groups] normalized as one set. Refuses an empty name or too many groups, so a whole list is checked before any
+     * of it is stored.
+     */
+    fun normalizeAll(groups: Set<String>): Set<String> {
+        val normalized = groups.map { normalize(it) }.toSet()
+        require(normalized.none { it.isEmpty() }) { "a group name is not empty" }
+        require(normalized.size <= MAX_RESTRICTED_GROUPS) { "at most $MAX_RESTRICTED_GROUPS groups can be restricted" }
+        return normalized
+    }
 }
