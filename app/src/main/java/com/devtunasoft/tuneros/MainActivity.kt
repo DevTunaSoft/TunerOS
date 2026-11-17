@@ -2099,6 +2099,8 @@ class MainActivity : Activity() {
             nowEpochSeconds: Long,
         ) {
             channelAdapter.update(rows, snapshot, fromEpochSeconds, toEpochSeconds, nowEpochSeconds, emptySet())
+            // The first row goes to the top of the list, so it is laid out even when the list is shorter than two rows.
+            channelList.setSelectionFromTop(0, 0)
         }
 
         override fun windowStartEpochSeconds(): Long = guideWindowStart

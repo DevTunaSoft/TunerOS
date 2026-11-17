@@ -85,7 +85,7 @@ internal class GuideFocusChecks(
     /** (a) A focus request on the channel cell of a row gives the focus to that cell. */
     private fun channelCellTakesFocus(): Pair<Boolean, String> {
         showRows(TAG_CELL, PAIR)
-        if (!rowsOnScreen()) return Pair(false, "the two guide rows are not on screen")
+        if (!rowsOnScreen()) return Pair(false, "the first guide row is not on screen; ${geometryNow()}")
         var focused = false
         var focusText = ""
         screen.onUi {
@@ -101,7 +101,7 @@ internal class GuideFocusChecks(
     /** (b) RIGHT moves the focus to the next programme cell, LEFT returns it, and neither key shifts the window. */
     private fun rightAndLeftMoveProgramme(): Pair<Boolean, String> {
         showRows(TAG_PROGRAMMES, PAIR)
-        if (!rowsOnScreen()) return Pair(false, "the two guide rows are not on screen")
+        if (!rowsOnScreen()) return Pair(false, "the first guide row is not on screen; ${geometryNow()}")
         var focused = false
         var focusText = ""
         var first = ""
@@ -135,7 +135,7 @@ internal class GuideFocusChecks(
     /** (c) LEFT on the first programme asks the guide to shift its window once, by -1. The app counts the request. */
     private fun leftOnFirstProgrammeShiftsWindow(): Pair<Boolean, String> {
         showRows(TAG_EDGE, PAIR)
-        if (!rowsOnScreen()) return Pair(false, "the two guide rows are not on screen")
+        if (!rowsOnScreen()) return Pair(false, "the first guide row is not on screen; ${geometryNow()}")
         var focused = false
         var focusText = ""
         var first = ""
@@ -159,30 +159,33 @@ internal class GuideFocusChecks(
     }
 
     /**
-     * (d) UP and DOWN move the focus to the neighbouring row. The rows do not all fit on screen, so DOWN from the last row on
-     * screen is checked too: the next row is shown, and the focus follows it.
+     * (d) UP and DOWN move the focus to the neighbouring row, whether that row is on screen or the list has to scroll to it.
+     * DOWN from the first row reaches the second, UP from the second returns to the first, and DOWN from the last row on screen
+     * shows the next row and gives it the focus. A short guide list shows only one row, so the scroll path carries the steps.
      */
     private fun upAndDownLeaveTimeline(): Pair<Boolean, String> {
         showRows(TAG_ROWS, NAMES)
-        if (!rowsOnScreen()) return Pair(false, "the guide rows are not on screen")
-        val up = leaveTimeline(BRAVO, KeyEvent.KEYCODE_DPAD_UP, View.FOCUS_UP)
-        val down = leaveTimeline(ALPHA, KeyEvent.KEYCODE_DPAD_DOWN, View.FOCUS_DOWN)
+        if (!rowsOnScreen()) return Pair(false, "the first guide row is not on screen; ${geometryNow()}")
+        val down = stepTo(ALPHA, BRAVO, KeyEvent.KEYCODE_DPAD_DOWN, View.FOCUS_DOWN)
+        val up = stepTo(BRAVO, ALPHA, KeyEvent.KEYCODE_DPAD_UP, View.FOCUS_UP)
         val past = downPastLastRowFollowsScroll()
-        return Pair(up.first && down.first && past.first, "UP: ${up.second}; DOWN: ${down.second}; ${past.second}")
+        val passed = down.first && up.first && past.first
+        return Pair(passed, "DOWN from \"$ALPHA\": ${down.second}; UP from \"$BRAVO\": ${up.second}; ${past.second}; ${geometryNow()}")
     }
 
     /**
-     * Runs one direction from the timeline of [source]. The timeline's own key handler must pass the key on. Then the key goes
-     * to the focused view, and the window reports whether a view consumed it. A key that no view consumed is one the framework
-     * moves focus for, with a focus search, so the check runs that search. A key that a view consumed has to move the focus
-     * itself. If the focus stays on the timeline, the remote's key does nothing for the guide, and the check fails.
+     * One step from the row of [source] to the row of [expected]. The timeline of [source] must pass the key on. Then the key
+     * goes to the focused view, and the window reports whether a view consumed it. A consumed key has to move the focus to the
+     * expected row itself, although the focus may arrive a moment later. A key that no view consumed is one the framework moves
+     * focus for, with a focus search, so the check runs that search. Otherwise the step fails.
      */
-    private fun leaveTimeline(source: String, keyCode: Int, direction: Int): Pair<Boolean, String> {
+    private fun stepTo(source: String, expected: String, keyCode: Int, direction: Int): Pair<Boolean, String> {
         var sourceView: View? = null
         var focused = false
         var focusText = ""
         var passedOn = false
         var consumed = false
+        var neighbourShown = false
         screen.onUi {
             val timeline = timelineOf(source) ?: return@onUi
             sourceView = timeline
@@ -191,28 +194,30 @@ internal class GuideFocusChecks(
                 focused = activity.currentFocus === timeline
                 focusText = describeFocus()
                 if (!focused) return@focusByTouch
+                neighbourShown = channelCell(expected) != null
                 passedOn = !timeline.onKeyDown(keyCode, KeyEvent(KeyEvent.ACTION_DOWN, keyCode))
                 consumed = sendKey(keyCode)
             }
         }
-        if (!focused) return Pair(false, "focus did not reach the timeline of \"$source\"; focus is on $focusText")
-        // A view that consumed the key may move the focus a moment later, once it has shown the next row.
-        if (consumed) screen.waitForScreen(FOCUS_TIMEOUT_MILLIS) { activity.currentFocus !== sourceView }
+        if (!focused) return Pair(false, "focus did not reach \"$source\"; focus is on $focusText")
+        // A key that a view consumed may take the focus a moment later, once the list has shown the expected row.
+        if (consumed) screen.waitForScreen(FOCUS_TIMEOUT_MILLIS) { focusedOnRow(expected) }
         var landed = false
         var landedOn = ""
         screen.onUi {
             if (!consumed && activity.currentFocus === sourceView) {
                 focusByTouch(rowViews()) { sourceView?.focusSearch(direction)?.requestFocus() }
             }
-            landed = activity.currentFocus != null && activity.currentFocus !== sourceView
+            landed = focusedOnRow(expected)
             landedOn = describeFocus()
         }
+        val path = if (neighbourShown) "the neighbour was on screen" else "the list scrolled to the neighbour"
         val detail = when {
-            !passedOn -> "the timeline of \"$source\" consumed the key"
-            landed && consumed -> "the timeline of \"$source\" passes the key on, and the key moves focus to $landedOn"
-            landed -> "the timeline of \"$source\" passes the key on, and no view took it, so the focus search moves focus to $landedOn"
-            consumed -> "a view consumed the key, and focus stayed on the timeline of \"$source\""
-            else -> "no view took the key, and the focus search found no neighbour of \"$source\""
+            !passedOn -> "the timeline of \"$source\" consumed the key itself"
+            landed && consumed -> "the key moves focus from \"$source\" to $landedOn; $path"
+            landed -> "no view took the key, so the focus search moves focus from \"$source\" to $landedOn; $path"
+            consumed -> "a view consumed the key, and focus is on $landedOn, not \"$expected\""
+            else -> "no view took the key, and the focus search reached $landedOn, not \"$expected\""
         }
         return Pair(passedOn && landed, detail)
     }
@@ -253,9 +258,28 @@ internal class GuideFocusChecks(
         screen.onUi { guide.showGuideRows(rows, snapshot, fromEpochSeconds, toEpochSeconds, nowEpochSeconds) }
     }
 
-    /** Waits until the first two rows are on screen and laid out after their bind. A pending layout could leave a stale row in use. */
+    /**
+     * Waits until the first row is on screen and laid out after its bind. A pending layout could leave a stale row in use. The
+     * other rows may sit below the list's edge: a short guide list shows one row, and the steps then reach the next row by
+     * scrolling to it.
+     */
     private fun rowsOnScreen(): Boolean = screen.waitForScreen(ROWS_TIMEOUT_MILLIS) {
-        !guide.guideList().isLayoutRequested && rowReady(ALPHA) && rowReady(BRAVO)
+        !guide.guideList().isLayoutRequested && rowReady(ALPHA)
+    }
+
+    /** Runs on the UI thread: the guide list's height and the rows laid out in it, for the report. */
+    private fun listGeometry(): String {
+        val list = guide.guideList()
+        val density = activity.resources.displayMetrics.density
+        return "guide list ${list.height} px (${list.height / density} dp), rows laid out ${list.childCount}, " +
+            "positions ${list.firstVisiblePosition} to ${list.lastVisiblePosition}"
+    }
+
+    /** The guide list's geometry, read on the UI thread and returned to the test thread. */
+    private fun geometryNow(): String {
+        var text = ""
+        screen.onUi { text = listGeometry() }
+        return text
     }
 
     /**

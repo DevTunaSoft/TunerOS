@@ -46,6 +46,8 @@ UI_REQUIRED=(
   ui-channel-restricted ui-restricted-channel-asks-for-pin
   focus-reach-parental-pin focus-ring-on-focused-button focus-ok-opens-pin-dialog focus-returns-after-dialog
   ui-restore-dialog-counts ui-restore-cancel-changes-nothing focus-ring-on-channel-row
+  guide-focus-channel-cell-takes-focus guide-focus-right-left-moves-programme guide-focus-left-edge-shifts-window
+  guide-focus-up-down-leaves-timeline
 )
 
 # Start the activity with one debug extra. A refused start fails the run and prints the am output.
