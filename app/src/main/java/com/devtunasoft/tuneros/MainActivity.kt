@@ -2078,7 +2078,7 @@ class MainActivity : Activity() {
 
     /** Guide access for the guide focus checks: the app's own guide list and adapter. Every call runs on the UI thread. */
     private fun guideFocusDriver(): GuideFocusDriver = object : GuideFocusDriver {
-        override fun guideList(): android.view.ViewGroup = channelList
+        override fun guideList(): ListView = channelList
 
         override fun showGuideRows(
             rows: List<Channel>,
