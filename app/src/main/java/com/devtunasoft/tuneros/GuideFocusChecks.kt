@@ -35,6 +35,9 @@ internal interface GuideFocusDriver {
 
     /** The direction of the latest window shift request: -1 for the left edge, 1 for the right edge. */
     fun lastWindowShiftDirection(): Int
+
+    /** Diagnostic: what the row key listener did on its last UP or DOWN. */
+    fun rowKeyTrace(): String
 }
 
 /**
@@ -165,10 +168,12 @@ internal class GuideFocusChecks(
     private fun upAndDownLeaveTimeline(): Pair<Boolean, String> {
         showRows(TAG_ROWS, NAMES)
         if (!rowsOnScreen()) return Pair(false, "the guide rows are not on screen")
+        val outside = neighbourFromTouchOutsideKey()
         val up = leaveTimeline(BRAVO, KeyEvent.KEYCODE_DPAD_UP, View.FOCUS_UP)
         val down = leaveTimeline(ALPHA, KeyEvent.KEYCODE_DPAD_DOWN, View.FOCUS_DOWN)
         val past = downPastLastRowFollowsScroll()
-        return Pair(up.first && down.first && past.first, "UP: ${up.second}; DOWN: ${down.second}; ${past.second}")
+        val passed = up.first && down.first && past.first
+        return Pair(passed, "UP: ${up.second}; DOWN: ${down.second}; ${past.second}; diagnostic $outside")
     }
 
     /**
@@ -200,12 +205,14 @@ internal class GuideFocusChecks(
         if (consumed) screen.waitForScreen(FOCUS_TIMEOUT_MILLIS) { activity.currentFocus !== sourceView }
         var landed = false
         var landedOn = ""
+        var trace = ""
         screen.onUi {
             if (!consumed && activity.currentFocus === sourceView) {
                 focusByTouch(rowViews()) { sourceView?.focusSearch(direction)?.requestFocus() }
             }
             landed = activity.currentFocus != null && activity.currentFocus !== sourceView
             landedOn = describeFocus()
+            trace = guide.rowKeyTrace()
         }
         val detail = when {
             !passedOn -> "the timeline of \"$source\" consumed the key"
@@ -214,7 +221,24 @@ internal class GuideFocusChecks(
             consumed -> "a view consumed the key, and focus stayed on the timeline of \"$source\""
             else -> "no view took the key, and the focus search found no neighbour of \"$source\""
         }
-        return Pair(passedOn && landed, detail)
+        return Pair(passedOn && landed, "$detail [listener: $trace]")
+    }
+
+    /**
+     * Diagnostic: asks for focus on the timeline of [BRAVO] from outside a key press, the way the listener does, and reports
+     * whether the request was granted and whether the focus moved.
+     */
+    private fun neighbourFromTouchOutsideKey(): String {
+        var note = ""
+        screen.onUi {
+            val bravo = timelineOf(BRAVO) ?: return@onUi
+            val alpha = timelineOf(ALPHA) ?: return@onUi
+            focusByTouch(rowViews()) { alpha.requestFocus() }
+            val asked = focusByTouch(rowViews()) { bravo.requestFocusFromTouch() }
+            note = "outside-key asked=$asked moved=${activity.currentFocus === bravo}"
+            focusByTouch(rowViews()) { alpha.requestFocus() }
+        }
+        return note
     }
 
     /** DOWN from the last row on screen shows the next row, and that row takes the focus once the list has laid it out. */

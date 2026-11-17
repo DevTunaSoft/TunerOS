@@ -162,6 +162,9 @@ class MainActivity : Activity() {
     // The guide row that UP or DOWN focuses once the list has laid it out, and how many layout passes to wait for it.
     private var pendingRowFocus: android.view.ViewTreeObserver.OnGlobalLayoutListener? = null
     private val rowFocusLayoutPasses = 5
+    // Diagnostic for the device checks: how often the row key listener ran for UP or DOWN, and what it did last time.
+    private var rowKeyCalls = 0
+    private var rowKeyNote = ""
     private val guideWindowSeconds = 3 * 3600L
     private val guideStepSeconds = 30 * 60L
     private val timeFormatter = DateTimeFormatter.ofPattern("h:mm a")
@@ -1469,10 +1472,20 @@ class MainActivity : Activity() {
             KeyEvent.KEYCODE_DPAD_DOWN -> 1
             else -> return false
         }
-        val focused = currentFocus ?: return false
-        val row = guideRowOf(focused) ?: return false
+        rowKeyCalls++
+        val focused = currentFocus
+        if (focused == null) {
+            rowKeyNote = "no-focus"
+            return false
+        }
+        val row = guideRowOf(focused)
+        if (row == null) {
+            rowKeyNote = "no-row"
+            return false
+        }
         val position = channelList.getPositionForView(row)
         val target = position + step
+        rowKeyNote = "pos=$position target=$target count=${channelAdapter.count} first=${channelList.firstVisiblePosition}"
         if (position < 0 || target < 0 || target >= channelAdapter.count) return false
         val shown = channelList.getChildAt(target - channelList.firstVisiblePosition)
         if (shown != null) return focusSameKind(focused, shown)
@@ -1519,7 +1532,11 @@ class MainActivity : Activity() {
         for (index in 0 until group.childCount) {
             val child = group.getChildAt(index)
             val sameKind = if (from is TextView) child is TextView else child is ProgramTimelineView
-            if (sameKind) return child.requestFocusFromTouch()
+            if (sameKind) {
+                val asked = child.requestFocusFromTouch()
+                rowKeyNote = "asked=$asked moved=${currentFocus === child} touch=${child.isInTouchMode}"
+                return asked
+            }
         }
         return false
     }
@@ -2183,6 +2200,8 @@ class MainActivity : Activity() {
         override fun windowShiftCount(): Int = guideWindowShiftCount
 
         override fun lastWindowShiftDirection(): Int = lastGuideWindowShift
+
+        override fun rowKeyTrace(): String = "calls=$rowKeyCalls $rowKeyNote"
     }
 
     /**
