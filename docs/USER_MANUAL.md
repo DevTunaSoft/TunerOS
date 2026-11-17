@@ -52,9 +52,9 @@ Set a PIN with **Parental PIN**: choose a PIN of 4 to 8 digits. The PIN is store
 
 ## Backups
 
-**Export backup** asks where to save a text file, `tuneros-backup.txt` by default. The file holds your favorites, guide mappings, series rules and restricted groups. It holds no playlist or guide URL, no provider credential, no parental PIN and no recording.
+**Export backup** asks where to save a text file, `tuneros-backup.txt` by default. The file holds your favorites, guide mappings, series rules, restricted groups and restricted channels. It holds no playlist or guide URL, no provider credential, no parental PIN and no recording.
 
-**Restore backup** opens a file picker. Nothing changes until you confirm the **Restore backup?** dialog, which lists the counts. **Restore** replaces the favorites, guide mappings, series rules and restricted groups. **Cancel** changes nothing. A file that holds a URL, a credential-like value, an unknown record, a wrong version or more than 100 restricted groups is refused as a whole.
+**Restore backup** opens a file picker. Nothing changes until you confirm the **Restore backup?** dialog, which lists the counts. **Restore** replaces the favorites, guide mappings, series rules, restricted groups and restricted channels. **Cancel** changes nothing. A file that holds a URL, a credential-like value, an unknown record, a wrong version or more than 100 restricted groups or channels is refused as a whole.
 
 **Verified in the Android 35 emulator in CI. The picker and the confirmation dialog are not yet verified on a TV.**
 

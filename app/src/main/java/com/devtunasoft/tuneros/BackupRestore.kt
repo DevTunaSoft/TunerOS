@@ -28,7 +28,10 @@ internal class BackupRestore(
         ),
     )
 
-    /** Replaces the favorites, the guide mappings, the series rules and the restricted groups with [contents]. */
+    /**
+     * Replaces the favorites, the guide mappings, the series rules, the restricted groups and the restricted channels with
+     * [contents].
+     */
     fun apply(contents: BackupContents) {
         // The restricted groups are checked before any store changes, so a refused backup leaves every store as it was.
         val restricted = ParentalPolicy.normalizeAll(contents.restrictedGroups)

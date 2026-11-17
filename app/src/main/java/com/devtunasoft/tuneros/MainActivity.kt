@@ -2084,7 +2084,8 @@ class MainActivity : Activity() {
 
     /**
      * Debug builds only. Opens the restore confirmation with a fixture and checks that it names the counts. Then it cancels,
-     * and cancelling must leave the favorites, guide mappings, series rules and restricted groups as they were.
+     * and cancelling must leave the favorites, guide mappings, series rules, restricted groups and restricted channels
+     * as they were.
      */
     private fun runRestoreDialogCheck(report: (String, Boolean, String) -> Unit) {
         val fixture = BackupContents(
@@ -2092,12 +2093,15 @@ class MainActivity : Activity() {
             guideMappings = mapOf("ui-check-one" to "ui-check-guide"),
             seriesRules = listOf(SeriesRule("ui check show", "ui-check-one")),
             restrictedGroups = setOf("ui-check-group"),
+            restrictedChannels = setOf("ui-check-channel"),
         )
         val before = onUiText { restoreStateText() }
         onUi { confirmRestore(fixture) }
         val shown = waitForScreen(15_000) { showingDialogWith("Restore") }
         val message = onUiText { dialogMessageText() }
-        val counted = listOf("2 favorites", "1 guide mappings", "1 series rules", "1 restricted groups").all { message.contains(it) }
+        val counted = listOf(
+            "2 favorites", "1 guide mappings", "1 series rules", "1 restricted groups", "1 restricted channels",
+        ).all { message.contains(it) }
         report("ui-restore-dialog-counts", shown && counted, "the restore dialog names the counts it would replace")
         onUi { activeDialog?.getButton(AlertDialog.BUTTON_NEGATIVE)?.performClick() }
         val closed = waitForScreen(15_000) { activeDialog?.isShowing != true }
@@ -2105,7 +2109,7 @@ class MainActivity : Activity() {
         report(
             "ui-restore-cancel-changes-nothing",
             closed && before == after,
-            "cancelling the restore changes no favorites, mappings, series rules or restricted groups",
+            "cancelling the restore changes no favorites, mappings, series rules, restricted groups or restricted channels",
         )
     }
 
@@ -2136,6 +2140,7 @@ class MainActivity : Activity() {
             guideMappingStore.load().toSortedMap().toString(),
             series,
             parentalStore.restrictedGroups().sorted().joinToString(","),
+            parentalStore.restrictedChannels().sorted().joinToString(","),
         ).joinToString("#")
     }
 
@@ -2334,8 +2339,8 @@ class MainActivity : Activity() {
     }
 
     /**
-     * Asks where to save the backup. The file holds favorites, guide mappings, series rules and restricted groups, and
-     * nothing else.
+     * Asks where to save the backup. The file holds favorites, guide mappings, series rules, restricted groups and
+     * channels, and nothing else.
      */
     private fun exportBackup() {
         runCatching {
@@ -2376,7 +2381,7 @@ class MainActivity : Activity() {
                 }.isSuccess
                 runOnUiThread {
                     showStatus(
-                        if (saved) "Backup saved: favorites, guide mappings, series rules and restricted groups"
+                        if (saved) "Backup saved: favorites, guide mappings, series rules, restricted groups and channels"
                         else "The backup could not be saved",
                     )
                 }
@@ -2406,9 +2411,10 @@ class MainActivity : Activity() {
         activeDialog = AlertDialog.Builder(this)
             .setTitle("Restore backup?")
             .setMessage(
-                "Replace the favorites, guide mappings, series rules and restricted groups with " +
+                "Replace the favorites, guide mappings, series rules, restricted groups and restricted channels with " +
                     "${contents.favorites.size} favorites, ${contents.guideMappings.size} guide mappings, " +
-                    "${contents.seriesRules.size} series rules and ${contents.restrictedGroups.size} restricted groups?",
+                    "${contents.seriesRules.size} series rules, ${contents.restrictedGroups.size} restricted groups " +
+                    "and ${contents.restrictedChannels.size} restricted channels?",
             )
             .setPositiveButton("Restore") { _, _ ->
                 worker.execute {
