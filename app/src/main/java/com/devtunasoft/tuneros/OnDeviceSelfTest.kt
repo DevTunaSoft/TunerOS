@@ -349,6 +349,27 @@ internal object OnDeviceSelfTest {
         }
 
         checks += check(
+            "scratch-dvr-schedule-create-twice",
+            "Isolated SQLite: creating the schedule tables again on an existing database does not fail",
+        ) {
+            val name = "tuneros-selftest-create-twice.db"
+            context.deleteDatabase(name) // Owned, disposable DB only; not user schedules.
+            try {
+                RecordingScheduleStore(context, name).use { store ->
+                    // A second helper that opens a new database runs onCreate on tables that already exist.
+                    val db = store.writableDatabase
+                    store.onCreate(db)
+                    store.onCreate(db)
+                    true
+                }
+            } finally {
+                kotlin.check(context.deleteDatabase(name)) {
+                    "Could not remove the isolated QA SQLite database"
+                }
+            }
+        }
+
+        checks += check(
             "scratch-dvr-schedule-reservation",
             "Isolated SQLite: immutable ID, PREPARING gate, overlap and bounded paging",
         ) {

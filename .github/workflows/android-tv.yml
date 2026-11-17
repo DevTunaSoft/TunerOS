@@ -1,0 +1,81 @@
+name: Android TV checks
+# A separate workflow from android.yml, so a TV emulator problem cannot change the phone job's result. Its concurrency
+# group includes this workflow's name, so it never cancels the phone runs.
+on:
+  pull_request:
+  workflow_dispatch:
+concurrency:
+  group: tuneros-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check TV QA shell syntax
+        run: bash -n scripts/emulator-tv-checks.sh
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Install SDK 35
+        run: |
+          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -1)"
+          test -n "$SDKMANAGER"
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" --install 'platforms;android-35' 'build-tools;35.0.0'
+      - name: Debug APK
+        run: ./gradlew --no-daemon :app:assembleDebug
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: TunerOS-tv-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+
+  emulator-tv-checks:
+    name: Execute TunerOS device checks on an Android 36 TV emulator
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: TunerOS-tv-debug-apk
+          path: ci-apk
+      - name: Enable Android emulator KVM acceleration
+        run: |
+          test -e /dev/kvm
+          sudo chmod 666 /dev/kvm
+      - name: Run the app's D-pad device checks on an Android TV emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          # No Android 35 TV image exists in the runner's SDK repository: the sdkmanager listing in run 44153535100
+          # (job 134288369121) shows none on the stable or any other channel. 36 is the newest Android TV x86_64 image.
+          api-level: 36
+          target: android-tv
+          arch: x86_64
+          profile: tv_1080p
+          ram-size: 2048M
+          heap-size: 256M
+          disable-animations: true
+          script: bash scripts/emulator-tv-checks.sh
+      - name: Publish Android TV check evidence
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: TunerOS-tv-checks-report
+          path: |
+            ui-report.txt
+            key-report.txt
+            tv-features.txt
+            tv-failure-logcat.txt
+          if-no-files-found: warn
+          retention-days: 14

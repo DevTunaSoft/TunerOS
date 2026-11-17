@@ -26,8 +26,9 @@ internal class RecordingScheduleStore(
 
 
     override fun onCreate(db: SQLiteDatabase) {
+        // IF NOT EXISTS: a new database can be opened by two helpers at once, and the second onCreate must not fail.
         db.execSQL(
-            """CREATE TABLE schedules(
+            """CREATE TABLE IF NOT EXISTS schedules(
                 id TEXT PRIMARY KEY,
                 title TEXT NOT NULL,
                 channel_id TEXT NOT NULL,
@@ -39,8 +40,8 @@ internal class RecordingScheduleStore(
                 last_error TEXT
             )""".trimIndent(),
         )
-        db.execSQL("CREATE INDEX schedules_start_idx ON schedules(start_epoch)")
-        db.execSQL("CREATE INDEX schedules_state_idx ON schedules(state)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS schedules_start_idx ON schedules(start_epoch)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS schedules_state_idx ON schedules(state)")
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) = Unit
