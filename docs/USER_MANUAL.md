@@ -24,6 +24,8 @@ The on-device report is private until explicitly shared. Do not paste an M3U/XML
 
 The player and DVR remain alpha quality. Remote focus behavior, all provider stream formats, true recording recovery, disconnected removable storage, and low-memory stress behavior have **not** passed autonomous hardware acceptance. See [the QA coverage ledger](ON_DEVICE_QA.md).
 
+Encrypted HLS: AES-128 segments can be recorded. SAMPLE-AES and FairPlay streams are refused, so nothing is recorded from them and they fail closed.
+
 ## Testing behavior (debug vs. normal installs)
 
 Normal TunerOS installations automatically run short, safe offline checks without interrupting playback or changing focus. The larger guide stress and interface focusability tests run only in an explicitly launched **debug/CI** build and are not part of normal viewing. The local report records whether each check actually ran; `INCOMPLETE` means the app still lacks evidence for one or more release scenarios. The report's share option is optional, not a required testing step.
@@ -35,6 +37,34 @@ In the Classic Cable programme guide, use **Left** and **Right** to move between
 ## Empty channels and missing schedules
 
 A channel without an EPG listing remains navigable in the cable guide. If a selected time window contains only empty gaps, use **Left** and **Right** to continue moving through time. Empty gaps do not launch playback when pressing OK. To hide channels with no schedule at all, use the optional **Hide channels with no EPG** setting. The new empty-guide navigation handling is implemented in source; Android device acceptance is still pending.
+
+## Parental controls
+
+Set a PIN with **Parental PIN**: choose a PIN of 4 to 8 digits. The PIN is stored only as a salted hash. Use **Restrict group** to restrict a channel group by name, and **Release group** to remove it. Restricting and releasing a group ask for the PIN, so set one first.
+
+- A channel in a restricted group asks for the PIN before it plays. The channel that is playing keeps playing until the PIN is accepted.
+- A recording from a restricted group asks for the PIN before it plays. If its channel is no longer in the playlist while any group is restricted, the recording also asks for the PIN.
+- A wrong PIN shows how many tries are left. Five wrong entries lock the PIN for 60 seconds, and the lock survives a restart.
+- Unlocking lasts until the app process ends. Titles are not gated separately: restricting a channel group covers its channels.
+- This is a household convenience gate, not protection against someone who can clear the app's data.
+
+**Verified in the Android 35 emulator in CI. The PIN dialogs and the group prompt are not yet verified on a TV.**
+
+## Backups
+
+**Export backup** asks where to save a text file, `tuneros-backup.txt` by default. The file holds your favorites, guide mappings, series rules and restricted groups. It holds no playlist or guide URL, no provider credential, no parental PIN and no recording.
+
+**Restore backup** opens a file picker. Nothing changes until you confirm the **Restore backup?** dialog, which lists the counts. **Restore** replaces the favorites, guide mappings, series rules and restricted groups. **Cancel** changes nothing. A file that holds a URL, a credential-like value, an unknown record, a wrong version or more than 100 restricted groups is refused as a whole.
+
+**Verified in the Android 35 emulator in CI. The picker and the confirmation dialog are not yet verified on a TV.**
+
+## Timeshift
+
+**Timeshift on / off** on a live HLS stream starts a bounded buffer of the segments you have already seen, kept in the app's private storage. The buffer holds up to 900 segments or 512 MiB, whichever is reached first. It is cleared when you turn timeshift off or start another channel. **Back 10 s** moves back, and **Live** returns to the live edge.
+
+Timeshift works on live HLS streams with MPEG-TS segments. Other formats are not supported yet.
+
+**Verified in the Android 35 emulator in CI. Button focus with a TV remote and playback on hardware are not yet verified.**
 
 ## Restart and recovery of sources
 
