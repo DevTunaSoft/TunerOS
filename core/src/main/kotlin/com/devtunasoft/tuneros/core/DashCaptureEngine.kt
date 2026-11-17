@@ -154,7 +154,7 @@ class DashCaptureEngine {
      * recording stops when the listing moves past the next segment, when it stops advancing or goes unanswered for the
      * stall limit, when the representation changes, when a listed segment stays unpublished through the grace window, or
      * at the scheduled stop. A timed listing (a live timeline) starts at its newest complete segment and fetches each
-     * segment once it is complete.
+     * segment once it is complete. An open repeat after the listed entries continues the timed listing on the clock.
      */
     private fun recordListedLive(
         initialUrl: String,
@@ -187,12 +187,13 @@ class DashCaptureEngine {
                 if (plan.listedTimed) lastCompletedIndex(plan, listed, nowEpochSeconds()) else listed.lastIndex
             } else {
                 if (listed.first().id > startId) return Result(totalBytes, StopReason.UNSUPPORTED, LIVE_FELL_BEHIND)
-                listed.indexOfFirst { it.id >= startId }
+                indexAtOrAfter(plan, listed, startId)
             }
-            while (index in listed.indices) {
+            while (true) {
+                // The listed segment at this index, or the next segment of an open tail. Past both, the pass ends.
+                val entry = entryAt(plan, listed, index) ?: break
                 if (cancelled()) return Result(totalBytes, StopReason.CANCELLED)
                 if (nowEpochSeconds() >= endEpochSeconds) return Result(totalBytes, StopReason.DEADLINE)
-                val entry = listed[index]
                 // Listed segments follow one another: the next one must start where the last one ended.
                 if (nextId != null && entry.id != nextId) {
                     return Result(totalBytes, StopReason.UNSUPPORTED, LIVE_TIMELINE_MISALIGNED)
@@ -249,7 +250,8 @@ class DashCaptureEngine {
             plan = replanned
             // A refresh that brings no segment past the next one counts as idle time.
             val expected = nextId
-            val advanced = expected == null || replannedListing.any { it.id >= expected }
+            // An open tail advances with the clock, so its listing need not name a segment past the next one.
+            val advanced = expected == null || replanned.openTail != null || replannedListing.any { it.id >= expected }
             idleMillis = if (advanced) 0L else idleMillis + refreshMillisOf(plan)
             if (idleMillis >= STALL_LIMIT_MILLIS) return Result(totalBytes, StopReason.UNSUPPORTED, LIVE_STALLED)
         }
@@ -407,11 +409,45 @@ class DashCaptureEngine {
             (entry.endId - plan.presentationTimeOffsetTicks).toDouble() / plan.timescale.toDouble()
     }
 
-    /** The last listed segment that is complete at [nowEpochSeconds], or -1 when none is. */
+    /**
+     * The last listed segment that is complete at [nowEpochSeconds], or -1 when none is. An open tail continues the listing
+     * on the clock, so its newest complete segment is found by arithmetic first, and the listed entries only when it has none.
+     */
     private fun lastCompletedIndex(plan: DashPlan, listed: List<DashListedSegment>, nowEpochSeconds: Long): Int {
+        val tail = plan.openTail
+        if (tail != null) {
+            val timing = plan.timing as DashTiming.Live
+            // Presentation time elapsed so far, in timescale units. Tail segment k ends at tail start + (k + 1) * duration.
+            val elapsedTicks = (nowEpochSeconds - timing.availabilityStartEpochSeconds) * plan.timescale +
+                plan.presentationTimeOffsetTicks
+            val newest = Math.floor((elapsedTicks - tail.startTicks) / tail.durationTicks.toDouble()).toLong() - 1
+            if (newest >= 0) return listed.size + newest.toInt()
+        }
         var index = listed.lastIndex
         while (index >= 0 && listedCompleteAt(plan, listed[index]) > nowEpochSeconds.toDouble()) index--
         return index
+    }
+
+    /** The index of the first segment that starts at or after [startId]: a listed one, or else one of the open tail. */
+    private fun indexAtOrAfter(plan: DashPlan, listed: List<DashListedSegment>, startId: Long): Int {
+        val found = listed.indexOfFirst { it.id >= startId }
+        if (found >= 0) return found
+        val tail = plan.openTail ?: return -1
+        if (startId <= tail.startTicks) return listed.size
+        val steps = (startId - tail.startTicks + tail.durationTicks - 1) / tail.durationTicks
+        return listed.size + steps.toInt()
+    }
+
+    /** The listed segment at [index], or the open tail's segment there. Null when neither has one. */
+    private fun entryAt(plan: DashPlan, listed: List<DashListedSegment>, index: Int): DashListedSegment? {
+        if (index < 0) return null
+        if (index < listed.size) return listed[index]
+        val tail = plan.openTail ?: return null
+        val start = Math.addExact(tail.startTicks, Math.multiplyExact((index - listed.size).toLong(), tail.durationTicks))
+        val media = DashManifest.expand(
+            tail.mediaTemplate, plan.representationId, plan.bandwidth, plan.startNumber + index, start,
+        ) ?: return null
+        return DashListedSegment(id = start, endId = start + tail.durationTicks, media = media, range = null)
     }
 
     /** How often a listed live manifest is read again, within bounds. */
