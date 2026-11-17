@@ -156,6 +156,9 @@ class MainActivity : Activity() {
     private var focusedChannel: Channel? = null
     private var focusedProgram: GuideProgram? = null
     private var guideWindowStart: Long = 0
+    // Window shift requests from the guide. The guide focus checks read these instead of the screen.
+    private var guideWindowShiftCount = 0
+    private var lastGuideWindowShift = 0
     private val guideWindowSeconds = 3 * 3600L
     private val guideStepSeconds = 30 * 60L
     private val timeFormatter = DateTimeFormatter.ofPattern("h:mm a")
@@ -354,6 +357,8 @@ class MainActivity : Activity() {
                 showStatus(channel.name + (program?.let { " · " + it.title } ?: ""))
             },
             onWindowShift = { direction ->
+                guideWindowShiftCount++
+                lastGuideWindowShift = direction
                 shiftGuideWindow(direction * guideStepSeconds)
             },
             onChannelLongPressed = ::toggleFavorite,
@@ -2042,6 +2047,7 @@ class MainActivity : Activity() {
             DeviceFocusChecks(this, screenDriver()) { check, passed, detail -> record(check, passed, detail) }.run()
             runRestoreDialogCheck { check, passed, detail -> record(check, passed, detail) }
             runChannelRowRingCheck { check, passed, detail -> record(check, passed, detail) }
+            GuideFocusChecks(this, screenDriver(), guideFocusDriver()) { check, passed, detail -> record(check, passed, detail) }.run()
         } catch (error: Exception) {
             record("ui-checks-error", false, error.javaClass.simpleName)
         } finally {
@@ -2068,6 +2074,32 @@ class MainActivity : Activity() {
         override fun activeDialog(): AlertDialog? = this@MainActivity.activeDialog
         override fun parentalSessionUnlocked(): Boolean = this@MainActivity.onUiBool { parentalUnlocked }
         override fun setParentalSessionUnlocked(unlocked: Boolean) = this@MainActivity.onUi { parentalUnlocked = unlocked }
+    }
+
+    /** Guide access for the guide focus checks: the app's own guide list and adapter. Every call runs on the UI thread. */
+    private fun guideFocusDriver(): GuideFocusDriver = object : GuideFocusDriver {
+        override fun guideList(): android.view.ViewGroup = channelList
+
+        override fun showGuideRows(
+            rows: List<Channel>,
+            snapshot: GuideSnapshot,
+            fromEpochSeconds: Long,
+            toEpochSeconds: Long,
+            nowEpochSeconds: Long,
+        ) {
+            channelAdapter.update(rows, snapshot, fromEpochSeconds, toEpochSeconds, nowEpochSeconds, emptySet())
+        }
+
+        override fun windowStartEpochSeconds(): Long = guideWindowStart
+
+        override fun restoreChannelList(windowStartEpochSeconds: Long) {
+            guideWindowStart = windowStartEpochSeconds
+            renderChannels()
+        }
+
+        override fun windowShiftCount(): Int = guideWindowShiftCount
+
+        override fun lastWindowShiftDirection(): Int = lastGuideWindowShift
     }
 
     /**

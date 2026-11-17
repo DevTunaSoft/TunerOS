@@ -1778,6 +1778,16 @@ for check in ui-right-pin-plays focus-reach-parental-pin focus-ring-on-focused-b
   fi
 done
 echo "In-app device checks: the app drove the parental PIN dialogs and the playback gate on its own screens"
+# Guide focus checks: the channel cell takes focus, RIGHT and LEFT move between programmes, LEFT on the first programme asks
+# for one window shift, and UP and DOWN leave the programme timeline. The app reports each one in the same UI report.
+for check in guide-focus-channel-cell-takes-focus guide-focus-right-left-moves-programme guide-focus-left-edge-shifts-window guide-focus-up-down-leaves-timeline; do
+  if ! grep -Fq "$(printf 'PASS\t%s\t' "$check")" ui-report.txt 2>/dev/null; then
+    echo "In-app guide focus check $check did not pass or did not finish"
+    cat ui-report.txt 2>/dev/null || true
+    exit 1
+  fi
+done
+echo "In-app guide focus checks: the guide's channel cell takes focus, RIGHT and LEFT move between programmes, LEFT on the first programme asks for one window shift, and UP and DOWN leave the timeline"
 
 if grep -q '^FAIL[[:space:]]' on-device-report.txt; then
   echo "Unexpected failure in the app's own self-test report"

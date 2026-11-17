@@ -1,0 +1,349 @@
+package com.devtunasoft.tuneros
+
+import android.app.Activity
+import android.view.KeyEvent
+import android.view.View
+import android.view.ViewGroup
+import android.widget.TextView
+import com.devtunasoft.tuneros.core.Channel
+import com.devtunasoft.tuneros.core.GuideProgram
+import com.devtunasoft.tuneros.core.GuideSnapshot
+
+/** What the guide focus checks need from the activity: the guide's own list and adapter. Every call runs on the UI thread. */
+internal interface GuideFocusDriver {
+    /** The guide's channel list. The rows are found from here. */
+    fun guideList(): ViewGroup
+
+    /** Shows [rows] through the guide's own adapter, with the programmes of [snapshot] between the two times. */
+    fun showGuideRows(
+        rows: List<Channel>,
+        snapshot: GuideSnapshot,
+        fromEpochSeconds: Long,
+        toEpochSeconds: Long,
+        nowEpochSeconds: Long,
+    )
+
+    /** The start of the guide window that the app shows. */
+    fun windowStartEpochSeconds(): Long
+
+    /** Puts the app's own channel list back, showing the window that starts at [windowStartEpochSeconds]. */
+    fun restoreChannelList(windowStartEpochSeconds: Long)
+
+    /** How many window shifts the guide has asked for. The app counts each request. */
+    fun windowShiftCount(): Int
+
+    /** The direction of the latest window shift request: -1 for the left edge, 1 for the right edge. */
+    fun lastWindowShiftDirection(): Int
+}
+
+/**
+ * Debug builds only. Shows two guide rows, each with three programmes, through the guide's own adapter, and checks the focus
+ * that a TV remote depends on. (a) The channel cell takes focus. (b) RIGHT moves to the next programme and LEFT returns to the
+ * first one, with no window shift. (c) LEFT on the first programme asks the guide to shift its window once, by -1. (d) UP and
+ * DOWN leave the timeline for a neighbouring row. Keys go to the focused view first, as the remote sends them. Window shifts
+ * are counted by the app, not read from the screen. Each check uses its own channel ids, because the adapter remembers the
+ * programme that had focus on a channel id. The app's own channel list is put back at the end.
+ */
+internal class GuideFocusChecks(
+    private val activity: Activity,
+    private val screen: ScreenDriver,
+    private val guide: GuideFocusDriver,
+    private val report: (check: String, passed: Boolean, detail: String) -> Unit,
+) {
+    private val nowEpochSeconds = System.currentTimeMillis() / 1000L
+    private val fromEpochSeconds = nowEpochSeconds - nowEpochSeconds % STEP_SECONDS
+    private val toEpochSeconds = fromEpochSeconds + WINDOW_SECONDS
+    private val snapshot = snapshotFrom(fromEpochSeconds)
+
+    fun run() {
+        // The guide builds its per-channel index on first use. Build it here, off the UI thread, as an import does.
+        snapshot.prepareIndex()
+        var savedStart = 0L
+        screen.onUi { savedStart = guide.windowStartEpochSeconds() }
+        try {
+            runCheck(CELL_CHECK) { channelCellTakesFocus() }
+            runCheck(PROGRAMME_CHECK) { rightAndLeftMoveProgramme() }
+            runCheck(EDGE_CHECK) { leftOnFirstProgrammeShiftsWindow() }
+            runCheck(ROWS_CHECK) { upAndDownLeaveTimeline() }
+        } finally {
+            screen.onUi { guide.restoreChannelList(savedStart) }
+        }
+    }
+
+    /** Runs one check and reports it under its own name, so that an exception ends only that check. */
+    private fun runCheck(name: String, body: () -> Pair<Boolean, String>) {
+        val outcome = try {
+            body()
+        } catch (error: Exception) {
+            Pair(false, "the check stopped on " + error.javaClass.simpleName)
+        }
+        report(name, outcome.first, outcome.second)
+    }
+
+    /** (a) A focus request on the channel cell of a row gives the focus to that cell. */
+    private fun channelCellTakesFocus(): Pair<Boolean, String> {
+        showRows(TAG_CELL)
+        if (!rowsOnScreen()) return Pair(false, "the two guide rows are not on screen")
+        var focused = false
+        var focusText = ""
+        screen.onUi {
+            val cell = channelCell(ALPHA) ?: return@onUi
+            focusByTouch(listOf(cell)) { cell.requestFocus() }
+            focused = activity.currentFocus === cell
+            focusText = describeFocus()
+        }
+        val detail = if (focused) "the channel cell \"$ALPHA\" takes focus" else "focus is on $focusText, not the channel cell"
+        return Pair(focused, detail)
+    }
+
+    /** (b) RIGHT moves the focus to the next programme cell, LEFT returns it, and neither key shifts the window. */
+    private fun rightAndLeftMoveProgramme(): Pair<Boolean, String> {
+        showRows(TAG_PROGRAMMES)
+        if (!rowsOnScreen()) return Pair(false, "the two guide rows are not on screen")
+        var focused = false
+        var focusText = ""
+        var first = ""
+        var afterRight = ""
+        var afterLeft = ""
+        var stillFocused = false
+        var shifts = 0
+        screen.onUi {
+            val timeline = timelineOf(ALPHA) ?: return@onUi
+            focusByTouch(rowViews()) { timeline.requestFocus() }
+            focused = activity.currentFocus === timeline
+            focusText = describeFocus()
+            if (!focused) return@onUi
+            first = programmeLabel(timeline)
+            val before = guide.windowShiftCount()
+            sendKey(KeyEvent.KEYCODE_DPAD_RIGHT)
+            afterRight = programmeLabel(timeline)
+            sendKey(KeyEvent.KEYCODE_DPAD_LEFT)
+            afterLeft = programmeLabel(timeline)
+            stillFocused = activity.currentFocus === timeline
+            shifts = guide.windowShiftCount() - before
+        }
+        if (!focused) return Pair(false, "the programme timeline did not take focus; focus is on $focusText")
+        val passed = first == FIRST_LABEL && afterRight == SECOND_LABEL && afterLeft == FIRST_LABEL &&
+            stillFocused && shifts == 0
+        val detail = "from \"$first\", RIGHT gives \"$afterRight\" and LEFT gives \"$afterLeft\"; " +
+            "window shifts: $shifts; focus stays on the timeline: $stillFocused"
+        return Pair(passed, detail)
+    }
+
+    /** (c) LEFT on the first programme asks the guide to shift its window once, by -1. The app counts the request. */
+    private fun leftOnFirstProgrammeShiftsWindow(): Pair<Boolean, String> {
+        showRows(TAG_EDGE)
+        if (!rowsOnScreen()) return Pair(false, "the two guide rows are not on screen")
+        var focused = false
+        var focusText = ""
+        var first = ""
+        var requests = 0
+        var direction = 0
+        screen.onUi {
+            val timeline = timelineOf(ALPHA) ?: return@onUi
+            focusByTouch(rowViews()) { timeline.requestFocus() }
+            focused = activity.currentFocus === timeline
+            focusText = describeFocus()
+            if (!focused) return@onUi
+            first = programmeLabel(timeline)
+            val before = guide.windowShiftCount()
+            sendKey(KeyEvent.KEYCODE_DPAD_LEFT)
+            requests = guide.windowShiftCount() - before
+            direction = guide.lastWindowShiftDirection()
+        }
+        if (!focused) return Pair(false, "the programme timeline did not take focus; focus is on $focusText")
+        val passed = first == FIRST_LABEL && requests == 1 && direction == -1
+        return Pair(passed, "LEFT on \"$first\" made $requests window shift request(s), direction $direction")
+    }
+
+    /** (d) UP and DOWN leave the timeline for a neighbouring row, or for another focusable view. */
+    private fun upAndDownLeaveTimeline(): Pair<Boolean, String> {
+        showRows(TAG_ROWS)
+        if (!rowsOnScreen()) return Pair(false, "the two guide rows are not on screen")
+        val up = leaveTimeline(BRAVO, KeyEvent.KEYCODE_DPAD_UP, View.FOCUS_UP)
+        val down = leaveTimeline(ALPHA, KeyEvent.KEYCODE_DPAD_DOWN, View.FOCUS_DOWN)
+        return Pair(up.first && down.first, "UP: ${up.second}; DOWN: ${down.second}")
+    }
+
+    /**
+     * Runs one direction from the timeline of [source]. The timeline's own key handler must pass the key on. Then the key is
+     * sent to the focused view. The framework moves focus for a direction key that no view handles, with a focus search, and
+     * sending a key to a view does not run that search. So when the key leaves the focus on the timeline, the check runs the
+     * same search, and the report says which route moved the focus.
+     */
+    private fun leaveTimeline(source: String, keyCode: Int, direction: Int): Pair<Boolean, String> {
+        var focused = false
+        var focusText = ""
+        var passedOn = false
+        var viaKey = false
+        var landed = false
+        var landedOn = ""
+        screen.onUi {
+            val timeline = timelineOf(source) ?: return@onUi
+            focusByTouch(rowViews()) {
+                timeline.requestFocus()
+                focused = activity.currentFocus === timeline
+                focusText = describeFocus()
+                if (!focused) return@focusByTouch
+                passedOn = !timeline.onKeyDown(keyCode, KeyEvent(KeyEvent.ACTION_DOWN, keyCode))
+                sendKey(keyCode)
+                viaKey = activity.currentFocus !== timeline
+                if (!viaKey) timeline.focusSearch(direction)?.requestFocus()
+                landed = activity.currentFocus != null && activity.currentFocus !== timeline
+                landedOn = describeFocus()
+            }
+        }
+        if (!focused) return Pair(false, "focus did not reach the timeline of \"$source\"; focus is on $focusText")
+        val route = if (viaKey) "by the key" else "by the framework's focus search"
+        val detail = when {
+            !passedOn -> "the timeline of \"$source\" consumed the key"
+            !landed -> "focus stayed on the timeline of \"$source\""
+            else -> "the timeline of \"$source\" passes the key on, and focus moves $route to $landedOn"
+        }
+        return Pair(passedOn && landed, detail)
+    }
+
+    /** Shows the two rows of one check through the guide's own adapter. [tag] keeps this check's channel ids apart. */
+    private fun showRows(tag: String) {
+        val rows = listOf(channelFor(tag, ALPHA), channelFor(tag, BRAVO))
+        screen.onUi { guide.showGuideRows(rows, snapshot, fromEpochSeconds, toEpochSeconds, nowEpochSeconds) }
+    }
+
+    /** Waits until both rows are on screen and laid out after their bind. A pending layout could leave a stale row in use. */
+    private fun rowsOnScreen(): Boolean = screen.waitForScreen(ROWS_TIMEOUT_MILLIS) {
+        !guide.guideList().isLayoutRequested && rowReady(ALPHA) && rowReady(BRAVO)
+    }
+
+    /**
+     * The emulator starts in touch mode. There requestFocus() ignores a view that is not focusable by touch, and the focus
+     * search that the framework runs for an unhandled direction key offers only such views. So the views are made focusable
+     * by touch while the request and the search run, and each flag is put back at once. runChannelRowRingCheck makes its
+     * request the same way, and its focus survives the restore.
+     */
+    private fun <T> focusByTouch(views: List<View>, request: () -> T): T {
+        val saved = views.map { it.isFocusableInTouchMode }
+        views.forEach { it.isFocusableInTouchMode = true }
+        try {
+            return request()
+        } finally {
+            views.forEachIndexed { index, view -> view.isFocusableInTouchMode = saved[index] }
+        }
+    }
+
+    /** A key press as the remote sends it: down, then up. Both go to the focused view, through the window's dispatch. */
+    private fun sendKey(keyCode: Int) {
+        val decor = activity.window.decorView
+        decor.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, keyCode))
+        decor.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_UP, keyCode))
+    }
+
+    /** Runs on the UI thread: whether the row of [name] is on screen and laid out. */
+    private fun rowReady(name: String): Boolean {
+        val cell = channelCell(name) ?: return false
+        val timeline = timelineOf(name) ?: return false
+        return cell.isShown && timeline.isShown && timeline.width > 0
+    }
+
+    /** Runs on the UI thread: the channel cell that shows [name], or null while it is not on screen. */
+    private fun channelCell(name: String): TextView? = findCell(guide.guideList(), name)
+
+    private fun findCell(view: View, name: String): TextView? {
+        if (view is TextView && view.isFocusable && view.text?.toString() == name) return view
+        if (view is ViewGroup) {
+            for (index in 0 until view.childCount) {
+                findCell(view.getChildAt(index), name)?.let { return it }
+            }
+        }
+        return null
+    }
+
+    /** Runs on the UI thread: the programme timeline in the row of [name], or null while that row is not on screen. */
+    private fun timelineOf(name: String): ProgramTimelineView? {
+        val row = channelCell(name)?.parent as? ViewGroup ?: return null
+        for (index in 0 until row.childCount) {
+            (row.getChildAt(index) as? ProgramTimelineView)?.let { return it }
+        }
+        return null
+    }
+
+    /** Runs on the UI thread: the cells and timelines of both rows, which are the views a focus request or search can reach. */
+    private fun rowViews(): List<View> = listOfNotNull<View>(
+        channelCell(ALPHA), timelineOf(ALPHA), channelCell(BRAVO), timelineOf(BRAVO),
+    )
+
+    /** Runs on the UI thread: the channel cell in the same row as [view], or null. */
+    private fun rowCellOf(view: View): TextView? {
+        val row = view.parent as? ViewGroup ?: return null
+        for (index in 0 until row.childCount) {
+            (row.getChildAt(index) as? TextView)?.let { return it }
+        }
+        return null
+    }
+
+    /** Runs on the UI thread: the programme or channel that a view stands for, for the report. */
+    private fun describeView(view: View): String {
+        val cell = if (view is TextView) view else rowCellOf(view)
+        val name = cell?.text?.toString() ?: ""
+        return when (view) {
+            is ProgramTimelineView -> "the programme timeline of \"$name\""
+            is TextView -> "the channel cell \"$name\""
+            else -> view.javaClass.simpleName
+        }
+    }
+
+    /** Runs on the UI thread: what has the focus, for the report. */
+    private fun describeFocus(): String = activity.currentFocus?.let { describeView(it) } ?: "nothing"
+
+    /** Runs on the UI thread: the channel and programme the timeline has selected, which is its accessible label. */
+    private fun programmeLabel(timeline: ProgramTimelineView): String = timeline.contentDescription?.toString() ?: ""
+
+    private fun channelFor(tag: String, name: String): Channel {
+        val id = guideId(tag, name)
+        return Channel(id = id, name = name, streamUrl = "asset:///ui-test.mp4", guideId = id, group = "News")
+    }
+
+    private fun guideId(tag: String, name: String): String = "ui-check-" + tag + "-" + name.lowercase().replace(' ', '-')
+
+    /** Three programmes per channel. They cover the window exactly, so a row has no gap for the focus to skip. */
+    private fun snapshotFrom(from: Long): GuideSnapshot {
+        val programs = ArrayList<GuideProgram>()
+        for (tag in TAGS) {
+            for (name in NAMES) {
+                TITLES.forEachIndexed { index, title ->
+                    val start = from + index * PROGRAMME_SECONDS
+                    programs += GuideProgram(
+                        channelId = guideId(tag, name),
+                        title = title,
+                        startEpochSeconds = start,
+                        endEpochSeconds = start + PROGRAMME_SECONDS,
+                    )
+                }
+            }
+        }
+        return GuideSnapshot(programs = programs, channelNames = emptyMap())
+    }
+
+    private companion object {
+        const val ALPHA = "Guide Focus Alpha"
+        const val BRAVO = "Guide Focus Bravo"
+        val NAMES = listOf(ALPHA, BRAVO)
+        const val FIRST_TITLE = "First show"
+        const val SECOND_TITLE = "Second show"
+        val TITLES = listOf(FIRST_TITLE, SECOND_TITLE, "Third show")
+        val FIRST_LABEL = "$ALPHA, $FIRST_TITLE"
+        val SECOND_LABEL = "$ALPHA, $SECOND_TITLE"
+        const val TAG_CELL = "cell"
+        const val TAG_PROGRAMMES = "programmes"
+        const val TAG_EDGE = "edge"
+        const val TAG_ROWS = "rows"
+        val TAGS = listOf(TAG_CELL, TAG_PROGRAMMES, TAG_EDGE, TAG_ROWS)
+        const val STEP_SECONDS = 1_800L
+        const val PROGRAMME_SECONDS = 1_200L
+        const val WINDOW_SECONDS = 3_600L
+        const val ROWS_TIMEOUT_MILLIS = 15_000L
+        const val CELL_CHECK = "guide-focus-channel-cell-takes-focus"
+        const val PROGRAMME_CHECK = "guide-focus-right-left-moves-programme"
+        const val EDGE_CHECK = "guide-focus-left-edge-shifts-window"
+        const val ROWS_CHECK = "guide-focus-up-down-leaves-timeline"
+    }
+}
