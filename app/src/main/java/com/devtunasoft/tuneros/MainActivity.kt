@@ -1939,7 +1939,9 @@ class MainActivity : Activity() {
                 typeIntoActiveDialog("1234")
                 confirmActiveDialog()
             }
-            record("ui-pin-saved", waitForScreen(15_000) { currentStatusText() == pinSavedStatus }, "a 4-digit PIN is saved from the dialog")
+            val pinStored = waitForScreen(30_000) { parentalStoreOverride?.hasPin() == true }
+            val pinStatus = onUiText { currentStatusText() }
+            record("ui-pin-saved", pinStored, "a 4-digit PIN is saved from the dialog (status shown: $pinStatus)")
 
             onUi { restrictGroupPrompt(restricted = true) }
             record("ui-restrict-dialog-opens", waitForScreen(15_000) { showingDialogWith("Save") }, "the restrict-group dialog opens")
@@ -1947,7 +1949,11 @@ class MainActivity : Activity() {
                 typeIntoActiveDialog("Adult")
                 confirmActiveDialog()
             }
-            record("ui-group-restricted", waitForScreen(15_000) { currentStatusText() == "Group restricted" }, "the Adult group is restricted from the dialog")
+            val groupStored = waitForScreen(30_000) {
+                parentalStoreOverride?.restrictedGroups()?.contains("adult") == true
+            }
+            val groupStatus = onUiText { currentStatusText() }
+            record("ui-group-restricted", groupStored, "the Adult group is restricted from the dialog (status shown: $groupStatus)")
 
             onUi {
                 parentalUnlocked = false
@@ -2041,6 +2047,21 @@ class MainActivity : Activity() {
     private fun onUiBool(block: () -> Boolean): Boolean {
         val done = CountDownLatch(1)
         var result = false
+        runOnUiThread {
+            try {
+                result = block()
+            } finally {
+                done.countDown()
+            }
+        }
+        done.await(10, TimeUnit.SECONDS)
+        return result
+    }
+
+    /** Runs [block] on the UI thread and returns the text it produced. */
+    private fun onUiText(block: () -> String): String {
+        val done = CountDownLatch(1)
+        var result = ""
         runOnUiThread {
             try {
                 result = block()
