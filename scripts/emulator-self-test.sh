@@ -1807,3 +1807,117 @@ if grep -q '^FAIL[[:space:]]' on-device-report.txt; then
   exit 1
 fi
 cat on-device-report.txt
+
+# Package upgrade. The base commit's debug APK (built in the build job of android.yml) is installed first and seeded: the
+# existing startup-recovery seed saves a playlist and a guide encrypted, and a parental PIN record is written in the base
+# build's format. This build then replaces it with adb install -r. A cold start in check mode must restore the channels and
+# programmes, the app must accept the PIN, and the saved sources must still be the same encrypted records. Loopback fixtures
+# and a CI test PIN only. The reports hold PASS/FAIL, ids and counts, never a URL or the PIN.
+UPGRADE_PIN=1234 # Must equal UpgradeQa.PIN in the app. A CI test value, not a user's PIN.
+UPGRADE_APP_PREFS=shared_prefs/tuneros_alpha.xml
+UPGRADE_PIN_PREFS=shared_prefs/tuneros-parental.xml
+# Installs one APK with the given adb install options. Succeeds only when adb reports Success.
+install_apk() {
+  local apk=$1
+  shift
+  local out
+  out=$(adb install "$@" "$apk" 2>&1 | tr -d '\r') || true
+  echo "$out"
+  grep -q '^Success' <<<"$out"
+}
+# Succeeds only when both sources are encrypted records and no plaintext copy or loopback URL is stored.
+sources_encrypted() {
+  grep -q 'name="playlist.secure"' "$1" && grep -q 'name="guide.secure"' "$1" \
+    && ! grep -q 'name="playlist"' "$1" && ! grep -q 'name="guide"' "$1" && ! grep -Fq '10.0.2.2:8766' "$1"
+}
+# Prints the encrypted value stored under a preference name.
+secure_value() {
+  sed -n "s/.*name=\"$2\">\([^<]*\)<.*/\1/p" "$1"
+}
+# Polls the upgrade report in the app's files directory until it has a PASS or FAIL line for the check id.
+upgrade_report_wait() {
+  for _ in $(seq 1 60); do
+    adb shell run-as com.devtunasoft.tuneros cat files/tuneros-upgrade-report.txt > upgrade-report.txt 2>/dev/null || true
+    if grep -Eq "^(PASS|FAIL)[[:space:]]$1[[:space:]]" upgrade-report.txt; then
+      return 0
+    fi
+    sleep 2
+  done
+  return 1
+}
+upgrade_fail() {
+  kill "$UPGRADE_HTTP_PID" 2>/dev/null || true
+  echo "Package upgrade check failed: $1"
+  cat recovery-report.txt 2>/dev/null || echo "(no recovery report)"
+  cat upgrade-report.txt 2>/dev/null || echo "(no upgrade report)"
+  exit 1
+}
+# The startup-recovery block stopped its server. Wait for that process to exit, then serve the same fixtures on the same
+# port, because the saved playlist and guide URLs point there.
+wait "$RECOVERY_HTTP_PID" 2>/dev/null || true
+python3 -m http.server 8766 --bind 0.0.0.0 --directory ci-import >upgrade-server.log 2>&1 &
+UPGRADE_HTTP_PID=$!
+sleep 2
+# A clean base install: the head build is removed first, so no data from the earlier checks is carried into the upgrade.
+adb shell am force-stop com.devtunasoft.tuneros
+out=$(adb uninstall com.devtunasoft.tuneros 2>&1 | tr -d '\r') || true
+echo "Uninstall before the base install: ${out:-no output}"
+install_apk ci-upgrade-base/app-debug.apk || upgrade_fail "the base build did not install"
+echo "Base build $(cat ci-upgrade-base/base-sha.txt 2>/dev/null || echo unknown): $(adb shell dumpsys package com.devtunasoft.tuneros 2>/dev/null | tr -d '\r' | grep -E 'versionCode=|versionName=' | head -2 | tr -s ' ' | tr '\n' ' ')"
+# The existing startup-recovery seed saves the playlist and guide URLs encrypted, in the base build.
+recovery_launch seed --es tuneros.debug.recovery_playlist_url "$REC_PLAYLIST" --es tuneros.debug.recovery_guide_url "$REC_GUIDE"
+recovery_wait qa-startup-recovery-seed || upgrade_fail "the base build did not finish the recovery seed"
+grep -Fq "$(printf 'PASS\tqa-startup-recovery-seed\tchannels=3 programs=6 saved=true')" recovery-report.txt \
+  || upgrade_fail "the base build did not save the playlist and guide"
+adb shell run-as com.devtunasoft.tuneros cat "$UPGRADE_APP_PREFS" > upgrade-base-prefs.xml 2>/dev/null || true
+sources_encrypted upgrade-base-prefs.xml || upgrade_fail "the base build did not store the sources encrypted"
+PLAYLIST_BEFORE=$(secure_value upgrade-base-prefs.xml playlist.secure)
+GUIDE_BEFORE=$(secure_value upgrade-base-prefs.xml guide.secure)
+{ [ -n "$PLAYLIST_BEFORE" ] && [ -n "$GUIDE_BEFORE" ]; } || upgrade_fail "the encrypted sources are empty"
+# No debug flow in the base build writes the real PIN store, and its dialog is not reachable by adb taps. The script writes
+# the record in ParentalControlsStore's format instead: a random 16-byte salt and the PBKDF2-HMAC-SHA256 hash of the PIN
+# (120000 iterations and 32 bytes, as core ParentalPin defines them). The upgraded build must accept it.
+python3 - "$UPGRADE_PIN" upgrade-parental-seed.xml <<'PY'
+import base64, hashlib, os, sys
+pin, path = sys.argv[1], sys.argv[2]
+salt = os.urandom(16)
+digest = hashlib.pbkdf2_hmac('sha256', pin.encode('utf-8'), salt, 120000, dklen=32)
+lines = [
+    "<?xml version='1.0' encoding='utf-8' standalone='yes' ?>",
+    '<map>',
+    '    <string name="salt">%s</string>' % base64.b64encode(salt).decode('ascii'),
+    '    <string name="hash">%s</string>' % base64.b64encode(digest).decode('ascii'),
+    '    <int name="failures" value="0" />',
+    '    <long name="locked-until" value="0" />',
+    '</map>',
+]
+with open(path, 'w', encoding='utf-8') as out:
+    out.write('\n'.join(lines) + '\n')
+PY
+adb shell am force-stop com.devtunasoft.tuneros
+adb shell "run-as com.devtunasoft.tuneros sh -c 'cat > $UPGRADE_PIN_PREFS'" < upgrade-parental-seed.xml || true
+adb shell run-as com.devtunasoft.tuneros cat "$UPGRADE_PIN_PREFS" 2>/dev/null | tr -d '\r' > upgrade-parental-check.xml || true
+tr -d '\r' < upgrade-parental-seed.xml | cmp -s - upgrade-parental-check.xml || upgrade_fail "the PIN record was not written into the app"
+# Replace the base build in place. A failed install (for example a signature mismatch) fails the block.
+install_apk ci-apk/app-debug.apk -r || upgrade_fail "the head build did not install over the base build with adb install -r"
+# The upgraded build starts cold in check mode. It must restore the channels and programmes from the saved sources and accept
+# the PIN. Both reports are cleared before the launch, so every line comes from this launch.
+adb shell run-as com.devtunasoft.tuneros rm -f files/tuneros-upgrade-report.txt 2>/dev/null || true
+recovery_launch check --ez tuneros.debug.upgrade_check true
+recovery_wait qa-startup-recovery || upgrade_fail "the upgraded build did not finish the cold-start check"
+grep -Fq "$(printf 'PASS\tqa-startup-recovery\tchannels=3 programs=6')" recovery-report.txt \
+  || upgrade_fail "the upgraded build did not restore the channels and programmes"
+upgrade_report_wait qa-upgrade-pin || upgrade_fail "the upgraded build did not finish the PIN check"
+grep -Fq "$(printf 'PASS\tqa-upgrade-pin\t')" upgrade-report.txt || upgrade_fail "the upgraded build did not accept the saved PIN"
+# The saved sources must still be the same encrypted records after the upgrade.
+adb shell run-as com.devtunasoft.tuneros cat "$UPGRADE_APP_PREFS" > upgrade-prefs.xml 2>/dev/null || true
+sources_encrypted upgrade-prefs.xml || upgrade_fail "the saved sources are not encrypted records after the upgrade"
+{ [ "$(secure_value upgrade-prefs.xml playlist.secure)" = "$PLAYLIST_BEFORE" ] \
+  && [ "$(secure_value upgrade-prefs.xml guide.secure)" = "$GUIDE_BEFORE" ]; } \
+  || upgrade_fail "the encrypted sources changed during the upgrade"
+kill "$UPGRADE_HTTP_PID" 2>/dev/null || true
+cp recovery-report.txt upgrade-recovery-report.txt
+grep -F "$(printf 'PASS\tqa-startup-recovery\tchannels=3 programs=6')" upgrade-recovery-report.txt || upgrade_fail "missing the channel line"
+grep -F "$(printf 'PASS\tqa-upgrade-pin\t')" upgrade-report.txt || upgrade_fail "missing the PIN line"
+printf 'PASS\tqa-upgrade-sources-encrypted\tplaylist and guide are encrypted records, unchanged by the upgrade, with no plaintext copy\n'
+echo "Package upgrade: the base build saved the sources and a PIN record, install -r replaced it, and the upgraded build restored the channels and programmes, accepted the PIN and kept the sources encrypted"
