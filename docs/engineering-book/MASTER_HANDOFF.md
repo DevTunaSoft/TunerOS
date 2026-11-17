@@ -85,7 +85,7 @@ Key repository docs to reconcile before modifying anything: `README.md`, `docs/H
 | Android Media3 player | Implemented; real provider streams, codecs and hardware decoder behavior unverified |
 | Encrypted source storage | Implemented; synthetic Keystore checks; migration/upgrade on devices needs evidence |
 | Stream Doctor | Basic classifier implemented; full diagnostic telemetry not implemented |
-| Guide Doctor | Planned; mapping-repair interface not implemented |
+| Guide Doctor | Partial: mapping repair and reason-coded diagnosis counts implemented ([DevTunaSoft/TunerOS#95](https://github.com/DevTunaSoft/TunerOS/pull/95)); timezone warnings and export not implemented |
 | DVR direct-to-disk capture | Implemented for selected raw/HLS subset; real provider recording unverified |
 | Scheduled DVR and recovery | Implemented; synthetic checks reported; exact-alarm delivery/reboot acceptance pending |
 | SAF USB/SD storage | Implemented in source; physical removal/reconnection acceptance pending |

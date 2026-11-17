@@ -335,3 +335,11 @@ The Android 35 emulator job still runs the app's 15 automatic assertions. To mak
   - Memory: one before-and-after sample, with no peak, battery or device-class budget.
   - Upgrade: same-version only; schema migrations are not exercised.
   - Protected DASH and encrypted fMP4 initialisation remain refused; both need a key or DRM decision.
+
+## 2026-11-17 — Guide Doctor diagnosis counts
+
+- **Scope:** the step-1 Guide Doctor dialog explains its count. Each channel without a schedule is counted by reason, after saved mappings are applied: no guide ID, a guide ID with no channel entry in the loaded guide, or a declared guide channel with no programmes. Saved mappings are counted when their key is missing from the playlist or their guide channel has no schedule. PR [DevTunaSoft/TunerOS#95](https://github.com/DevTunaSoft/TunerOS/pull/95).
+- **Changed files:** `core/.../GuideDoctor.kt` (`diagnose`), `core/src/test/.../GuideDoctorTest.kt` (5 tests), `app/.../MainActivity.kt` (dialog title), `app/.../OnDeviceSelfTest.kt` (`debug-guide-doctor` asserts the counts on scratch data).
+- **Verified on `1f7d27e`:** phone run [44201363226](https://github.com/DevTunaSoft/TunerOS/actions/runs/44201363226): `:core:test` and `:app:assembleDebug` pass, `debug-guide-doctor` PASS, `29 PASS / 0 FAIL / 0 BLOCKED / 12 NOT RUN`. TV run [44201363211](https://github.com/DevTunaSoft/TunerOS/actions/runs/44201363211): `21 of 21` required device checks and remote key input PASS, 0 FAIL.
+- **Local check:** the core JUnit suite passes 406 tests (401 on `main`). Two deliberate breaks in `GuideDoctor.kt`, each reverted, each fail 2 tests.
+- **Open limits:** the dialog wording and placement are an assumption for review. Timezone warnings and an exportable credential-safe summary are not implemented. The dialog on a TV is UNVERIFIED on a device.
