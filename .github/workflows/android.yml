@@ -96,5 +96,7 @@ jobs:
             on-device-report.txt
             emulator-failure-logcat.txt
             picker.xml
+            ui-report.txt
+            ui-dumps
           if-no-files-found: warn
           retention-days: 14

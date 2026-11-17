@@ -1754,6 +1754,34 @@ fi
 kill "$RECOVERY_HTTP_PID" 2>/dev/null || true
 echo "Startup recovery: sources saved encrypted, restored after a cold start, unchanged by a failed import"
 
+# Parental PIN and restricted groups through the app's own screens: taps, typed PIN digits and a relaunch that locks the
+# session. The driver reads each screen with uiautomator. This check uses its own playlist and stream on port 8790.
+mkdir -p ci-ui ui-dumps
+ffmpeg -y -loglevel error -f lavfi -i testsrc=duration=60:size=320x240:rate=25 -c:v libx264 -pix_fmt yuv420p -movflags +faststart ci-ui/ui-one.mp4
+cat > ci-ui/ui-playlist.m3u <<'M3U'
+#EXTM3U
+#EXTINF:-1 tvg-id="ui.adult" group-title="Adult",Adult One
+http://10.0.2.2:8790/ui-one.mp4
+#EXTINF:-1 tvg-id="ui.news" group-title="News",News Two
+http://10.0.2.2:8790/ui-one.mp4
+M3U
+python3 -m http.server 8790 --bind 0.0.0.0 --directory ci-ui >ui-http.log 2>&1 &
+UI_HTTP_PID=$!
+for _ in $(seq 1 20); do
+  curl -fsS -o /dev/null --max-time 5 http://127.0.0.1:8790/ui-playlist.m3u && break
+  sleep 1
+done
+rm -f ui-report.txt
+UI_STATUS=0
+python3 scripts/device_ui_checks.py ui-report.txt ui-dumps || UI_STATUS=$?
+kill "$UI_HTTP_PID" 2>/dev/null || true
+cat ui-report.txt
+if [ "$UI_STATUS" -ne 0 ] || grep -q '^FAIL' ui-report.txt; then
+  echo "Device UI checks failed"
+  exit 1
+fi
+echo "Parental PIN on the device: a restricted channel asks for the PIN, a wrong PIN is refused, the right PIN plays, and an unrestricted channel plays without one"
+
 if grep -q '^FAIL[[:space:]]' on-device-report.txt; then
   echo "Unexpected failure in the app's own self-test report"
   cat on-device-report.txt
