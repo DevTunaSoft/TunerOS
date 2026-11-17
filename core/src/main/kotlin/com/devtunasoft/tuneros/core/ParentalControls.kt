@@ -96,6 +96,21 @@ object ParentalPolicy {
         return restrictedGroups.any { normalize(it) == key }
     }
 
+    /**
+     * A recording plays under the rule for its channel. When the channel is no longer in the playlist its group cannot be
+     * checked, so the recording asks for the PIN while any group is restricted.
+     */
+    fun requiresPinForRecording(
+        channelGroup: String?,
+        channelKnown: Boolean,
+        restrictedGroups: Set<String>,
+        unlocked: Boolean,
+    ): Boolean {
+        if (unlocked) return false
+        if (!channelKnown) return restrictedGroups.isNotEmpty()
+        return requiresPin(channelGroup, restrictedGroups, unlocked = false)
+    }
+
     /** Returns [current] with [group] added or removed, stored normalized. Refuses an empty name or too many groups. */
     fun restrict(current: Set<String>, group: String, restricted: Boolean): Set<String> {
         val key = normalize(group)

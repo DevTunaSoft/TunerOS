@@ -101,4 +101,21 @@ class ParentalControlsTest {
         assertEquals(most, ParentalPolicy.normalizeAll(most))
         assertFailsWith<IllegalArgumentException> { ParentalPolicy.normalizeAll(most + "one more") }
     }
+
+    @Test fun aRecordingPlaysUnderTheRuleForItsChannel() {
+        val restricted = setOf("adult")
+        assertTrue(ParentalPolicy.requiresPinForRecording(channelGroup = "Adult", channelKnown = true, restrictedGroups = restricted, unlocked = false))
+        assertFalse(ParentalPolicy.requiresPinForRecording(channelGroup = "Sports", channelKnown = true, restrictedGroups = restricted, unlocked = false))
+        assertFalse(ParentalPolicy.requiresPinForRecording(channelGroup = null, channelKnown = true, restrictedGroups = restricted, unlocked = false))
+    }
+
+    @Test fun aRecordingOfAnUnknownChannelAsksForThePinOnlyWhileAGroupIsRestricted() {
+        assertTrue(ParentalPolicy.requiresPinForRecording(channelGroup = null, channelKnown = false, restrictedGroups = setOf("adult"), unlocked = false))
+        assertFalse(ParentalPolicy.requiresPinForRecording(channelGroup = null, channelKnown = false, restrictedGroups = emptySet(), unlocked = false))
+    }
+
+    @Test fun anUnlockedSessionPlaysEveryRecordingWithoutThePin() {
+        assertFalse(ParentalPolicy.requiresPinForRecording(channelGroup = "Adult", channelKnown = true, restrictedGroups = setOf("adult"), unlocked = true))
+        assertFalse(ParentalPolicy.requiresPinForRecording(channelGroup = null, channelKnown = false, restrictedGroups = setOf("adult"), unlocked = true))
+    }
 }

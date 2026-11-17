@@ -64,6 +64,22 @@ internal object ParentalQa {
                 !ParentalPolicy.requiresPin("Sports", restricted, unlocked = false) &&
                 !ParentalPolicy.requiresPin("adult", restricted, unlocked = true)
             record(report, "qa-parental-policy", policyHolds, "restricted groups persist: ${restricted.size}")
+
+            val recordingAsksForPin = ParentalPolicy.requiresPinForRecording(
+                channelGroup = "Adult", channelKnown = true, restrictedGroups = restricted, unlocked = false,
+            )
+            val unknownAsksForPin = ParentalPolicy.requiresPinForRecording(
+                channelGroup = null, channelKnown = false, restrictedGroups = restricted, unlocked = false,
+            )
+            val unlockedPlays = !ParentalPolicy.requiresPinForRecording(
+                channelGroup = "Adult", channelKnown = true, restrictedGroups = restricted, unlocked = true,
+            )
+            record(
+                report,
+                "qa-parental-recording-gate",
+                recordingAsksForPin && unknownAsksForPin && unlockedPlays,
+                "restricted: $recordingAsksForPin, unknown channel: $unknownAsksForPin, unlocked: $unlockedPlays",
+            )
         } catch (error: Exception) {
             record(report, "qa-parental-error", false, error.javaClass.simpleName)
         } finally {

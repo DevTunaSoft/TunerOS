@@ -1884,6 +1884,13 @@ class MainActivity : Activity() {
     }
 
     private fun playRecording(entry: RecordingCatalogEntry) {
+        // A recording waits for the PIN under the rule for its channel. An unknown channel waits while any group is restricted.
+        val channel = channels.firstOrNull { it.id == entry.channelId }
+        val restricted = parentalStore.restrictedGroups()
+        if (ParentalPolicy.requiresPinForRecording(channel?.group, channel != null, restricted, parentalUnlocked)) {
+            requireParentalPin { playRecording(entry) }
+            return
+        }
         stopTimeshift(restoreLive = false)
         if (entry.state != "COMPLETED") {
             showStatus("Only completed recordings can be played")

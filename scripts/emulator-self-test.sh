@@ -1134,12 +1134,12 @@ adb shell am force-stop com.devtunasoft.tuneros
 adb shell am start -n com.devtunasoft.tuneros/.MainActivity --ez tuneros.debug.parental_check true
 for attempt in $(seq 1 60); do
   adb shell run-as com.devtunasoft.tuneros cat files/tuneros-parental-report.txt > parental-report.txt 2>/dev/null || true
-  if grep -Eq '^(PASS|FAIL)[[:space:]]qa-parental-policy' parental-report.txt; then
+  if grep -Eq '^(PASS|FAIL)[[:space:]]qa-parental-recording-gate' parental-report.txt; then
     break
   fi
   sleep 2
 done
-for check in qa-parental-pin-stored qa-parental-pin-restart qa-parental-wrong-pin qa-parental-lockout qa-parental-lock-restart qa-parental-lock-expiry qa-parental-policy; do
+for check in qa-parental-pin-stored qa-parental-pin-restart qa-parental-wrong-pin qa-parental-lockout qa-parental-lock-restart qa-parental-lock-expiry qa-parental-policy qa-parental-recording-gate; do
   if ! grep -Fq "$(printf 'PASS\t%s\t' "$check")" parental-report.txt; then
     echo "Parental control $check did not pass on the device"
     cat parental-report.txt 2>/dev/null || echo "(no report file)"
@@ -1147,7 +1147,7 @@ for check in qa-parental-pin-stored qa-parental-pin-restart qa-parental-wrong-pi
   fi
 done
 cat parental-report.txt
-echo "parental controls on the device: PIN kept as a salted hash, survives reopening, locks after five wrong entries, restricted groups decided"
+echo "parental controls on the device: PIN kept as a salted hash, survives reopening, locks after five wrong entries, restricted groups decided for channels and recordings"
 # Timeshift controls on the device: the same live fixture, served on a second port with a 30-segment window. The player must
 # switch to the recorded window, advance, step back ten seconds, return to the live edge, switch back to the live channel,
 # and leave no ring behind. Every step writes its own line to the controls report.
