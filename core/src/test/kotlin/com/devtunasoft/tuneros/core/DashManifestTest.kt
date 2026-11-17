@@ -457,6 +457,22 @@ $body
         assertTrue(refusalOf(mpd(body = baseSet(base = null))).contains("BaseURL"))
     }
 
+    @Test fun aSegmentBaseWithoutAnIndexRangeIsRefused() {
+        val body = """    <AdaptationSet mimeType="video/mp4">
+      <Representation id="v1" bandwidth="500000" codecs="avc1.64000a" width="160" height="120">
+        <BaseURL>single.mp4</BaseURL>
+        <SegmentBase><Initialization range="0-999"/></SegmentBase>
+      </Representation>
+    </AdaptationSet>"""
+        assertTrue(refusalOf(mpd(body = body)).contains("indexRange"))
+    }
+
+    @Test fun aSegmentBaseWithAMalformedIndexRangeIsRefused() {
+        for (range in listOf("", "1000", "1000-", "-1043", "a-b", "1043-1000", "1000-1043-1050")) {
+            assertTrue(refusalOf(mpd(body = baseSet(indexRange = range))).contains("indexRange"), "indexRange '$range'")
+        }
+    }
+
     @Test fun anIndexThatDoesNotParseFailsTheCompletion() {
         val hierarchical = SidxBox.build(references = listOf(500L to 2_000L), hierarchicalFirst = true)
         val needs = needsIndexOf(mpd(body = baseSet(indexRange = "1000-${1000 + hierarchical.size - 1}")))

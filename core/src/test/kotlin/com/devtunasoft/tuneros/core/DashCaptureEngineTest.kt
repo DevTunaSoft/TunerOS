@@ -740,4 +740,42 @@ ${(first..last).joinToString("\n") { "          <SegmentURL media=\"chunk-v1-%05
         assertEquals(0, out.size())
         assertEquals(emptyList<Pair<String, HlsByteRange?>>(), source.requests)
     }
+
+    @Test fun aSegmentBaseIndexThatLeavesBytesOfTheFileUncoveredIsRefusedBeforeAnyByteIsWritten() {
+        // One file: an initialization, a sidx index, two fragments, then four bytes that no reference names.
+        val initialization = ByteArray(10) { (0x10 + it).toByte() }
+        val index = SidxBox.build(references = listOf(12L to 2_000L, 8L to 2_000L))
+        val fragments = ByteArray(12) { 0x41.toByte() } + ByteArray(8) { 0x51.toByte() }
+        val file = initialization + index + fragments + ByteArray(4) { 0x7A.toByte() }
+        val source = RangeDashSource(
+            mpd(body = segmentBaseSet(indexRange = "10-${10 + index.size - 1}", initRange = "0-9")),
+            manifestUrl,
+            mapOf(singleFileUrl to file),
+        )
+        val out = ByteArrayOutputStream()
+        val result = record(source, out)
+        assertEquals(DashCaptureEngine.StopReason.UNSUPPORTED, result.stopReason)
+        assertEquals("DASH SegmentBase index does not cover the file", result.detail)
+        assertEquals(0, out.size())
+        assertEquals(emptyList<Pair<String, HlsByteRange?>>(), source.requests)
+    }
+
+    @Test fun aSegmentBaseIndexThatNamesBytesPastTheFileIsRefusedBeforeAnyByteIsWritten() {
+        // The index names fragments of 12 and 8 bytes, but the file ends 5 bytes short of the second one.
+        val initialization = ByteArray(10) { (0x10 + it).toByte() }
+        val index = SidxBox.build(references = listOf(12L to 2_000L, 8L to 2_000L))
+        val fragments = ByteArray(12) { 0x41.toByte() } + ByteArray(3) { 0x51.toByte() }
+        val file = initialization + index + fragments
+        val source = RangeDashSource(
+            mpd(body = segmentBaseSet(indexRange = "10-${10 + index.size - 1}", initRange = "0-9")),
+            manifestUrl,
+            mapOf(singleFileUrl to file),
+        )
+        val out = ByteArrayOutputStream()
+        val result = record(source, out)
+        assertEquals(DashCaptureEngine.StopReason.UNSUPPORTED, result.stopReason)
+        assertEquals("DASH SegmentBase index names bytes past the end of the file", result.detail)
+        assertEquals(0, out.size())
+        assertEquals(emptyList<Pair<String, HlsByteRange?>>(), source.requests)
+    }
 }

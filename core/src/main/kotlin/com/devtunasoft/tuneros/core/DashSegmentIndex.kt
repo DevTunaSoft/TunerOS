@@ -5,13 +5,17 @@ import java.nio.ByteBuffer
 /**
  * A DASH SegmentBase index: the ISO/IEC 14496-12 `sidx` box that a SegmentBase names with its indexRange. The first
  * media byte is the byte after the box plus first_offset, and each later reference follows the one before it. Parsing
- * is bounded. It refuses a hierarchical index, an empty or zero-duration reference, an unknown version, and a box that
- * does not fit the bytes it was read from. No byte of the index is kept.
+ * is bounded. It refuses a hierarchical index, an empty or zero-duration reference, an unknown version, a box that
+ * does not fit the bytes it was read from, and a reference that names a byte past [MAX_BYTE]. No byte of the index is
+ * kept.
  */
 object DashSegmentIndex {
     /** The largest index the recorder reads, so the read itself is bounded. */
     const val MAX_INDEX_BYTES = 200_000L
     private const val MAX_REFERENCES = 10_000
+
+    /** The largest byte position a reference may name: the bound the manifest's own byte ranges have. */
+    const val MAX_BYTE = 1_000_000_000_000_000L
 
     /** One media subsegment: its byte range in the file, and its duration in the index timescale. */
     data class Reference(val range: HlsByteRange, val durationTicks: Long)
@@ -87,6 +91,7 @@ object DashSegmentIndex {
                 val length = word and 0x7FFF_FFFFL
                 if (length == 0L) return Outcome.Refused("DASH SegmentBase index has an empty subsegment")
                 if (duration == 0L) return Outcome.Refused("DASH SegmentBase index has a zero-duration subsegment")
+                if (offset > MAX_BYTE - (length - 1)) return Outcome.Refused("DASH SegmentBase index offsets are too large")
                 references += Reference(HlsByteRange(length = length, offset = offset), duration)
                 offset = Math.addExact(offset, length)
             }
