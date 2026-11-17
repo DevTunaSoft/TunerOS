@@ -44,6 +44,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.PlayerView
 import com.devtunasoft.tuneros.core.BackupContents
+import com.devtunasoft.tuneros.core.SeriesRule
 import com.devtunasoft.tuneros.core.Channel
 import com.devtunasoft.tuneros.core.TunerBackup
 import com.devtunasoft.tuneros.core.ParentalAttemptLimit
@@ -2004,6 +2005,7 @@ class MainActivity : Activity() {
             onUi { releasePlayer() }
             Thread.sleep(500)
             DeviceFocusChecks(this, screenDriver()) { check, passed, detail -> record(check, passed, detail) }.run()
+            runRestoreDialogCheck { check, passed, detail -> record(check, passed, detail) }
         } catch (error: Exception) {
             record("ui-checks-error", false, error.javaClass.simpleName)
         } finally {
@@ -2030,6 +2032,63 @@ class MainActivity : Activity() {
         override fun activeDialog(): AlertDialog? = this@MainActivity.activeDialog
         override fun parentalSessionUnlocked(): Boolean = this@MainActivity.onUiBool { parentalUnlocked }
         override fun setParentalSessionUnlocked(unlocked: Boolean) = this@MainActivity.onUi { parentalUnlocked = unlocked }
+    }
+
+    /**
+     * Debug builds only. Opens the restore confirmation with a fixture and checks that it names the counts. Then it cancels,
+     * and cancelling must leave the favorites, guide mappings, series rules and restricted groups as they were.
+     */
+    private fun runRestoreDialogCheck(report: (String, Boolean, String) -> Unit) {
+        val fixture = BackupContents(
+            favorites = setOf("ui-check-one", "ui-check-two"),
+            guideMappings = mapOf("ui-check-one" to "ui-check-guide"),
+            seriesRules = listOf(SeriesRule("ui check show", "ui-check-one")),
+            restrictedGroups = setOf("ui-check-group"),
+        )
+        val before = onUiText { restoreStateText() }
+        onUi { confirmRestore(fixture) }
+        val shown = waitForScreen(15_000) { showingDialogWith("Restore") }
+        val message = onUiText { dialogMessageText() }
+        val counted = listOf("2 favorites", "1 guide mappings", "1 series rules", "1 restricted groups").all { message.contains(it) }
+        report("ui-restore-dialog-counts", shown && counted, "the restore dialog names the counts it would replace")
+        onUi { activeDialog?.getButton(AlertDialog.BUTTON_NEGATIVE)?.performClick() }
+        val closed = waitForScreen(15_000) { activeDialog?.isShowing != true }
+        val after = onUiText { restoreStateText() }
+        report(
+            "ui-restore-cancel-changes-nothing",
+            closed && before == after,
+            "cancelling the restore changes no favorites, mappings, series rules or restricted groups",
+        )
+    }
+
+    /** Runs on the UI thread: the restore dialog's message text, or an empty string when it is not showing. */
+    private fun dialogMessageText(): String {
+        val decor = activeDialog?.window?.decorView ?: return ""
+        return findTextContaining(decor, "Replace the favorites")
+    }
+
+    private fun findTextContaining(view: View, fragment: String): String {
+        if (view is TextView && view.text?.contains(fragment) == true) return view.text.toString()
+        if (view is android.view.ViewGroup) {
+            for (index in 0 until view.childCount) {
+                val found = findTextContaining(view.getChildAt(index), fragment)
+                if (found.isNotEmpty()) return found
+            }
+        }
+        return ""
+    }
+
+    /** Runs on the UI thread: the stored state a restore would replace, as text, to compare before and after a cancel. */
+    private fun restoreStateText(): String {
+        val series = SeriesRuleStore(this).use { store ->
+            store.all().map { it.titleKey + "|" + (it.channelId ?: "") }.sorted().joinToString(";")
+        }
+        return listOf(
+            favoriteStore.load().sorted().joinToString(","),
+            guideMappingStore.load().toSortedMap().toString(),
+            series,
+            parentalStore.restrictedGroups().sorted().joinToString(","),
+        ).joinToString("#")
     }
 
     private fun uiCheckChannel(name: String, group: String): Channel = Channel(
@@ -2289,7 +2348,7 @@ class MainActivity : Activity() {
     }
 
     private fun confirmRestore(contents: BackupContents) {
-        AlertDialog.Builder(this)
+        activeDialog = AlertDialog.Builder(this)
             .setTitle("Restore backup?")
             .setMessage(
                 "Replace the favorites, guide mappings, series rules and restricted groups with " +
