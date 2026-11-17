@@ -1754,6 +1754,23 @@ fi
 kill "$RECOVERY_HTTP_PID" 2>/dev/null || true
 echo "Startup recovery: sources saved encrypted, restored after a cold start, unchanged by a failed import"
 
+# Device checks inside the app: the app drives the parental PIN dialogs and the playback gate on its own screens, with a
+# scratch PIN store and test clips. The debug build starts them from its launch extra and writes the report itself.
+adb shell run-as com.devtunasoft.tuneros rm -f files/tuneros-ui-report.txt 2>/dev/null || true
+adb shell am force-stop com.devtunasoft.tuneros
+adb shell am start -n com.devtunasoft.tuneros/.MainActivity --ez tuneros.debug.ui_checks true
+for attempt in $(seq 1 120); do
+  adb shell run-as com.devtunasoft.tuneros cat files/tuneros-ui-report.txt > ui-report.txt 2>/dev/null || true
+  if grep -Fq 'ui-right-pin-plays' ui-report.txt 2>/dev/null; then break; fi
+  sleep 2
+done
+cat ui-report.txt 2>/dev/null || echo "(no report file)"
+if ! grep -Fq 'ui-right-pin-plays' ui-report.txt 2>/dev/null || grep -q '^FAIL' ui-report.txt; then
+  echo "In-app device checks failed or did not finish"
+  exit 1
+fi
+echo "In-app device checks: the app drove the parental PIN dialogs and the playback gate on its own screens"
+
 if grep -q '^FAIL[[:space:]]' on-device-report.txt; then
   echo "Unexpected failure in the app's own self-test report"
   cat on-device-report.txt

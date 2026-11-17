@@ -60,7 +60,10 @@ import com.devtunasoft.tuneros.core.PlayerReusePolicy
 import com.devtunasoft.tuneros.core.PlaylistParser
 import com.devtunasoft.tuneros.core.RecordingPolicy
 import com.devtunasoft.tuneros.core.TimelineEntry
+import java.io.File
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
 /** First playable TunerOS slice: HTTP M3U/XMLTV import, searchable TV guide, Media3 playback. */
@@ -141,7 +144,10 @@ class MainActivity : Activity() {
     private var timeshift: TimeshiftRecorder? = null
     private var timeshiftLiveUri: String? = null
     /** The parental PIN and restricted groups. Unlocking lasts until the app process ends. */
-    private val parentalStore by lazy { ParentalControlsStore(this) }
+    private val realParentalStore by lazy { ParentalControlsStore(this) }
+    // Set only while the device checks run, so their PIN and groups never touch the real store.
+    @Volatile private var parentalStoreOverride: ParentalControlsStore? = null
+    private val parentalStore: ParentalControlsStore get() = parentalStoreOverride ?: realParentalStore
     private var parentalUnlocked = false
     private var playbackEvidence: FirstResponseRecorder? = null
     private var activeChannelName: String? = null
@@ -322,6 +328,9 @@ class MainActivity : Activity() {
             addView(button("Choose recording storage") { chooseRecordingStorage() })
             addView(button("Use internal recording storage") { useInternalRecordingStorage() })
             addView(button("Self-test report") { showDiagnostics() })
+            if ((applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0) {
+                addView(button("Run device checks") { runDeviceUiChecks() })
+            }
         }
         root.addView(HorizontalScrollView(this).apply {
             isHorizontalScrollBarEnabled = true
@@ -423,6 +432,11 @@ class MainActivity : Activity() {
         // Only debug APKs explicitly launched for automated CI perform focus
         // probes. Normal users never have their focus moved by testing.
         if (isDebugQaEnabled()) root.post { runDebugUiFocusProbe() }
+        if ((applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0 &&
+            intent?.getBooleanExtra("tuneros.debug.ui_checks", false) == true
+        ) {
+            root.post { runDeviceUiChecks() }
+        }
         if (isServiceStopLaunch()) {
             worker.execute { OnDeviceSelfTest.runServiceStopOnly(applicationContext) }
         }
@@ -854,7 +868,7 @@ class MainActivity : Activity() {
                 android.text.InputType.TYPE_NUMBER_VARIATION_PASSWORD
             hint = "PIN"
         }
-        AlertDialog.Builder(this)
+        activeDialog = AlertDialog.Builder(this)
             .setTitle("Parental PIN")
             .setView(input)
             .setPositiveButton("Unlock") { _, _ ->
@@ -894,7 +908,7 @@ class MainActivity : Activity() {
                 android.text.InputType.TYPE_NUMBER_VARIATION_PASSWORD
             hint = "4 to 8 digits"
         }
-        AlertDialog.Builder(this)
+        activeDialog = AlertDialog.Builder(this)
             .setTitle("Set a parental PIN")
             .setView(input)
             .setPositiveButton("Save") { _, _ ->
@@ -919,7 +933,7 @@ class MainActivity : Activity() {
     private fun restrictGroupPrompt(restricted: Boolean) {
         requireParentalPin {
             val input = EditText(this).apply { hint = "Channel group name" }
-            AlertDialog.Builder(this)
+            activeDialog = AlertDialog.Builder(this)
                 .setTitle(if (restricted) "Restrict a channel group" else "Release a channel group")
                 .setView(input)
                 .setPositiveButton("Save") { _, _ ->
@@ -1881,6 +1895,170 @@ class MainActivity : Activity() {
                 }
             }
         }
+    }
+
+    /** The dialog the app most recently showed for a PIN or a group, so the device checks can answer it. */
+    private var activeDialog: AlertDialog? = null
+    @Volatile private var uiChecksRunning = false
+    private val uiCheckPrefs = "tuneros-ui-checks-parental"
+    private val uiCheckReport = "tuneros-ui-report.txt"
+    private val pinSavedStatus = "Parental PIN saved: restricted groups need it"
+
+    /**
+     * Debug builds only. Drives the parental PIN dialogs and the playback gate on this device: sets a PIN, restricts a group,
+     * then plays an unrestricted and a restricted test clip. The PIN and groups use a scratch store and the channels are test
+     * clips, so your PIN, groups, favorites, playlist and recordings are not read or changed. Playback stops when the checks
+     * end. Results go to the status line and to tuneros-ui-report.txt.
+     */
+    private fun runDeviceUiChecks() {
+        if ((applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) == 0 || uiChecksRunning) return
+        uiChecksRunning = true
+        showStatus("Device checks are running. Playback stops when they finish.")
+        Thread({ deviceUiChecksBody() }, "tuneros-device-checks").start()
+    }
+
+    private fun deviceUiChecksBody() {
+        val lines = mutableListOf<String>()
+        fun record(check: String, passed: Boolean, detail: String) {
+            lines += (if (passed) "PASS" else "FAIL") + "\t" + check + "\t" + detail
+        }
+        val news = uiCheckChannel("News Two", "News")
+        val adult = uiCheckChannel("Adult One", "Adult")
+        var savedUnlocked = false
+        try {
+            onUi {
+                savedUnlocked = parentalUnlocked
+                applicationContext.getSharedPreferences(uiCheckPrefs, MODE_PRIVATE).edit().clear().commit()
+                parentalStoreOverride = ParentalControlsStore(this, uiCheckPrefs)
+                parentalUnlocked = false
+            }
+
+            onUi { openParentalPin() }
+            record("ui-pin-dialog-opens", waitForScreen(15_000) { showingDialogWith("Save") }, "the set-PIN dialog opens")
+            onUi {
+                typeIntoActiveDialog("1234")
+                confirmActiveDialog()
+            }
+            record("ui-pin-saved", waitForScreen(15_000) { currentStatusText() == pinSavedStatus }, "a 4-digit PIN is saved from the dialog")
+
+            onUi { restrictGroupPrompt(restricted = true) }
+            record("ui-restrict-dialog-opens", waitForScreen(15_000) { showingDialogWith("Save") }, "the restrict-group dialog opens")
+            onUi {
+                typeIntoActiveDialog("Adult")
+                confirmActiveDialog()
+            }
+            record("ui-group-restricted", waitForScreen(15_000) { currentStatusText() == "Group restricted" }, "the Adult group is restricted from the dialog")
+
+            onUi {
+                parentalUnlocked = false
+                play(news)
+            }
+            val newsPlays = waitForScreen(60_000) { currentStatusText() == "Playing: News Two" }
+            val newsPrompted = onUiBool { showingDialogWith("Unlock") }
+            record("ui-unrestricted-plays", newsPlays && !newsPrompted, "an unrestricted channel plays without asking for the PIN")
+
+            onUi { play(adult) }
+            record("ui-restricted-asks-for-pin", waitForScreen(20_000) { showingDialogWith("Unlock") }, "a channel in the restricted group asks for the PIN")
+            onUi {
+                typeIntoActiveDialog("0000")
+                confirmActiveDialog()
+            }
+            val refused = waitForScreen(20_000) { currentStatusText() == "Wrong PIN: 4 tries left" }
+            val playedWrong = onUiBool { currentStatusText() == "Playing: Adult One" }
+            record("ui-wrong-pin-refused", refused && !playedWrong, "a wrong PIN shows the tries left and the channel does not play")
+
+            onUi { play(adult) }
+            val askedAgain = waitForScreen(20_000) { showingDialogWith("Unlock") }
+            onUi {
+                typeIntoActiveDialog("1234")
+                confirmActiveDialog()
+            }
+            val plays = waitForScreen(60_000) { currentStatusText() == "Playing: Adult One" }
+            record("ui-right-pin-plays", askedAgain && plays, "the right PIN starts the restricted channel")
+        } catch (error: Exception) {
+            record("ui-checks-error", false, error.javaClass.simpleName)
+        } finally {
+            onUi {
+                releasePlayer()
+                activeDialog?.dismiss()
+                parentalStoreOverride = null
+                parentalUnlocked = savedUnlocked
+            }
+            applicationContext.deleteSharedPreferences(uiCheckPrefs)
+            val failed = lines.count { it.startsWith("FAIL") }
+            File(filesDir, uiCheckReport).writeText(lines.joinToString("\n", postfix = "\n"))
+            onUi { showStatus("Device checks: ${lines.size - failed} PASS, $failed FAIL. Report: $uiCheckReport") }
+            uiChecksRunning = false
+        }
+    }
+
+    private fun uiCheckChannel(name: String, group: String): Channel = Channel(
+        id = "ui-check-" + name.lowercase().replace(' ', '-'),
+        name = name,
+        streamUrl = "asset:///ui-test.mp4",
+        group = group,
+    )
+
+    private fun currentStatusText(): String = status.text.toString()
+
+    private fun showingDialogWith(positiveLabel: String): Boolean {
+        val dialog = activeDialog ?: return false
+        return dialog.isShowing && dialog.getButton(AlertDialog.BUTTON_POSITIVE)?.text?.toString() == positiveLabel
+    }
+
+    private fun typeIntoActiveDialog(value: String) {
+        val decor = activeDialog?.window?.decorView ?: return
+        findEditText(decor)?.setText(value)
+    }
+
+    private fun confirmActiveDialog() {
+        activeDialog?.getButton(AlertDialog.BUTTON_POSITIVE)?.performClick()
+    }
+
+    private fun findEditText(view: View): EditText? {
+        if (view is EditText) return view
+        if (view is android.view.ViewGroup) {
+            for (index in 0 until view.childCount) {
+                findEditText(view.getChildAt(index))?.let { return it }
+            }
+        }
+        return null
+    }
+
+    /** Runs [block] on the UI thread and waits for it, so the test thread reads and changes the screen safely. */
+    private fun onUi(block: () -> Unit) {
+        val done = CountDownLatch(1)
+        runOnUiThread {
+            try {
+                block()
+            } finally {
+                done.countDown()
+            }
+        }
+        done.await(10, TimeUnit.SECONDS)
+    }
+
+    private fun onUiBool(block: () -> Boolean): Boolean {
+        val done = CountDownLatch(1)
+        var result = false
+        runOnUiThread {
+            try {
+                result = block()
+            } finally {
+                done.countDown()
+            }
+        }
+        done.await(10, TimeUnit.SECONDS)
+        return result
+    }
+
+    private fun waitForScreen(timeoutMillis: Long, condition: () -> Boolean): Boolean {
+        val deadline = System.currentTimeMillis() + timeoutMillis
+        while (System.currentTimeMillis() < deadline) {
+            if (onUiBool(condition)) return true
+            Thread.sleep(300)
+        }
+        return false
     }
 
     private fun playRecording(entry: RecordingCatalogEntry) {
