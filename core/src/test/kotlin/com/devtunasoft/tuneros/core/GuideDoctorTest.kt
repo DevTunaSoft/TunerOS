@@ -95,4 +95,79 @@ class GuideDoctorTest {
         )
         assertEquals(listOf("News 1", "News 10", "News 2"), found.map { it.displayName })
     }
+
+    @Test fun diagnosisCountsEachUnscheduledChannelUnderItsOwnReason() {
+        val guide = guideWith("g1", names = mapOf("g1" to "One", "g2" to "Two"))
+        val channels = listOf(
+            Channel("c1", "One", "https://example.org/1", guideId = "g1"),
+            Channel("c2", "Nothing", "https://example.org/2"),
+            Channel("c3", "Two", "https://example.org/3", guideId = "g2"),
+            Channel("c4", "Ghost", "https://example.org/4", guideId = "g3"),
+        )
+        val diagnosis = GuideDoctor.diagnose(channels, emptyMap(), guide)
+        assertEquals(4, diagnosis.channels)
+        assertEquals(1, diagnosis.scheduled)
+        assertEquals(1, diagnosis.noGuideId)
+        assertEquals(1, diagnosis.noProgrammes, "g2 is declared with a name but has no programmes")
+        assertEquals(1, diagnosis.guideIdNotDeclared, "g3 has no channel entry in the guide")
+        assertEquals(3, diagnosis.withoutSchedule)
+        assertEquals(0, diagnosis.savedMappings)
+    }
+
+    @Test fun savedMappingsThatCannotHelpAreCountedAgainstThePlaylistAndTheGuide() {
+        val guide = guideWith("g1", names = mapOf("g1" to "One", "g2" to "Two"))
+        val channels = listOf(
+            Channel("new-url-id", "Alpha", "https://example.org/a?token=new", stableKey = "k-alpha"),
+            Channel("b", "Beta", "https://example.org/b"),
+        )
+        val mappings = mapOf(
+            "k-alpha" to "g1",
+            "b" to "g2",
+            "gone" to "g1",
+        )
+        val diagnosis = GuideDoctor.diagnose(channels, mappings, guide)
+        assertEquals(1, diagnosis.scheduled, "k-alpha follows its stable key to a scheduled guide channel")
+        assertEquals(1, diagnosis.noProgrammes, "b is mapped to g2, which has no programmes")
+        assertEquals(3, diagnosis.savedMappings)
+        assertEquals(1, diagnosis.mappingsForMissingChannels, "no playlist channel has the key gone")
+        assertEquals(1, diagnosis.mappingsToUnscheduled, "only the mapping to g2 points at an unscheduled channel")
+    }
+
+    @Test fun aMappingToAGuideChannelThatIsNotDeclaredIsCountedAsUnscheduled() {
+        val guide = guideWith("g1", names = mapOf("g1" to "One"))
+        val channels = listOf(Channel("c1", "Ghost", "https://example.org/1"))
+        val diagnosis = GuideDoctor.diagnose(channels, mapOf("c1" to "g404"), guide)
+        assertEquals(1, diagnosis.guideIdNotDeclared)
+        assertEquals(0, diagnosis.noGuideId)
+        assertEquals(1, diagnosis.mappingsToUnscheduled)
+        assertEquals(0, diagnosis.mappingsForMissingChannels)
+    }
+
+    @Test fun theDiagnosisAgreesWithTheChannelsWithoutSchedule() {
+        val guide = guideWith("g1", names = mapOf("g1" to "One", "g2" to "Two"))
+        val channels = listOf(
+            Channel("c1", "One", "https://example.org/1", guideId = "g1"),
+            Channel("c2", "Nothing", "https://example.org/2"),
+            Channel("c3", "Two", "https://example.org/3", guideId = "g2"),
+            Channel("c4", "Ghost", "https://example.org/4", guideId = "g3"),
+            Channel("c5", "Five", "https://example.org/5"),
+        )
+        val mappingSets = listOf<Map<String, String>>(
+            emptyMap(),
+            mapOf("c2" to "g1", "c4" to "g2", "c5" to "g9"),
+        )
+        for (mappings in mappingSets) {
+            val diagnosis = GuideDoctor.diagnose(channels, mappings, guide)
+            val missing = GuideDoctor.channelsWithoutSchedule(GuideDoctor.applyMappings(channels, mappings), guide)
+            assertEquals(missing.size, diagnosis.withoutSchedule, "mappings $mappings")
+            assertEquals(channels.size, diagnosis.scheduled + diagnosis.withoutSchedule, "mappings $mappings")
+        }
+    }
+
+    @Test fun anEmptyPlaylistAndGuideGiveAnEmptyDiagnosis() {
+        val diagnosis = GuideDoctor.diagnose(emptyList(), emptyMap(), guideWith(names = emptyMap()))
+        assertEquals(0, diagnosis.channels)
+        assertEquals(0, diagnosis.withoutSchedule)
+        assertEquals(0, diagnosis.mappingsForMissingChannels)
+    }
 }

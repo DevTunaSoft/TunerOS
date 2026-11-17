@@ -1363,12 +1363,26 @@ class MainActivity : Activity() {
         } else {
             "Channels without a schedule (${missing.size})"
         }
+        val reasons = guideDoctorReasons(GuideDoctor.diagnose(channels, guideMappings, loadedGuide))
         AlertDialog.Builder(this)
-            .setTitle(title)
+            .setTitle(if (reasons.isEmpty()) title else "$title\n$reasons")
             .setItems(shown.map { it.name }.toTypedArray()) { _, which -> openGuideSuggestions(shown[which]) }
             .setNegativeButton("Close", null)
             .show()
     }
+
+    /** Explains the Guide Doctor count: why channels have no schedule, and which saved mappings cannot help. */
+    private fun guideDoctorReasons(diagnosis: GuideDoctor.Diagnosis): String = listOfNotNull(
+        "${diagnosis.noGuideId} without a guide ID".takeIf { diagnosis.noGuideId > 0 },
+        "${diagnosis.guideIdNotDeclared} whose guide ID is not in the guide"
+            .takeIf { diagnosis.guideIdNotDeclared > 0 },
+        "${diagnosis.noProgrammes} whose guide channel has no programmes"
+            .takeIf { diagnosis.noProgrammes > 0 },
+        "${diagnosis.mappingsForMissingChannels} saved mappings for channels not in this playlist"
+            .takeIf { diagnosis.mappingsForMissingChannels > 0 },
+        "${diagnosis.mappingsToUnscheduled} saved mappings whose guide channel has no schedule"
+            .takeIf { diagnosis.mappingsToUnscheduled > 0 },
+    ).joinToString("\n")
 
     /** Guide Doctor, step 2: guide channels that have a schedule and match the name, or removal of a saved mapping. */
     private fun openGuideSuggestions(channel: Channel) {

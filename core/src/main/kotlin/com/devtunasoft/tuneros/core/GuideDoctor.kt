@@ -7,6 +7,27 @@ package com.devtunasoft.tuneros.core
 object GuideDoctor {
     data class Suggestion(val guideId: String, val displayName: String, val score: Int)
 
+    /**
+     * Counts for the Guide Doctor summary. Channel counts are taken after saved mappings are applied, so
+     * [withoutSchedule] equals the size of [channelsWithoutSchedule] for the same inputs. [mappingsForMissingChannels]
+     * are saved mappings whose key is not in the playlist. [mappingsToUnscheduled] are saved mappings whose guide
+     * channel has no schedule.
+     */
+    data class Diagnosis(
+        val channels: Int,
+        val scheduled: Int,
+        val noGuideId: Int,
+        val guideIdNotDeclared: Int,
+        val noProgrammes: Int,
+        val savedMappings: Int,
+        val mappingsForMissingChannels: Int,
+        val mappingsToUnscheduled: Int,
+    ) {
+        val withoutSchedule: Int get() = noGuideId + guideIdNotDeclared + noProgrammes
+    }
+
+    private enum class Status { SCHEDULED, NO_GUIDE_ID, GUIDE_ID_NOT_DECLARED, NO_PROGRAMMES }
+
     private val separator = Regex("[^\\p{L}\\p{N}]+")
     private val qualityWords = setOf("hd", "sd", "fhd", "uhd", "4k", "tv", "channel", "the", "and")
 
@@ -18,6 +39,46 @@ object GuideDoctor {
             val guideId = channel.guideId
             guide == null || guideId == null || !guide.hasSchedule(guideId)
         }
+
+    /**
+     * Explains [channelsWithoutSchedule] and the saved [mappings]. A guide ID is not declared when the loaded guide has
+     * no channel entry with a display name for it. A declared guide channel with no programmes has no schedule.
+     * Memory grows with the number of saved mappings, not with the playlist size.
+     */
+    fun diagnose(channels: List<Channel>, mappings: Map<String, String>, guide: GuideSnapshot): Diagnosis {
+        var scheduled = 0
+        var noGuideId = 0
+        var notDeclared = 0
+        var noProgrammes = 0
+        val unmatched = HashSet(mappings.keys)
+        for (channel in channels) {
+            unmatched.remove(channel.storageKey)
+            when (statusOf(mappings[channel.storageKey] ?: channel.guideId, guide)) {
+                Status.SCHEDULED -> scheduled++
+                Status.NO_GUIDE_ID -> noGuideId++
+                Status.GUIDE_ID_NOT_DECLARED -> notDeclared++
+                Status.NO_PROGRAMMES -> noProgrammes++
+            }
+        }
+        val unscheduled = mappings.values.count { !guide.hasSchedule(it) }
+        return Diagnosis(
+            channels = channels.size,
+            scheduled = scheduled,
+            noGuideId = noGuideId,
+            guideIdNotDeclared = notDeclared,
+            noProgrammes = noProgrammes,
+            savedMappings = mappings.size,
+            mappingsForMissingChannels = unmatched.size,
+            mappingsToUnscheduled = unscheduled,
+        )
+    }
+
+    private fun statusOf(guideId: String?, guide: GuideSnapshot): Status = when {
+        guideId == null -> Status.NO_GUIDE_ID
+        guide.hasSchedule(guideId) -> Status.SCHEDULED
+        guideId in guide.channelNames -> Status.NO_PROGRAMMES
+        else -> Status.GUIDE_ID_NOT_DECLARED
+    }
 
     /**
      * Returns [channels] itself when [mappings] is empty. Otherwise a mapped channel takes its mapped guide ID, and
