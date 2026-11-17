@@ -346,6 +346,19 @@ $body
         assertEquals(listOf(initUrl) + (3..8).map { timeUrl(it) }, source.copied)
     }
 
+    @Test fun openLiveTimelineWithSeveralRepeatsOfOneDurationFollowsTheClockLikeOneEntry() {
+        val clock = FakeClock(1_010)
+        val source = FakeDashSource(
+            mpd(type = "dynamic", availabilityStart = liveStart, body = timelineSet("""<S t="0" d="3000" r="1"/><S d="3000" r="-1"/>""")),
+            liveSegmentsByTime, manifestUrl, clock = clock, publishedAtSeconds = publishedOnTimeByTime(),
+        )
+        val out = ByteArrayOutputStream()
+        val result = record(source, out, end = 1_025, clock = clock)
+        assertEquals(DashCaptureEngine.StopReason.DEADLINE, result.stopReason)
+        assertEquals(listOf(9, 9, 3, 4, 5, 6, 7, 8), out.toByteArray().map { it.toInt() })
+        assertEquals(listOf(initUrl) + (3..8).map { timeUrl(it) }, source.copied)
+    }
+
     @Test fun aFiniteLiveTimelineWindowFollowsTheClockWithNumberAddressing() {
         val clock = FakeClock(1_010)
         val source = FakeDashSource(
@@ -695,6 +708,80 @@ ${(first..last).joinToString("\n") { "          <SegmentURL media=\"chunk-v1-%05
         assertEquals(DashCaptureEngine.StopReason.END_LIST, result.stopReason)
         assertEquals(listOf(9, 9, 1, 2, 3, 4), out.toByteArray().map { it.toInt() })
         assertEquals(listOf(initUrl, irregularUrl(0), irregularUrl(3_000), irregularUrl(5_000), irregularUrl(9_000)), source.copied)
+    }
+
+    /**
+     * An irregular prefix [0, 2000) followed by an open repeat of 3000-unit segments from 2000, addressed by start time. The
+     * prefix completes at 1002, and each tail segment completes 3 seconds after the one before it: at 1005, 1008, 1011 and so on.
+     */
+    private val openTailStarts = listOf(0L) + (2_000L..35_000L step 3_000L)
+    private val openTailSegments: Map<String, ByteArray> = mapOf(initUrl to byteArrayOf(9, 9)) +
+        openTailStarts.mapIndexed { index, start -> irregularUrl(start) to byteArrayOf((index + 1).toByte()) }
+
+    /** A segment addressed by number, for the open tail of a timeline that uses $Number$. */
+    private fun numberedUrl(number: Int): String = "https://example.test/dash/chunk-%05d.m4s".format(number)
+
+    @Test fun aLiveTimelineWithAnIrregularPrefixFollowsItsOpenRepeatOnTheClock() {
+        // The clock starts at 1003, after the prefix completes. The recording stops at 1012, after [8000, 11000) is fetched.
+        val clock = FakeClock(1_003)
+        val source = FakeDashSource(
+            mpd(type = "dynamic", availabilityStart = liveStart, body = timelineSet("""<S t="0" d="2000"/><S d="3000" r="-1"/>""")),
+            openTailSegments, manifestUrl, clock = clock,
+        )
+        val out = ByteArrayOutputStream()
+        val result = record(source, out, end = 1_012, clock = clock)
+        assertEquals(DashCaptureEngine.StopReason.DEADLINE, result.stopReason)
+        assertEquals(listOf(9, 9, 1, 2, 3, 4), out.toByteArray().map { it.toInt() })
+        assertEquals(listOf(initUrl, irregularUrl(0), irregularUrl(2_000), irregularUrl(5_000), irregularUrl(8_000)), source.copied)
+    }
+
+    @Test fun aLiveIrregularOpenTailKeepsRecordingAcrossManifestRefreshesWithoutStalling() {
+        // The listing never changes, so each refresh adds no entry. The open tail advances with the clock instead, so the
+        // recording runs to its stop at 1040 and fetches each segment once it has completed.
+        val clock = FakeClock(1_003)
+        val source = FakeDashSource(
+            mpd(type = "dynamic", availabilityStart = liveStart, body = timelineSet("""<S t="0" d="2000"/><S d="3000" r="-1"/>""")),
+            openTailSegments, manifestUrl, clock = clock,
+        )
+        val out = ByteArrayOutputStream()
+        val result = record(source, out, end = 1_040, clock = clock)
+        assertEquals(DashCaptureEngine.StopReason.DEADLINE, result.stopReason)
+        assertEquals(listOf(initUrl, irregularUrl(0)) + (2_000L..35_000L step 3_000L).map { irregularUrl(it) }, source.copied)
+        assertEquals(15, out.size())
+    }
+
+    @Test fun aLiveIrregularOpenTailStartsAtItsNewestCompleteSegment() {
+        // At 1010 the segments ending at 2000, 5000 and 8000 are complete (at 1002, 1005 and 1008), and the one ending at 11000
+        // is not (1011). The recording starts at [5000, 8000), the newest complete one, and stops at 1020.
+        val clock = FakeClock(1_010)
+        val source = FakeDashSource(
+            mpd(type = "dynamic", availabilityStart = liveStart, body = timelineSet("""<S t="0" d="2000"/><S d="3000" r="-1"/>""")),
+            openTailSegments, manifestUrl, clock = clock,
+        )
+        val out = ByteArrayOutputStream()
+        val result = record(source, out, end = 1_020, clock = clock)
+        assertEquals(DashCaptureEngine.StopReason.DEADLINE, result.stopReason)
+        assertEquals(listOf(9, 9, 3, 4, 5, 6), out.toByteArray().map { it.toInt() })
+        assertEquals(listOf(initUrl, irregularUrl(5_000), irregularUrl(8_000), irregularUrl(11_000), irregularUrl(14_000)), source.copied)
+    }
+
+    @Test fun anIrregularOpenTailNumbersItsSegmentsAfterTheListedOnes() {
+        // With $Number$ addressing the listed prefix is number 1, and each segment of the open tail takes the next number.
+        val numbered = mapOf(initUrl to byteArrayOf(9, 9)) + (1..4).associate { number -> numberedUrl(number) to byteArrayOf(number.toByte()) }
+        val clock = FakeClock(1_003)
+        val source = FakeDashSource(
+            mpd(
+                type = "dynamic",
+                availabilityStart = liveStart,
+                body = timelineSet("""<S t="0" d="2000"/><S d="3000" r="-1"/>""", media = "chunk-@Number%05d@.m4s"),
+            ),
+            numbered, manifestUrl, clock = clock,
+        )
+        val out = ByteArrayOutputStream()
+        val result = record(source, out, end = 1_012, clock = clock)
+        assertEquals(DashCaptureEngine.StopReason.DEADLINE, result.stopReason)
+        assertEquals(listOf(9, 9, 1, 2, 3, 4), out.toByteArray().map { it.toInt() })
+        assertEquals(listOf(initUrl) + (1..4).map { numberedUrl(it) }, source.copied)
     }
 
     /** A video set addressed by SegmentBase, with the byte ranges of its index and its initialization. */

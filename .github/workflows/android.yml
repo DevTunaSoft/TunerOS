@@ -54,6 +54,55 @@ jobs:
           name: TunerOS-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
+      # The package-upgrade check in the emulator job installs the debug APK of a base commit, seeds it, and then installs
+      # this commit's APK over it with adb install -r. The base is the pull request's base commit
+      # (github.event.pull_request.base.sha). For a push it is the commit that the push replaced (github.event.before), and
+      # for a manual run it is the commit before the dispatched one. It is exported with git archive into a directory of its
+      # own, outside the checkout, and built there with the same Gradle wrapper, JDK and SDK as the head. Only
+      # :app:assembleDebug runs for the base, so the base's unit tests are not repeated here.
+      # Both APKs are built on this runner, so they share one debug signing key. Debug builds have no signingConfig and are
+      # signed with the runner's ~/.android/debug.keystore, which a different runner would not have, and adb install -r fails
+      # when the certificates differ. The check below stops the job before that can happen.
+      - name: Build the upgrade base commit's debug APK
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          set -euo pipefail
+          base_sha="$BASE_SHA"
+          if [ -z "$base_sha" ] || [ "$base_sha" = "0000000000000000000000000000000000000000" ]; then
+            git fetch --no-tags --depth=2 origin "$GITHUB_SHA"
+            base_sha=$(git rev-parse HEAD^)
+          fi
+          git fetch --no-tags --depth=1 origin "$base_sha" || git fetch --no-tags origin "$base_sha"
+          base_dir="$RUNNER_TEMP/upgrade-base"
+          rm -rf "$base_dir"
+          mkdir -p "$base_dir"
+          git archive "$base_sha" | tar -x -C "$base_dir"
+          (cd "$base_dir" && ./gradlew --no-daemon :app:assembleDebug)
+          mkdir -p upgrade-base
+          cp "$base_dir/app/build/outputs/apk/debug/app-debug.apk" upgrade-base/app-debug.apk
+          echo "$base_sha" > upgrade-base/base-sha.txt
+          echo "Upgrade base commit: $base_sha"
+      - name: Check the head and base debug APKs share one signing certificate
+        run: |
+          set -euo pipefail
+          apksigner="$ANDROID_HOME/build-tools/35.0.0/apksigner"
+          cert() {
+            local out
+            out=$("$apksigner" verify --print-certs "$1")
+            grep 'SHA-256 digest' <<<"$out" | sed -n '1p'
+          }
+          head_cert=$(cert app/build/outputs/apk/debug/app-debug.apk)
+          base_cert=$(cert upgrade-base/app-debug.apk)
+          test -n "$head_cert"
+          test "$head_cert" = "$base_cert"
+          echo "Head and base debug APKs share one certificate: ${head_cert##*: }"
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: TunerOS-upgrade-base-apk
+          path: upgrade-base
+          if-no-files-found: error
 
   emulator-self-test:
     name: Execute TunerOS autonomous self-tests on Android 35
@@ -68,6 +117,11 @@ jobs:
         with:
           name: TunerOS-debug-apk
           path: ci-apk
+      # The base APK for the package-upgrade check. See the build job for which commit it is and why it shares a signing key.
+      - uses: actions/download-artifact@v4
+        with:
+          name: TunerOS-upgrade-base-apk
+          path: ci-upgrade-base
       - name: Enable Android emulator KVM acceleration
         run: |
           test -e /dev/kvm
@@ -97,5 +151,7 @@ jobs:
             emulator-failure-logcat.txt
             picker.xml
             ui-report.txt
+            upgrade-report.txt
+            upgrade-recovery-report.txt
           if-no-files-found: warn
           retention-days: 14
