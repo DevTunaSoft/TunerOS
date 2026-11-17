@@ -446,6 +446,7 @@ class MainActivity : Activity() {
         }
         if (isBackupCheckLaunch()) worker.execute { BackupQa.run(applicationContext) }
         if (isParentalCheckLaunch()) worker.execute { ParentalQa.run(applicationContext) }
+        if (isUpgradeCheckLaunch()) worker.execute { UpgradeQa.run(applicationContext) }
         if (isAlarmLaunch()) {
             worker.execute { OnDeviceSelfTest.runAlarmOnly(applicationContext) }
         }
@@ -857,6 +858,11 @@ class MainActivity : Activity() {
     private fun isParentalCheckLaunch(): Boolean =
         (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0 &&
             intent?.getBooleanExtra("tuneros.debug.parental_check", false) == true
+
+    /** Debug-only: the isolated CI launch that checks a PIN saved before an in-place upgrade. See [UpgradeQa]. */
+    private fun isUpgradeCheckLaunch(): Boolean =
+        (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0 &&
+            intent?.getBooleanExtra("tuneros.debug.upgrade_check", false) == true
 
     private fun isGuideScaleCheckLaunch(): Boolean =
         (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0 &&

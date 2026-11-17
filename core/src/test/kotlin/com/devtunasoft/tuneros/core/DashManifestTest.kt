@@ -215,6 +215,14 @@ $body
         assertEquals(4L, plan.segmentCount)
     }
 
+    @Test fun regularTimelineWithDifferentRepeatCountsIsStillOneRegularTimeline() {
+        // Entries of one duration stay one arithmetic timeline whatever their repeat counts: six segments, none listed.
+        val plan = planned(mpd(body = timelineSet("""<S t="0" d="3000" r="1"/><S d="3000" r="3"/>""")))
+        assertEquals(6L, plan.segmentCount)
+        assertNull(plan.listedSegments)
+        assertEquals("chunk-15000.m4s", DashManifest.expand(plan.mediaTemplate, plan.representationId, plan.bandwidth, 6, timeOf(plan, 6)))
+    }
+
     @Test fun irregularStaticTimelineIsPlannedAsSegmentsAddressedByTime() {
         val plan = planned(mpd(body = timelineSet("""<S t="0" d="3000"/><S d="2000"/><S d="4000" r="1"/>""")))
         assertEquals(4L, plan.segmentCount)
@@ -260,9 +268,42 @@ $body
         assertEquals(600_000L, plan.presentationTimeOffsetTicks)
     }
 
-    @Test fun irregularLiveTimelineCannotRepeatToTheEnd() {
-        val text = mpd(type = "dynamic", availabilityStart = "1970-01-01T00:16:40Z", body = timelineSet("""<S t="0" d="2000"/><S d="3000" r="-1"/>"""))
-        assertTrue(refusalOf(text).contains("repeat to the end"))
+    @Test fun irregularLiveTimelineRepeatsItsLastDurationOnTheClockAfterItsListedEntries() {
+        // The refusal of an irregular open repeat is what this change removes: its entries before the repeat are listed.
+        val plan = planned(
+            mpd(type = "dynamic", availabilityStart = "1970-01-01T00:16:40Z", body = timelineSet("""<S t="0" d="2000"/><S d="3000" r="-1"/>""")),
+        )
+        assertEquals(DashTiming.Live(1_000.0), plan.timing)
+        assertNull(plan.segmentCount)
+        assertTrue(plan.listedTimed)
+        val listed = plan.listedSegments!!
+        assertEquals(listOf(0L), listed.map { it.id })
+        assertEquals(listOf(2_000L), listed.map { it.endId })
+        assertEquals(listOf("chunk-0.m4s"), listed.map { it.media })
+        assertEquals(DashOpenTail(startTicks = 2_000L, durationTicks = 3_000L, mediaTemplate = "chunk-\$Time\$.m4s"), plan.openTail)
+    }
+
+    @Test fun anIrregularOpenTailNumbersItsSegmentsFromTheListingsStartNumber() {
+        val text = mpd(
+            type = "dynamic",
+            availabilityStart = "1970-01-01T00:16:40Z",
+            body = timelineSet("""<S t="0" d="2000"/><S d="3000" r="-1"/>""", media = "chunk-@Number%05d@.m4s")
+                .replace("startNumber=\"1\"", "startNumber=\"5\""),
+        )
+        val plan = planned(text)
+        assertEquals(listOf("chunk-00005.m4s"), plan.listedSegments!!.map { it.media })
+        // The open tail's first segment takes the number after the listed one.
+        val tail = plan.openTail!!
+        assertEquals("chunk-00006.m4s", DashManifest.expand(tail.mediaTemplate, plan.representationId, plan.bandwidth, 6, tail.startTicks))
+    }
+
+    @Test fun anIrregularOpenTimelineWhoseListedEntriesExceedTheBoundIsRefused() {
+        val text = mpd(
+            type = "dynamic",
+            availabilityStart = "1970-01-01T00:16:40Z",
+            body = timelineSet("""<S t="0" d="1000" r="5000"/><S d="2000" r="5000"/><S d="3000" r="-1"/>"""),
+        )
+        assertTrue(refusalOf(text).contains("too many segments to list"))
     }
 
     @Test fun irregularTimelineAboveTheSegmentBoundIsRefused() {
@@ -275,6 +316,15 @@ $body
 
     @Test fun staticTimelineRepeatingToTheEndIsRefused() {
         assertTrue(refusalOf(mpd(body = timelineSet("""<S t="0" d="3000" r="-1"/>"""))).contains("live"))
+    }
+
+    @Test fun anIrregularStaticTimelineRepeatingToTheEndIsRefused() {
+        assertTrue(refusalOf(mpd(body = timelineSet("""<S t="0" d="2000"/><S d="3000" r="-1"/>"""))).contains("live"))
+    }
+
+    @Test fun anOpenRepeatThatIsNotTheLastEntryIsRefused() {
+        val text = mpd(type = "dynamic", availabilityStart = "1970-01-01T00:16:40Z", body = timelineSet("""<S t="0" d="2000" r="-1"/><S d="3000"/>"""))
+        assertTrue(refusalOf(text).contains("last entry"))
     }
 
     @Test fun timelineEntriesNeedADurationAndAValidRepeat() {
@@ -292,6 +342,18 @@ $body
         val plan = planned(mpd(type = "dynamic", availabilityStart = "1970-01-01T00:16:40Z", body = timelineSet("""<S t="0" d="3000" r="-1"/>""")))
         assertEquals(DashTiming.Live(1_000.0), plan.timing)
         assertNull(plan.segmentCount)
+    }
+
+    @Test fun regularOpenLiveTimelineWithSeveralRepeatsIsStillPlannedOnTheClock() {
+        // The repeat counts differ, but the durations are one, so the open repeat runs on the clock as it always has.
+        val plan = planned(
+            mpd(type = "dynamic", availabilityStart = "1970-01-01T00:16:40Z", body = timelineSet("""<S t="0" d="3000" r="1"/><S d="3000" r="-1"/>""")),
+        )
+        assertEquals(DashTiming.Live(1_000.0), plan.timing)
+        assertNull(plan.segmentCount)
+        assertNull(plan.listedSegments)
+        assertEquals(0L, plan.startTimeTicks)
+        assertEquals(3_000L, plan.segmentDurationTicks)
     }
 
     @Test fun finiteLiveTimelineWindowIsPlannedAsATimedListingWithNumberAddressing() {
