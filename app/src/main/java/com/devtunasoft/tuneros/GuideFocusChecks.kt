@@ -35,9 +35,6 @@ internal interface GuideFocusDriver {
 
     /** The direction of the latest window shift request: -1 for the left edge, 1 for the right edge. */
     fun lastWindowShiftDirection(): Int
-
-    /** Diagnostic: what the row key listener did on its last UP or DOWN. */
-    fun rowKeyTrace(): String
 }
 
 /**
@@ -168,12 +165,10 @@ internal class GuideFocusChecks(
     private fun upAndDownLeaveTimeline(): Pair<Boolean, String> {
         showRows(TAG_ROWS, NAMES)
         if (!rowsOnScreen()) return Pair(false, "the guide rows are not on screen")
-        val levels = "UP{${dispatchLevels(KeyEvent.KEYCODE_DPAD_UP)}} DOWN{${dispatchLevels(KeyEvent.KEYCODE_DPAD_DOWN)}}"
         val up = leaveTimeline(BRAVO, KeyEvent.KEYCODE_DPAD_UP, View.FOCUS_UP)
         val down = leaveTimeline(ALPHA, KeyEvent.KEYCODE_DPAD_DOWN, View.FOCUS_DOWN)
         val past = downPastLastRowFollowsScroll()
-        val passed = up.first && down.first && past.first
-        return Pair(passed, "UP: ${up.second}; DOWN: ${down.second}; ${past.second}; levels $levels")
+        return Pair(up.first && down.first && past.first, "UP: ${up.second}; DOWN: ${down.second}; ${past.second}")
     }
 
     /**
@@ -205,14 +200,12 @@ internal class GuideFocusChecks(
         if (consumed) screen.waitForScreen(FOCUS_TIMEOUT_MILLIS) { activity.currentFocus !== sourceView }
         var landed = false
         var landedOn = ""
-        var trace = ""
         screen.onUi {
             if (!consumed && activity.currentFocus === sourceView) {
                 focusByTouch(rowViews()) { sourceView?.focusSearch(direction)?.requestFocus() }
             }
             landed = activity.currentFocus != null && activity.currentFocus !== sourceView
             landedOn = describeFocus()
-            trace = guide.rowKeyTrace()
         }
         val detail = when {
             !passedOn -> "the timeline of \"$source\" consumed the key"
@@ -221,37 +214,7 @@ internal class GuideFocusChecks(
             consumed -> "a view consumed the key, and focus stayed on the timeline of \"$source\""
             else -> "no view took the key, and the focus search found no neighbour of \"$source\""
         }
-        return Pair(passedOn && landed, "$detail [listener: $trace]")
-    }
-
-    /**
-     * Diagnostic: sends one UP or DOWN press to each level of the focus path, from the programme timeline up to the window,
-     * and records what each level returned and whether the row listener ran. Focus goes back to the timeline before each press.
-     */
-    private fun dispatchLevels(keyCode: Int): String {
-        var note = ""
-        screen.onUi {
-            val timeline = timelineOf(BRAVO) ?: return@onUi
-            val row = timeline.parent as? View ?: return@onUi
-            val list = guide.guideList()
-            val decor = activity.window.decorView
-            val results = StringBuilder()
-            fun press(label: String, action: () -> Boolean) {
-                focusByTouch(rowViews()) { timeline.requestFocus() }
-                val before = guide.rowKeyTrace().substringBefore(' ')
-                val result = action()
-                val after = guide.rowKeyTrace().substringBefore(' ')
-                results.append(label).append('=').append(result)
-                results.append(if (before == after) " " else "(listener ran) ")
-            }
-            press("timeline") { timeline.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, keyCode)) }
-            press("row") { row.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, keyCode)) }
-            press("listOwn") { list.onKeyDown(keyCode, KeyEvent(KeyEvent.ACTION_DOWN, keyCode)) }
-            press("listDispatch") { list.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, keyCode)) }
-            press("window") { decor.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, keyCode)) }
-            note = results.toString().trim()
-        }
-        return note
+        return Pair(passedOn && landed, detail)
     }
 
     /** DOWN from the last row on screen shows the next row, and that row takes the focus once the list has laid it out. */
