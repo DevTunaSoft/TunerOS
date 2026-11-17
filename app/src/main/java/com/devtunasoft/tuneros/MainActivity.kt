@@ -457,6 +457,7 @@ class MainActivity : Activity() {
         // startup restore callback that the worker posts to the UI thread.
         qaRecoveryMode()?.let { mode -> runRecoveryQa(mode) }
         if (isKeyLaunch()) root.post { armQaKeyReport() }
+        if (isGuideScaleCheckLaunch()) root.post { GuideScaleCheck.run(this) }
     }
 
     /** Debug-only: opens the recording folder picker so CI can select a folder on the emulator. */
@@ -857,6 +858,10 @@ class MainActivity : Activity() {
         (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0 &&
             intent?.getBooleanExtra("tuneros.debug.parental_check", false) == true
 
+    private fun isGuideScaleCheckLaunch(): Boolean =
+        (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0 &&
+            intent?.getBooleanExtra("tuneros.debug.guide_scale_check", false) == true
+
     /** Runs [onUnlocked] now when the session is unlocked, or after the PIN is entered and accepted. */
     private fun requireParentalPin(onUnlocked: () -> Unit) {
         if (parentalUnlocked) {
@@ -1128,7 +1133,7 @@ class MainActivity : Activity() {
         // Only one probe pass at once; use the app's existing serial worker.
         if (worker.isShutdown) return
         // The isolated service-stop launch must not share the process with the main pass.
-        if (isServiceStopLaunch() || isAlarmLaunch() || isInvalidStartLaunch() || qaPlaybackUrl() != null || qaImportUrls() != null || isKeyLaunch() || isRotationLaunch() || qaRecordUrl() != null || qaScheduledUrl() != null || isPickFolderLaunch() || isInternalStorageLaunch() || qaRecoveryMode() != null) return
+        if (isServiceStopLaunch() || isAlarmLaunch() || isInvalidStartLaunch() || qaPlaybackUrl() != null || qaImportUrls() != null || isKeyLaunch() || isRotationLaunch() || qaRecordUrl() != null || qaScheduledUrl() != null || isPickFolderLaunch() || isInternalStorageLaunch() || qaRecoveryMode() != null || isGuideScaleCheckLaunch()) return
         if (selfTestsQueued) {
             // An import completed while a previous pass was running: do not lose its results.
             selfTestsDirty = true

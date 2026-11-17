@@ -115,4 +115,61 @@ class DashSegmentIndexTest {
         val references = List(10_001) { 100L to 1_000L }
         assertTrue(refusalOf(sidx(references = references)).contains("too many"))
     }
+
+    @Test fun theFirstAndLastReferencesLocateTheirBytesFromTheAnchor() {
+        val bytes = sidx(references = listOf(500L to 2_000L, 700L to 2_000L, 600L to 3_000L), firstOffset = 25)
+        val anchor = 1_000L + bytes.size + 25
+        val references = parsed(bytes).references
+        assertEquals(3, references.size)
+        assertEquals(HlsByteRange(length = 500, offset = anchor), references.first().range)
+        assertEquals(HlsByteRange(length = 600, offset = anchor + 1_200), references.last().range)
+    }
+
+    @Test fun aVersionOneIndexLocatesItsReferencesBeyondTheThirtyTwoBitLimit() {
+        // 8 GiB of first_offset, which a version 0 index cannot hold.
+        val firstOffset = 1L shl 33
+        val bytes = sidx(
+            version = 1,
+            timescale = 90_000,
+            firstOffset = firstOffset,
+            references = listOf(100L to 180_000L, 200L to 180_000L),
+        )
+        val anchor = 1_000L + bytes.size + firstOffset
+        assertEquals(
+            listOf(HlsByteRange(length = 100, offset = anchor), HlsByteRange(length = 200, offset = anchor + 100)),
+            parsed(bytes).references.map { it.range },
+        )
+    }
+
+    @Test fun theLargestVersionZeroFirstOffsetIsAddedExactly() {
+        // A version 0 first_offset is an unsigned 32-bit field, so 0xFFFFFFFF is the largest it can name.
+        val bytes = sidx(firstOffset = 0xFFFF_FFFFL, references = listOf(500L to 2_000L))
+        assertEquals(1_000L + bytes.size + 0xFFFF_FFFFL, parsed(bytes).references[0].range.offset)
+    }
+
+    @Test fun aReferenceEndingAtTheLargestAllowedByteIsAccepted() {
+        // The manifest's byte ranges stop at 10^15, and an index names no byte past that bound either.
+        val largestByte = 1_000_000_000_000_000L
+        val size = sidx(version = 1, references = listOf(100L to 1_000L)).size.toLong()
+        // A 100-byte reference whose last byte is largestByte starts at largestByte - 99.
+        val bytes = sidx(version = 1, firstOffset = largestByte - 99 - (1_000L + size), references = listOf(100L to 1_000L))
+        assertEquals(largestByte - 99, parsed(bytes).references[0].range.offset)
+    }
+
+    @Test fun aReferenceEndingPastTheLargestAllowedByteIsRefused() {
+        val largestByte = 1_000_000_000_000_000L
+        val size = sidx(version = 1, references = listOf(100L to 1_000L)).size.toLong()
+        // One byte further: the last byte is largestByte + 1.
+        val bytes = sidx(version = 1, firstOffset = largestByte - 98 - (1_000L + size), references = listOf(100L to 1_000L))
+        assertTrue(refusalOf(bytes).contains("too large"))
+    }
+
+    @Test fun aVersionOneFirstOffsetThatOverflowsOrIsNegativeIsRefused() {
+        assertTrue(refusalOf(sidx(version = 1, firstOffset = Long.MAX_VALUE, references = listOf(500L to 2_000L))).contains("overflow"))
+        assertTrue(refusalOf(sidx(version = 1, firstOffset = -1, references = listOf(500L to 2_000L))).contains("overflow"))
+    }
+
+    @Test fun anEmptySubsegmentAnywhereInTheIndexIsRefused() {
+        assertTrue(refusalOf(sidx(references = listOf(500L to 2_000L, 0L to 2_000L, 700L to 2_000L))).contains("empty subsegment"))
+    }
 }

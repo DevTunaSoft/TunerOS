@@ -19,8 +19,10 @@ interface DashCaptureSource {
     fun loadManifest(url: String): LoadedDashManifest
 
     /**
-     * The bytes of [range] in [url], for a SegmentBase index. It is read once, before any byte is written, and its length
-     * is bounded by the index limit. A throw marks the index as unavailable.
+     * The bytes of [range] in [url], for a SegmentBase index and for the one-byte reads that check the index covers its
+     * file. All are read before any byte is written, and the length of a read is bounded by the index limit. A range the
+     * origin does not answer throws: for the index that marks it unavailable, and for a one-byte read that marks the byte
+     * absent.
      */
     fun loadRange(url: String, range: HlsByteRange): ByteArray
 
@@ -253,7 +255,10 @@ class DashCaptureEngine {
         }
     }
 
-    /** Reads a SegmentBase's index range and completes its plan. Nothing is written before this succeeds. */
+    /**
+     * Reads a SegmentBase's index range, completes its plan, and refuses an index that does not cover its file. Nothing is
+     * written before this succeeds.
+     */
     private fun planWithIndex(
         request: DashPlanOutcome.NeedsIndex,
         loaded: LoadedDashManifest,
@@ -265,7 +270,33 @@ class DashCaptureEngine {
         } catch (unanswered: Exception) {
             return DashPlanOutcome.Unsupported(UNAVAILABLE_INDEX)
         }
-        return DashManifest.completeIndex(request, bytes)
+        val completed = DashManifest.completeIndex(request, bytes)
+        if (completed !is DashPlanOutcome.Planned) return completed
+        val refusal = coverageRefusal(fileUrl, completed.plan, source) ?: return completed
+        return DashPlanOutcome.Unsupported(refusal)
+    }
+
+    /**
+     * An index covers its file when its last referenced byte exists and the byte after it does not. The file's length is
+     * not known here, so each check reads one byte through [DashCaptureSource.loadRange]. Returns the refusal, or null.
+     */
+    private fun coverageRefusal(fileUrl: String, plan: DashPlan, source: DashCaptureSource): String? {
+        val last = plan.listedSegments?.lastOrNull()?.range ?: return null
+        val end = last.offset + last.length
+        if (byteAt(fileUrl, end - 1, source) == null) return INDEX_PAST_END
+        if (byteAt(fileUrl, end, source) != null) return UNCOVERED_INDEX
+        return null
+    }
+
+    /**
+     * The one byte at [offset], or null when the origin does not answer with it. The origin answers a byte past the end of
+     * the file with an error, which reads as the byte being absent. A failed request reads the same way, so the core cannot
+     * tell the two apart.
+     */
+    private fun byteAt(url: String, offset: Long, source: DashCaptureSource): ByteArray? = try {
+        source.loadRange(url, HlsByteRange(length = 1, offset = offset)).takeIf { it.size == 1 }
+    } catch (unanswered: Exception) {
+        null
     }
 
     /** Copies the initialization segment, when the plan has one: a SegmentList's or a SegmentTemplate's. */
@@ -455,6 +486,8 @@ class DashCaptureEngine {
         const val UNAVAILABLE_INITIALIZATION = "DASH initialization segment is not available"
         const val UNAVAILABLE_SEGMENT = "DASH segment is not available"
         const val UNAVAILABLE_INDEX = "DASH segment index is not available"
+        const val INDEX_PAST_END = "DASH SegmentBase index names bytes past the end of the file"
+        const val UNCOVERED_INDEX = "DASH SegmentBase index does not cover the file"
         const val UNPUBLISHED_LIVE_SEGMENT = "DASH live segment was not published in time"
         const val LIVE_LISTING_MISSING = "DASH live listing is missing"
         const val LIVE_FELL_BEHIND = "DASH live listing moved past the next segment"

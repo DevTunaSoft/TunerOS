@@ -422,6 +422,28 @@ for diag_case in "missing.mp4|HTTP 404" "page.html|content type text/html"; do
   echo "Playback diagnostic ${DIAG_PATH}: $(grep -E '^FAIL[[:space:]]qa-playback-first-frame' playback-diag-report.txt | cut -c1-160)"
 done
 kill "$DIAG_PID" 2>/dev/null || true
+# Guide scale on the device: a synthetic 160-channel, 11,520-programme guide is generated in memory, and every row is bound,
+# measured and drawn through the app's guide adapter. The check writes MEASURE lines (PSS, wall time, CPU) to its own report
+# and gates only on completion. It runs before any source is saved, so the PSS baseline holds no restored guide.
+adb shell run-as com.devtunasoft.tuneros rm -f files/tuneros-guide-scale-report.txt 2>/dev/null || true
+adb shell am force-stop com.devtunasoft.tuneros
+adb shell am start -n com.devtunasoft.tuneros/.MainActivity --ez tuneros.debug.guide_scale_check true
+for attempt in $(seq 1 60); do
+  adb shell run-as com.devtunasoft.tuneros cat files/tuneros-guide-scale-report.txt > guide-scale-report.txt 2>/dev/null || true
+  if grep -Eq '^(PASS|FAIL)[[:space:]]guide-scale-complete' guide-scale-report.txt; then
+    break
+  fi
+  sleep 2
+done
+for check in guide-scale-complete; do
+  if ! grep -Fq "$(printf 'PASS\t%s\t' "$check")" guide-scale-report.txt; then
+    echo "Guide scale check $check did not pass on the device"
+    cat guide-scale-report.txt 2>/dev/null || echo "(no report file)"
+    exit 1
+  fi
+done
+cat guide-scale-report.txt
+echo "guide scale on the device: 160 channels and 11,520 programmes rendered through the guide adapter, measurements recorded"
 # Isolated launch for the real import path. Fixtures are generated on the runner and served to
 # the emulator; the app imports them without saving the URLs. Counts must match exactly.
 mkdir -p ci-import
