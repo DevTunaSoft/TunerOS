@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
-# Android TV device checks for TunerOS. CI runs this inside reactivecircus/android-emulator-runner on an Android 35 TV
-# image (system-images;android-35;android-tv;x86_64, device tv_1080p). The debug APK is in ci-apk/. The script installs
-# it, then launches the app's own debug checks and reads the app's private reports with run-as:
+# Android TV device checks for TunerOS. CI runs this inside reactivecircus/android-emulator-runner on an Android 36 TV
+# image (system-images;android-36;android-tv;x86_64, device tv_1080p). No Android 35 TV image exists on the runner.
+# The debug APK is in ci-apk/. The script installs it, then launches the app's own debug checks and reads the app's
+# private reports with run-as:
 #   1. --ez tuneros.debug.ui_checks true: parental PIN dialogs, playback gate, D-pad focus and restore checks.
 #   2. --ez tuneros.debug.keys true: remote key input (adb DPAD keys must reach the activity's dispatchKeyEvent).
 # No touch input is sent. The app uses a scratch PIN store and its own test clip, so no user data is read or changed.

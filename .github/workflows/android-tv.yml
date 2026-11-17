@@ -38,7 +38,7 @@ jobs:
           if-no-files-found: error
 
   emulator-tv-checks:
-    name: Execute TunerOS device checks on an Android 35 TV emulator
+    name: Execute TunerOS device checks on an Android 36 TV emulator
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 40
@@ -54,24 +54,12 @@ jobs:
         run: |
           test -e /dev/kvm
           sudo chmod 666 /dev/kvm
-      - name: List Android TV system images on this runner (diagnostic)
-        timeout-minutes: 10
-        run: |
-          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -1)"
-          test -n "$SDKMANAGER"
-          yes | "$SDKMANAGER" --licenses >/dev/null 2>&1 || true
-          "$SDKMANAGER" --list --channel=0 2>/dev/null | tr -d '\r' > sdk-list-stable.txt || true
-          "$SDKMANAGER" --list --include_obsolete --channel=3 2>/dev/null | tr -d '\r' > sdk-list-all.txt || true
-          for list in sdk-list-stable.txt sdk-list-all.txt; do
-            echo "== $list: TV system images"
-            grep -E 'system-images;android-[0-9.]+;(android-tv|google-tv|google_atv)' "$list" | sort -u || true
-            echo "== $list: android-35 system images"
-            grep -E 'system-images;android-35;' "$list" | sort -u || true
-          done
       - name: Run the app's D-pad device checks on an Android TV emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 35
+          # No Android 35 TV image exists in the runner's SDK repository: the sdkmanager listing in run 44153535100
+          # (job 134288369121) shows none on the stable or any other channel. 36 is the newest Android TV x86_64 image.
+          api-level: 36
           target: android-tv
           arch: x86_64
           profile: tv_1080p
