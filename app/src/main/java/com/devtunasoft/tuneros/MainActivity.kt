@@ -15,8 +15,6 @@ import android.provider.Settings
 import android.graphics.Color
 import android.graphics.Bitmap
 import android.graphics.Canvas
-import android.graphics.drawable.ColorDrawable
-import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.StateListDrawable
 import android.view.WindowManager
 import android.view.View
@@ -1213,18 +1211,7 @@ class MainActivity : Activity() {
     }
 
     /** A white outline on the focused button, so a TV remote user can see where focus is. Unfocused buttons are unchanged. */
-    private fun focusRingForeground(): StateListDrawable {
-        val density = resources.displayMetrics.density
-        val ring = GradientDrawable().apply {
-            setColor(Color.TRANSPARENT)
-            setStroke((4 * density).toInt(), Color.WHITE)
-            cornerRadius = 8 * density
-        }
-        return StateListDrawable().apply {
-            addState(intArrayOf(android.R.attr.state_focused), ring)
-            addState(intArrayOf(), ColorDrawable(Color.TRANSPARENT))
-        }
-    }
+    private fun focusRingForeground(): StateListDrawable = focusRingDrawable(resources.displayMetrics.density)
 
     private fun loadPlaylist() = importPlaylist(playlistUrl.text.toString().trim(), true)
 
@@ -2054,6 +2041,7 @@ class MainActivity : Activity() {
             Thread.sleep(500)
             DeviceFocusChecks(this, screenDriver()) { check, passed, detail -> record(check, passed, detail) }.run()
             runRestoreDialogCheck { check, passed, detail -> record(check, passed, detail) }
+            runChannelRowRingCheck { check, passed, detail -> record(check, passed, detail) }
         } catch (error: Exception) {
             record("ui-checks-error", false, error.javaClass.simpleName)
         } finally {
@@ -2107,6 +2095,49 @@ class MainActivity : Activity() {
             closed && before == after,
             "cancelling the restore changes no favorites, mappings, series rules or restricted groups",
         )
+    }
+
+    /**
+     * Debug builds only. Shows two channel rows, focuses the first channel cell and checks that the cell draws the focus
+     * ring. The cell is made focusable by touch only for the request, because the emulator starts in touch mode.
+     */
+    private fun runChannelRowRingCheck(report: (String, Boolean, String) -> Unit) {
+        val rows = listOf(uiCheckChannel("Ring One", "News"), uiCheckChannel("Ring Two", "News"))
+        onUi {
+            val now = System.currentTimeMillis() / 1000L
+            channelAdapter.update(rows, null, now, now + 3_600L, now, emptySet())
+        }
+        val rendered = waitForScreen(15_000) { channelCell("Ring One") != null }
+        onUi {
+            channelCell("Ring One")?.let { cell ->
+                val touchFocusable = cell.isFocusableInTouchMode
+                cell.isFocusableInTouchMode = true
+                cell.requestFocus()
+                cell.isFocusableInTouchMode = touchFocusable
+            }
+        }
+        val ringed = waitForScreen(10_000) { channelCellRingShown("Ring One") }
+        report("focus-ring-on-channel-row", rendered && ringed, "a focused channel cell draws the focus ring")
+        onUi { renderChannels() }
+    }
+
+    /** Runs on the UI thread: the guide's channel cell that shows [name], or null while it is not on screen. */
+    private fun channelCell(name: String): TextView? = findFocusableTextContaining(channelList, name)
+
+    /** Runs on the UI thread: whether that cell has focus and draws the focus ring. */
+    private fun channelCellRingShown(name: String): Boolean {
+        val cell = channelCell(name) ?: return false
+        return cell.hasFocus() && cell.foreground?.state?.contains(android.R.attr.state_focused) == true
+    }
+
+    private fun findFocusableTextContaining(view: View, fragment: String): TextView? {
+        if (view is TextView && view.isFocusable && view.text?.contains(fragment) == true) return view
+        if (view is android.view.ViewGroup) {
+            for (index in 0 until view.childCount) {
+                findFocusableTextContaining(view.getChildAt(index), fragment)?.let { return it }
+            }
+        }
+        return null
     }
 
     /** Runs on the UI thread: the restore dialog's message text, or an empty string when it is not showing. */

@@ -106,6 +106,8 @@ internal class CableGuideAdapter(
             setPadding(dp(12), 0, dp(8), 0)
             isFocusable = true
             setBackgroundResource(android.R.drawable.list_selector_background)
+            // A white outline on the focused channel cell, so a TV remote user can see which channel has focus.
+            foreground = focusRingDrawable(resources.displayMetrics.density)
         }
         val timelineView = ProgramTimelineView(
             context = context,
