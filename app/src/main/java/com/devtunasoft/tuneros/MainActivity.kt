@@ -1999,6 +1999,10 @@ class MainActivity : Activity() {
             }
             val plays = waitForScreen(60_000) { currentStatusText() == "Playing: Adult One" }
             record("ui-right-pin-plays", askedAgain && plays, "the right PIN starts the restricted channel")
+            // The parental checks leave a test clip playing, and the player's own controls then hold focus.
+            // Stop playback so the focus checks start from the app's button row.
+            onUi { releasePlayer() }
+            Thread.sleep(500)
             DeviceFocusChecks(this, screenDriver()) { check, passed, detail -> record(check, passed, detail) }.run()
         } catch (error: Exception) {
             record("ui-checks-error", false, error.javaClass.simpleName)
