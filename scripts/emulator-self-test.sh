@@ -1175,6 +1175,28 @@ for check in qa-timeshift-first-frame qa-timeshift-on qa-timeshift-advances qa-t
 done
 cat timeshift-controls-report.txt
 echo "timeshift controls on the device: switch to the ring, advance, back ten seconds, live edge, off, ring removed"
+# Backup on the device: favorites, guide mappings and series rules are exported from scratch stores, the file must hold no URL or
+# credential, a restore brings the stores back to the export, and a file holding a URL is refused without changing anything.
+# The check uses its own stores and removes them afterwards.
+adb shell run-as com.devtunasoft.tuneros rm -f files/tuneros-backup-report.txt 2>/dev/null || true
+adb shell am force-stop com.devtunasoft.tuneros
+adb shell am start -n com.devtunasoft.tuneros/.MainActivity --ez tuneros.debug.backup_check true
+for attempt in $(seq 1 60); do
+  adb shell run-as com.devtunasoft.tuneros cat files/tuneros-backup-report.txt > backup-report.txt 2>/dev/null || true
+  if grep -Eq '^(PASS|FAIL)[[:space:]]qa-backup-refuses-url' backup-report.txt; then
+    break
+  fi
+  sleep 2
+done
+for check in qa-backup-export-clean qa-backup-round-trip qa-backup-refuses-url; do
+  if ! grep -Fq "$(printf 'PASS\t%s\t' "$check")" backup-report.txt; then
+    echo "Backup check $check did not pass on the device"
+    cat backup-report.txt 2>/dev/null || echo "(no report file)"
+    exit 1
+  fi
+done
+cat backup-report.txt
+echo "backup on the device: export holds no URL or credential, restore round-trips, a URL file is refused unchanged"
 
 # Refused start on the device: the recorder must enter the foreground before it refuses a request. Otherwise Android
 # crashes the calling app, and the report below is never written.
