@@ -168,12 +168,12 @@ internal class GuideFocusChecks(
     private fun upAndDownLeaveTimeline(): Pair<Boolean, String> {
         showRows(TAG_ROWS, NAMES)
         if (!rowsOnScreen()) return Pair(false, "the guide rows are not on screen")
-        val outside = neighbourFromTouchOutsideKey()
+        val levels = "UP{${dispatchLevels(KeyEvent.KEYCODE_DPAD_UP)}} DOWN{${dispatchLevels(KeyEvent.KEYCODE_DPAD_DOWN)}}"
         val up = leaveTimeline(BRAVO, KeyEvent.KEYCODE_DPAD_UP, View.FOCUS_UP)
         val down = leaveTimeline(ALPHA, KeyEvent.KEYCODE_DPAD_DOWN, View.FOCUS_DOWN)
         val past = downPastLastRowFollowsScroll()
         val passed = up.first && down.first && past.first
-        return Pair(passed, "UP: ${up.second}; DOWN: ${down.second}; ${past.second}; diagnostic $outside")
+        return Pair(passed, "UP: ${up.second}; DOWN: ${down.second}; ${past.second}; levels $levels")
     }
 
     /**
@@ -225,18 +225,31 @@ internal class GuideFocusChecks(
     }
 
     /**
-     * Diagnostic: asks for focus on the timeline of [BRAVO] from outside a key press, the way the listener does, and reports
-     * whether the request was granted and whether the focus moved.
+     * Diagnostic: sends one UP or DOWN press to each level of the focus path, from the programme timeline up to the window,
+     * and records what each level returned and whether the row listener ran. Focus goes back to the timeline before each press.
      */
-    private fun neighbourFromTouchOutsideKey(): String {
+    private fun dispatchLevels(keyCode: Int): String {
         var note = ""
         screen.onUi {
-            val bravo = timelineOf(BRAVO) ?: return@onUi
-            val alpha = timelineOf(ALPHA) ?: return@onUi
-            focusByTouch(rowViews()) { alpha.requestFocus() }
-            val asked = focusByTouch(rowViews()) { bravo.requestFocusFromTouch() }
-            note = "outside-key asked=$asked moved=${activity.currentFocus === bravo}"
-            focusByTouch(rowViews()) { alpha.requestFocus() }
+            val timeline = timelineOf(BRAVO) ?: return@onUi
+            val row = timeline.parent as? View ?: return@onUi
+            val list = guide.guideList()
+            val decor = activity.window.decorView
+            val results = StringBuilder()
+            fun press(label: String, action: () -> Boolean) {
+                focusByTouch(rowViews()) { timeline.requestFocus() }
+                val before = guide.rowKeyTrace().substringBefore(' ')
+                val result = action()
+                val after = guide.rowKeyTrace().substringBefore(' ')
+                results.append(label).append('=').append(result)
+                results.append(if (before == after) " " else "(listener ran) ")
+            }
+            press("timeline") { timeline.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, keyCode)) }
+            press("row") { row.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, keyCode)) }
+            press("listOwn") { list.onKeyDown(keyCode, KeyEvent(KeyEvent.ACTION_DOWN, keyCode)) }
+            press("listDispatch") { list.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, keyCode)) }
+            press("window") { decor.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, keyCode)) }
+            note = results.toString().trim()
         }
         return note
     }
