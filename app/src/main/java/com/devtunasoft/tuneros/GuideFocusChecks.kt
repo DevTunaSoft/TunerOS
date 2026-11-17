@@ -166,15 +166,16 @@ internal class GuideFocusChecks(
     }
 
     /**
-     * Runs one direction from the timeline of [source]. The timeline's own key handler must pass the key on. Then the key is
-     * sent to the focused view. The framework moves focus for a direction key that no view handles, with a focus search, and
-     * sending a key to a view does not run that search. So when the key leaves the focus on the timeline, the check runs the
-     * same search, and the report says which route moved the focus.
+     * Runs one direction from the timeline of [source]. The timeline's own key handler must pass the key on. Then the key goes
+     * to the focused view, and the window reports whether a view consumed it. A key that no view consumed is one the framework
+     * moves focus for, with a focus search, so the check runs that search. A key that a view consumed has to move the focus
+     * itself. If the focus stays on the timeline, the remote's key does nothing for the guide, and the check fails.
      */
     private fun leaveTimeline(source: String, keyCode: Int, direction: Int): Pair<Boolean, String> {
         var focused = false
         var focusText = ""
         var passedOn = false
+        var consumed = false
         var viaKey = false
         var landed = false
         var landedOn = ""
@@ -186,19 +187,20 @@ internal class GuideFocusChecks(
                 focusText = describeFocus()
                 if (!focused) return@focusByTouch
                 passedOn = !timeline.onKeyDown(keyCode, KeyEvent(KeyEvent.ACTION_DOWN, keyCode))
-                sendKey(keyCode)
+                consumed = sendKey(keyCode)
                 viaKey = activity.currentFocus !== timeline
-                if (!viaKey) timeline.focusSearch(direction)?.requestFocus()
+                if (!viaKey && !consumed) timeline.focusSearch(direction)?.requestFocus()
                 landed = activity.currentFocus != null && activity.currentFocus !== timeline
                 landedOn = describeFocus()
             }
         }
         if (!focused) return Pair(false, "focus did not reach the timeline of \"$source\"; focus is on $focusText")
-        val route = if (viaKey) "by the key" else "by the framework's focus search"
         val detail = when {
             !passedOn -> "the timeline of \"$source\" consumed the key"
-            !landed -> "focus stayed on the timeline of \"$source\""
-            else -> "the timeline of \"$source\" passes the key on, and focus moves $route to $landedOn"
+            landed && viaKey -> "the timeline of \"$source\" passes the key on, and the key moves focus to $landedOn"
+            landed -> "the timeline of \"$source\" passes the key on, and no view took it, so the focus search moves focus to $landedOn"
+            consumed -> "a view consumed the key, and focus stayed on the timeline of \"$source\""
+            else -> "no view took the key, and the focus search found no neighbour of \"$source\""
         }
         return Pair(passedOn && landed, detail)
     }
@@ -230,11 +232,12 @@ internal class GuideFocusChecks(
         }
     }
 
-    /** A key press as the remote sends it: down, then up. Both go to the focused view, through the window's dispatch. */
-    private fun sendKey(keyCode: Int) {
+    /** A key press as the remote sends it: down, then up, both through the window. Returns whether a view consumed the down. */
+    private fun sendKey(keyCode: Int): Boolean {
         val decor = activity.window.decorView
-        decor.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, keyCode))
+        val consumed = decor.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, keyCode))
         decor.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_UP, keyCode))
+        return consumed
     }
 
     /** Runs on the UI thread: whether the row of [name] is on screen and laid out. */
