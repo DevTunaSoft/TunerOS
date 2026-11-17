@@ -15,6 +15,9 @@ import android.provider.Settings
 import android.graphics.Color
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.drawable.ColorDrawable
+import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.StateListDrawable
 import android.view.WindowManager
 import android.view.View
 import android.view.KeyEvent
@@ -1184,6 +1187,21 @@ class MainActivity : Activity() {
         text = value
         isAllCaps = false
         setOnClickListener { onClick() }
+        foreground = focusRingForeground()
+    }
+
+    /** A white outline on the focused button, so a TV remote user can see where focus is. Unfocused buttons are unchanged. */
+    private fun focusRingForeground(): StateListDrawable {
+        val density = resources.displayMetrics.density
+        val ring = GradientDrawable().apply {
+            setColor(Color.TRANSPARENT)
+            setStroke((4 * density).toInt(), Color.WHITE)
+            cornerRadius = 8 * density
+        }
+        return StateListDrawable().apply {
+            addState(intArrayOf(android.R.attr.state_focused), ring)
+            addState(intArrayOf(), ColorDrawable(Color.TRANSPARENT))
+        }
     }
 
     private fun loadPlaylist() = importPlaylist(playlistUrl.text.toString().trim(), true)

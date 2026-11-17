@@ -49,6 +49,7 @@ internal class DeviceFocusChecks(
         }
         report("focus-reach-parental-pin", reached, "the Parental PIN button is reached with the D-pad alone")
         if (!reached) return
+        report("focus-ring-on-focused-button", driver.onUiBool { focusRingShown() }, "the focused button draws the focus ring")
 
         val savedUnlocked = driver.parentalSessionUnlocked()
         driver.setParentalSessionUnlocked(false)
@@ -80,6 +81,12 @@ internal class DeviceFocusChecks(
         if (!dialog.isShowing) return false
         val label = dialog.getButton(AlertDialog.BUTTON_POSITIVE)?.text?.toString() ?: return false
         return label in PIN_DIALOG_CONFIRM_LABELS
+    }
+
+    /** Runs on the UI thread: true when the focused view draws a focus state. */
+    private fun focusRingShown(): Boolean {
+        val focused = activity.currentFocus ?: return false
+        return focused.foreground?.state?.contains(android.R.attr.state_focused) == true
     }
 
     /** A key press as the system sends it: down, then up. The focus moves on down and the button presses on up. */
