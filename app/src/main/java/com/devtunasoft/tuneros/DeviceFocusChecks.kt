@@ -6,7 +6,6 @@ import android.view.KeyEvent
 import android.view.View
 import android.widget.Button
 import android.view.ViewGroup
-import kotlin.math.abs
 
 /** What the focus checks need from the activity: access to the screen on the UI thread, and the dialog that is open. */
 internal interface ScreenDriver {
@@ -38,11 +37,11 @@ internal class DeviceFocusChecks(
     private val driver: ScreenDriver,
     private val report: (check: String, passed: Boolean, detail: String) -> Unit,
 ) {
-    /** The view that had focus before the last press, and how many presses in a row left focus there. UI thread only. */
-    private var lastFocus: View? = null
-    private var stuckCount = 0
+    /** Views the focus has been on during this check, so the search does not circle back. UI thread only. */
+    private val visited = HashSet<View>()
 
     fun run() {
+        driver.onUi { visited.clear() }
         var reached = driver.onUiBool { focusedButtonText() == TARGET }
         var presses = 0
         while (!reached && presses < MAX_DPAD_PRESSES) {
@@ -94,26 +93,33 @@ internal class DeviceFocusChecks(
         return label in PIN_DIALOG_CONFIRM_LABELS
     }
 
-    /** Runs on the UI thread: one D-pad press toward the target. Focus that did not move last time turns to the other axis. */
+    /**
+     * Runs on the UI thread: one D-pad press toward the Parental PIN button. For each direction, the focus system's own
+     * next view is compared with the button; the press goes to the closest view not yet visited, so the search cannot
+     * circle back.
+     */
     private fun pressTowardTarget() {
+        val decor = activity.window.decorView
         val focused = activity.currentFocus
-        stuckCount = if (focused != null && focused === lastFocus) stuckCount + 1 else 0
-        lastFocus = focused
-        sendKey(activity.window.decorView, directionTowardTarget(useSecondary = stuckCount % 2 == 1))
+        val target = findButton(decor, TARGET)
+        if (focused == null || target == null) {
+            sendKey(decor, KeyEvent.KEYCODE_DPAD_DOWN)
+            return
+        }
+        visited += focused
+        val goal = centre(target)
+        val options = DIRECTIONS.mapNotNull { (keyCode, direction) ->
+            focused.focusSearch(direction)?.let { next -> Triple(keyCode, next, distance(centre(next), goal)) }
+        }
+        val unvisited = options.filter { it.second !in visited }
+        val best = unvisited.ifEmpty { options }.minByOrNull { it.third }
+        sendKey(decor, best?.first ?: KeyEvent.KEYCODE_DPAD_DOWN)
     }
 
-    /** Runs on the UI thread: the D-pad key that moves focus toward the Parental PIN button. */
-    private fun directionTowardTarget(useSecondary: Boolean): Int {
-        val target = findButton(activity.window.decorView, TARGET) ?: return KeyEvent.KEYCODE_DPAD_DOWN
-        val focused = activity.currentFocus ?: return KeyEvent.KEYCODE_DPAD_DOWN
-        val (targetX, targetY) = centre(target)
-        val (focusX, focusY) = centre(focused)
-        val dx = targetX - focusX
-        val dy = targetY - focusY
-        val horizontal = if (dx > 0) KeyEvent.KEYCODE_DPAD_RIGHT else KeyEvent.KEYCODE_DPAD_LEFT
-        val vertical = if (dy > 0) KeyEvent.KEYCODE_DPAD_DOWN else KeyEvent.KEYCODE_DPAD_UP
-        val horizontalFirst = abs(dx) >= abs(dy)
-        return if (horizontalFirst != useSecondary) horizontal else vertical
+    private fun distance(a: Pair<Int, Int>, b: Pair<Int, Int>): Long {
+        val dx = (a.first - b.first).toLong()
+        val dy = (a.second - b.second).toLong()
+        return dx * dx + dy * dy
     }
 
     private fun findButton(view: View, label: String): Button? {
@@ -159,5 +165,11 @@ internal class DeviceFocusChecks(
         const val PAUSE_MILLIS = 200L
         const val DIALOG_TIMEOUT_MILLIS = 10_000L
         const val FOCUS_TIMEOUT_MILLIS = 5_000L
+        val DIRECTIONS = listOf(
+            KeyEvent.KEYCODE_DPAD_UP to View.FOCUS_UP,
+            KeyEvent.KEYCODE_DPAD_DOWN to View.FOCUS_DOWN,
+            KeyEvent.KEYCODE_DPAD_LEFT to View.FOCUS_LEFT,
+            KeyEvent.KEYCODE_DPAD_RIGHT to View.FOCUS_RIGHT,
+        )
     }
 }
