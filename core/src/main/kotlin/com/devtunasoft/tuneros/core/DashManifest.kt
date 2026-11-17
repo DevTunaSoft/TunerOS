@@ -39,6 +39,11 @@ data class DashPlan(
      * passed on the presentation clock. False for a SegmentList, whose segments are fetched as soon as they are listed.
      */
     val listedTimed: Boolean = false,
+    /**
+     * A live listing that ends in an open repeat: the segments that follow [listedSegments], one per duration of the
+     * open tail, on the presentation clock. Null when the listing is finite.
+     */
+    val openTail: DashOpenTail? = null,
 ) {
     val segmentDurationSeconds: Double
         get() = segmentDurationTicks.toDouble() / timescale.toDouble()
@@ -53,6 +58,9 @@ data class DashListedInitialization(val source: String?, val range: HlsByteRange
  * the listing, and each segment starts where the previous one ends.
  */
 data class DashListedSegment(val id: Long, val endId: Long, val media: String?, val range: HlsByteRange?)
+
+/** The open tail of a live listing: its first start time, its one duration, and the media template its segments expand. */
+data class DashOpenTail(val startTicks: Long, val durationTicks: Long, val mediaTemplate: String)
 
 /** How segment numbers relate to time. */
 sealed class DashTiming {
@@ -96,11 +104,12 @@ sealed class DashPlanOutcome {
  * and their durations may differ. A static manifest carries a presentation duration or a timeline or list, and the
  * recorder counts its segments from it. A static timeline of one duration is read arithmetically; any other timeline is
  * listed segment by segment. A live manifest carries an availabilityStartTime with an offset. A live timeline that
- * repeats to the end is followed on that clock, since its one duration is promised to continue. Every other live
- * timeline, and a live SegmentList, is listed and read again at its minimum update period, and each listed segment is
- * fetched once it is complete (a SegmentList's are fetched as they are listed). It refuses everything else with a fixed
- * reason: separate audio or text renditions, protection, a live SegmentBase, timeline gaps, an irregular timeline that repeats
- * to the end, DTDs and unknown template tokens. No manifest text, URL or exception message is kept.
+ * repeats to the end is followed on that clock at the duration of its open repeat, after any entries listed before it.
+ * Every other live timeline, and a live SegmentList, is listed and read again at its minimum update period, and each
+ * listed segment is fetched once it is complete (a SegmentList's are fetched as they are listed). It refuses everything
+ * else with a fixed reason: separate audio or text renditions, protection, a live SegmentBase, timeline gaps, an open repeat in a static
+ * timeline or one that is not a timeline's last entry, DTDs and unknown template tokens. No manifest text, URL or exception
+ * message is kept.
  */
 object DashManifest {
     const val MAX_MANIFEST_CHARS = 1_000_000
@@ -208,7 +217,11 @@ object DashManifest {
             is TimelineOutcome.Regular -> parsed.timeline
             is TimelineOutcome.Listed -> return planTimeline(
                 live, timing, topBaseUrls, representation, id, chosenBandwidth, template, media, initialization, timescale,
-                parsed.segments,
+                parsed.segments, tail = null,
+            )
+            is TimelineOutcome.Open -> return planTimeline(
+                live, timing, topBaseUrls, representation, id, chosenBandwidth, template, media, initialization, timescale,
+                parsed.segments, tail = parsed.tail,
             )
         }
         val durationTicks = timeline?.durationTicks
@@ -343,6 +356,7 @@ object DashManifest {
         initialization: String?,
         timescale: Long,
         segments: List<TimelineSegment>,
+        tail: TimelineSegment?,
     ): DashPlanOutcome {
         val startNumber = template.attr("startNumber")?.let { raw ->
             raw.toLongOrNull()?.takeIf { it >= 0 } ?: return refuse("DASH startNumber is not a valid number")
@@ -367,6 +381,13 @@ object DashManifest {
                 range = null,
             )
         }
+        // The open tail continues the listing, so its first segment takes the number after the listed ones.
+        val openTail = tail?.let { tailSegment ->
+            if (expand(media, id, bandwidth, startNumber + listed.size, tailSegment.startTicks) == null) {
+                return refuse("DASH media template uses a token that is not supported")
+            }
+            DashOpenTail(startTicks = tailSegment.startTicks, durationTicks = tailSegment.durationTicks, mediaTemplate = media)
+        }
         return DashPlanOutcome.Planned(
             DashPlan(
                 baseUrl = topBaseUrls.firstOrNull()?.textContent?.trim()?.takeIf { it.isNotEmpty() },
@@ -384,6 +405,7 @@ object DashManifest {
                 listedSegments = listed,
                 presentationTimeOffsetTicks = presentationTimeOffset,
                 listedTimed = live,
+                openTail = openTail,
             ),
         )
     }
@@ -530,6 +552,11 @@ object DashManifest {
         class Regular(val timeline: Timeline) : TimelineOutcome()
         /** Segments listed one by one: a static timeline of mixed durations, or any live window a refresh re-reads. */
         class Listed(val segments: List<TimelineSegment>) : TimelineOutcome()
+        /**
+         * A live timeline whose entries before its open repeat are listed one by one. The open repeat then continues the
+         * listing on the clock at its own duration, from the start time [tail] names.
+         */
+        class Open(val segments: List<TimelineSegment>, val tail: TimelineSegment) : TimelineOutcome()
         class Refused(val reason: String) : TimelineOutcome()
     }
 
@@ -538,7 +565,8 @@ object DashManifest {
      * with an open repeat (r="-1"), which runs to the clock; any other entry must be listed. Entries must follow one
      * another: a gap is refused, since the recorder would otherwise skip media silently. A timeline of one duration is
      * read arithmetically when static, and followed on the clock when live and open-ended. Every other timeline is
-     * listed segment by segment, within the segment limit. An irregular timeline cannot repeat to the end.
+     * listed segment by segment, within the segment limit. An irregular live timeline that repeats to the end lists the
+     * entries before the repeat, and the repeat follows the clock.
      */
     private fun timelineOf(template: Element, live: Boolean): TimelineOutcome? {
         val timelines = template.childElements("SegmentTimeline")
@@ -588,14 +616,25 @@ object DashManifest {
         val first = entries[0]
         val regular = entries.all { it.durationTicks == first.durationTicks }
         if (openRepeat) {
-            // Only a live presentation repeats to the end, and its tail is followed on the clock, which needs one duration.
-            if (!regular) return TimelineOutcome.Refused("DASH SegmentTimeline with irregular durations cannot repeat to the end")
-            return TimelineOutcome.Regular(Timeline(first.startTicks, first.durationTicks, listed))
+            // Only a live presentation repeats to the end. A regular timeline is followed on the clock, which needs one
+            // duration. An irregular one lists the entries before its open repeat, and the repeat follows the clock.
+            if (regular) return TimelineOutcome.Regular(Timeline(first.startTicks, first.durationTicks, listed))
+            if (listed > MAX_LIST_SEGMENTS) return TimelineOutcome.Refused("DASH SegmentTimeline has too many segments to list")
+            val repeated = entries.last()
+            return TimelineOutcome.Open(
+                listEntries(entries.dropLast(1), listed),
+                TimelineSegment(startTicks = repeated.startTicks, durationTicks = repeated.durationTicks),
+            )
         }
         if (!live && regular) return TimelineOutcome.Regular(Timeline(first.startTicks, first.durationTicks, listed))
         // A static timeline of mixed durations, or a live window a refresh re-reads: each segment is listed by its start.
         if (listed > MAX_LIST_SEGMENTS) return TimelineOutcome.Refused("DASH SegmentTimeline has too many segments to list")
-        val segments = ArrayList<TimelineSegment>(listed.toInt())
+        return TimelineOutcome.Listed(listEntries(entries, listed))
+    }
+
+    /** Lists the segments of [entries] in order, each at its start time. [count] is the number of segments listed. */
+    private fun listEntries(entries: List<TimelineEntry>, count: Long): List<TimelineSegment> {
+        val segments = ArrayList<TimelineSegment>(count.toInt())
         for (entry in entries) {
             for (k in 0..entry.repeat) {
                 segments += TimelineSegment(
@@ -604,7 +643,7 @@ object DashManifest {
                 )
             }
         }
-        return TimelineOutcome.Listed(segments)
+        return segments
     }
 
     private val UNSUPPORTED_ELEMENTS = listOf("ContentProtection")
