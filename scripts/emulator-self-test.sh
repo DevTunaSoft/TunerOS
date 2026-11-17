@@ -1770,7 +1770,7 @@ if grep -q '^FAIL' ui-report.txt 2>/dev/null; then
   cat ui-report.txt
   exit 1
 fi
-for check in ui-right-pin-plays focus-reach-parental-pin focus-ring-on-focused-button focus-ok-opens-pin-dialog focus-returns-after-dialog ui-restore-dialog-counts ui-restore-cancel-changes-nothing; do
+for check in ui-right-pin-plays focus-reach-parental-pin focus-ring-on-focused-button focus-ok-opens-pin-dialog focus-returns-after-dialog ui-restore-dialog-counts ui-restore-cancel-changes-nothing ui-channel-restricted ui-restricted-channel-asks-for-pin; do
   if ! grep -Fq "$(printf 'PASS\t%s\t' "$check")" ui-report.txt 2>/dev/null; then
     echo "In-app device check $check did not pass or did not finish"
     cat ui-report.txt 2>/dev/null || true

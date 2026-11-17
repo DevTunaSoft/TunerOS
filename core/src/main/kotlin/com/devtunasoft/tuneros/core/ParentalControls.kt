@@ -97,6 +97,23 @@ object ParentalPolicy {
     }
 
     /**
+     * A channel asks for the PIN when its group is restricted, or when the channel itself is restricted by name. Names are
+     * compared without case or surrounding spaces, like group names.
+     */
+    fun requiresPinForChannel(
+        channelName: String,
+        channelGroup: String?,
+        restrictedGroups: Set<String>,
+        restrictedChannels: Set<String>,
+        unlocked: Boolean,
+    ): Boolean {
+        if (unlocked) return false
+        if (requiresPin(channelGroup, restrictedGroups, unlocked = false)) return true
+        val key = normalize(channelName)
+        return restrictedChannels.any { normalize(it) == key }
+    }
+
+    /**
      * A recording plays under the rule for its channel. When the channel is no longer in the playlist its group cannot be
      * checked, so the recording asks for the PIN while any group is restricted.
      */

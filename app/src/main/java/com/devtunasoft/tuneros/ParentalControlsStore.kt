@@ -63,6 +63,14 @@ internal class ParentalControlsStore(context: Context, prefsName: String = PREFS
         prefs.edit().putStringSet(KEY_RESTRICTED, ParentalPolicy.normalizeAll(groups).toMutableSet()).apply()
     }
 
+    fun restrictedChannels(): Set<String> = prefs.getStringSet(KEY_RESTRICTED_CHANNELS, null).orEmpty().toSet()
+
+    /** Adds or removes [channel] from the restricted channel names. Refuses an empty name or too many entries. */
+    fun restrictChannel(channel: String, restricted: Boolean) {
+        val next = ParentalPolicy.restrict(restrictedChannels(), channel, restricted)
+        prefs.edit().putStringSet(KEY_RESTRICTED_CHANNELS, next.toMutableSet()).apply()
+    }
+
     private fun restoredLimit(): ParentalAttemptLimit = ParentalAttemptLimit(
         maxFailures = MAX_FAILURES,
         lockMillis = LOCK_MILLIS,
@@ -88,6 +96,7 @@ internal class ParentalControlsStore(context: Context, prefsName: String = PREFS
         private const val KEY_FAILURES = "failures"
         private const val KEY_LOCKED_UNTIL = "locked-until"
         private const val KEY_RESTRICTED = "restricted-groups"
+        private const val KEY_RESTRICTED_CHANNELS = "restricted-channels"
         const val MAX_FAILURES = 5
         const val LOCK_MILLIS = 60_000L
     }

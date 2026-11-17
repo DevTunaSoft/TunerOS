@@ -102,6 +102,13 @@ class ParentalControlsTest {
         assertFailsWith<IllegalArgumentException> { ParentalPolicy.normalizeAll(most + "one more") }
     }
 
+    @Test fun aRestrictedChannelAsksForThePinEvenWhenItsGroupIsNot() {
+        val channels = setOf(" News Three ")
+        assertTrue(ParentalPolicy.requiresPinForChannel(channelName = "news three", channelGroup = "News", restrictedGroups = emptySet(), restrictedChannels = channels, unlocked = false))
+        assertFalse(ParentalPolicy.requiresPinForChannel(channelName = "News Two", channelGroup = "News", restrictedGroups = emptySet(), restrictedChannels = channels, unlocked = false))
+        assertFalse(ParentalPolicy.requiresPinForChannel(channelName = "News Three", channelGroup = "News", restrictedGroups = emptySet(), restrictedChannels = channels, unlocked = true))
+    }
+
     @Test fun aRecordingPlaysUnderTheRuleForItsChannel() {
         val restricted = setOf("adult")
         assertTrue(ParentalPolicy.requiresPinForRecording(channelGroup = "Adult", channelKnown = true, restrictedGroups = restricted, unlocked = false))

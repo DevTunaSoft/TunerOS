@@ -326,6 +326,8 @@ class MainActivity : Activity() {
             addView(button("Parental PIN") { openParentalPin() })
             addView(button("Restrict group") { restrictGroupPrompt(restricted = true) })
             addView(button("Release group") { restrictGroupPrompt(restricted = false) })
+            addView(button("Restrict channel") { restrictChannelPrompt(restricted = true) })
+            addView(button("Release channel") { restrictChannelPrompt(restricted = false) })
             addView(button("Guide / Recordings") { toggleRecordings() })
             addView(button("Protect / Unprotect") { toggleFocusedRecordingProtection() })
             addView(button("Delete recording") { deleteFocusedRecording() })
@@ -934,6 +936,25 @@ class MainActivity : Activity() {
     }
 
     /** Restricts or releases a channel group by name, after the PIN unlocks the session. */
+    private fun restrictChannelPrompt(restricted: Boolean) {
+        requireParentalPin {
+            val input = EditText(this).apply { hint = "Channel name" }
+            activeDialog = AlertDialog.Builder(this)
+                .setTitle(if (restricted) "Restrict a channel" else "Release a channel")
+                .setView(input)
+                .setPositiveButton("Save") { _, _ ->
+                    try {
+                        parentalStore.restrictChannel(input.text.toString(), restricted)
+                        showStatus(if (restricted) "Channel restricted" else "Channel released")
+                    } catch (error: IllegalArgumentException) {
+                        showStatus("Enter a channel name; up to ${ParentalPolicy.MAX_RESTRICTED_GROUPS} can be restricted")
+                    }
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
+        }
+    }
+
     private fun restrictGroupPrompt(restricted: Boolean) {
         requireParentalPin {
             val input = EditText(this).apply { hint = "Channel group name" }
@@ -1439,7 +1460,14 @@ class MainActivity : Activity() {
 
     private fun play(channel: Channel) {
         // A restricted group waits for the PIN; the channel that is playing keeps playing until it is accepted.
-        if (ParentalPolicy.requiresPin(channel.group, parentalStore.restrictedGroups(), parentalUnlocked)) {
+        if (ParentalPolicy.requiresPinForChannel(
+                channel.name,
+                channel.group,
+                parentalStore.restrictedGroups(),
+                parentalStore.restrictedChannels(),
+                parentalUnlocked,
+            )
+        ) {
             requireParentalPin { play(channel) }
             return
         }
@@ -1943,6 +1971,7 @@ class MainActivity : Activity() {
         }
         val news = uiCheckChannel("News Two", "News")
         val adult = uiCheckChannel("Adult One", "Adult")
+        val newsThree = uiCheckChannel("News Three", "News")
         var savedUnlocked = false
         try {
             onUi {
@@ -2000,6 +2029,25 @@ class MainActivity : Activity() {
             }
             val plays = waitForScreen(60_000) { currentStatusText() == "Playing: Adult One" }
             record("ui-right-pin-plays", askedAgain && plays, "the right PIN starts the restricted channel")
+            onUi {
+                parentalUnlocked = true
+                restrictChannelPrompt(restricted = true)
+            }
+            val channelDialog = waitForScreen(15_000) { showingDialogWith("Save") }
+            onUi {
+                typeIntoActiveDialog("News Three")
+                confirmActiveDialog()
+            }
+            val channelStored = waitForScreen(15_000) { currentStatusText() == "Channel restricted" }
+            record("ui-channel-restricted", channelDialog && channelStored, "a single channel is restricted from the app's dialog")
+            onUi {
+                parentalUnlocked = false
+                play(newsThree)
+            }
+            val channelAsks = waitForScreen(20_000) { showingDialogWith("Unlock") }
+            record("ui-restricted-channel-asks-for-pin", channelAsks, "a restricted channel asks for the PIN although its group is not restricted")
+            onUi { activeDialog?.getButton(AlertDialog.BUTTON_NEGATIVE)?.performClick() }
+            waitForScreen(15_000) { activeDialog?.isShowing != true }
             // The parental checks leave a test clip playing, and the player's own controls then hold focus.
             // Stop playback so the focus checks start from the app's button row.
             onUi { releasePlayer() }
@@ -2179,7 +2227,14 @@ class MainActivity : Activity() {
         // A recording waits for the PIN under the rule for its channel. An unknown channel waits while any group is restricted.
         val channel = channels.firstOrNull { it.id == entry.channelId }
         val restricted = parentalStore.restrictedGroups()
-        if (ParentalPolicy.requiresPinForRecording(channel?.group, channel != null, restricted, parentalUnlocked)) {
+        val channelRestricted = channel != null && ParentalPolicy.requiresPinForChannel(
+            channel.name,
+            channel.group,
+            restricted,
+            parentalStore.restrictedChannels(),
+            parentalUnlocked,
+        )
+        if (channelRestricted || ParentalPolicy.requiresPinForRecording(channel?.group, channel != null, restricted, parentalUnlocked)) {
             requireParentalPin { playRecording(entry) }
             return
         }
