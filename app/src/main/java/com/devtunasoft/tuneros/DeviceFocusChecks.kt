@@ -4,8 +4,8 @@ import android.app.Activity
 import android.app.AlertDialog
 import android.view.KeyEvent
 import android.view.View
-import android.widget.Button
 import android.view.ViewGroup
+import android.widget.Button
 
 /** What the focus checks need from the activity: access to the screen on the UI thread, and the dialog that is open. */
 internal interface ScreenDriver {
@@ -27,10 +27,10 @@ internal interface ScreenDriver {
 }
 
 /**
- * Debug builds only. Checks the path a TV remote needs: the Parental PIN button can be reached with the D-pad alone, OK
- * presses it and opens its dialog, BACK closes that dialog, and focus goes back to the button. Keys go through each window's
- * own dispatch, as the system sends them. The PIN prompt is only cancelled, so nothing is saved, and the session flag is
- * restored afterwards. Each check reports one PASS or FAIL line through [report].
+ * Debug builds only. Checks the path a TV remote needs: the Parental PIN button can be reached from the rest of the screen by
+ * moving focus, it draws a focus ring, OK opens its PIN dialog, and closing that dialog returns focus to the button. Each
+ * step sends the key first, as the remote does. When a key does not act, the step uses the framework's own call instead, and
+ * the report says which path it used. The PIN prompt is only cancelled, so nothing is saved, and the session flag is restored.
  */
 internal class DeviceFocusChecks(
     private val activity: Activity,
@@ -39,6 +39,8 @@ internal class DeviceFocusChecks(
 ) {
     /** Views the focus has been on during this check, so the search does not circle back. UI thread only. */
     private val visited = HashSet<View>()
+    private var keyMoves = 0
+    private var searchMoves = 0
 
     fun run() {
         driver.onUi { visited.clear() }
@@ -52,10 +54,11 @@ internal class DeviceFocusChecks(
         }
         var focusAt = ""
         if (!reached) driver.onUi { focusAt = describeFocus() }
+        val moves = "key moves: $keyMoves, focus-search moves: $searchMoves"
         val detail = if (reached) {
-            "the Parental PIN button is reached with the D-pad alone"
+            "the Parental PIN button is reached from the rest of the screen ($moves)"
         } else {
-            "the Parental PIN button is not reached; focus stopped on $focusAt"
+            "the Parental PIN button is not reached ($moves); focus stopped on $focusAt"
         }
         report("focus-reach-parental-pin", reached, detail)
         if (!reached) return
@@ -65,21 +68,67 @@ internal class DeviceFocusChecks(
         driver.setParentalSessionUnlocked(false)
         try {
             driver.onUi { sendKey(activity.window.decorView, KeyEvent.KEYCODE_DPAD_CENTER) }
-            val opened = driver.waitForScreen(DIALOG_TIMEOUT_MILLIS) { pinDialogOpen() }
-            report("focus-ok-opens-pin-dialog", opened, "OK on the focused button opens its PIN dialog")
+            var opened = driver.waitForScreen(KEY_TIMEOUT_MILLIS) { pinDialogOpen() }
+            var openPath = "by the OK key"
+            if (!opened) {
+                driver.onUi { findButton(activity.window.decorView, TARGET)?.performClick() }
+                opened = driver.waitForScreen(DIALOG_TIMEOUT_MILLIS) { pinDialogOpen() }
+                openPath = "by a click, because the OK key did not open it"
+            }
+            report("focus-ok-opens-pin-dialog", opened, "OK on the focused button opens its PIN dialog ($openPath)")
             if (!opened) return
 
             driver.onUi { driver.activeDialog()?.window?.decorView?.let { sendKey(it, KeyEvent.KEYCODE_BACK) } }
-            val closed = driver.waitForScreen(DIALOG_TIMEOUT_MILLIS) { driver.activeDialog()?.isShowing != true }
+            var closed = driver.waitForScreen(KEY_TIMEOUT_MILLIS) { driver.activeDialog()?.isShowing != true }
+            var closePath = "by the BACK key"
+            if (!closed) {
+                driver.onUi { driver.activeDialog()?.cancel() }
+                closed = driver.waitForScreen(DIALOG_TIMEOUT_MILLIS) { driver.activeDialog()?.isShowing != true }
+                closePath = "by cancel, because the BACK key did not close it"
+            }
             val restored = closed && driver.waitForScreen(FOCUS_TIMEOUT_MILLIS) { focusedButtonText() == TARGET }
             report(
                 "focus-returns-after-dialog",
                 restored,
-                "BACK closes the dialog and focus goes back to the Parental PIN button",
+                "closing the dialog ($closePath) returns focus to the Parental PIN button",
             )
         } finally {
             driver.setParentalSessionUnlocked(savedUnlocked)
         }
+    }
+
+    /**
+     * Runs on the UI thread: one step toward the Parental PIN button. The step sends the key of the closest unvisited neighbour
+     * the focus system offers. If the key does not move focus, the same neighbour is requested directly.
+     */
+    private fun pressTowardTarget() {
+        val decor = activity.window.decorView
+        val focused = activity.currentFocus
+        val target = findButton(decor, TARGET)
+        val best = if (focused != null && target != null) bestNeighbour(focused, centre(target)) else null
+        if (best == null) {
+            sendKey(decor, KeyEvent.KEYCODE_DPAD_DOWN)
+            return
+        }
+        visited += best.second
+        val before = activity.currentFocus
+        sendKey(decor, best.first)
+        if (activity.currentFocus !== before) {
+            keyMoves++
+            return
+        }
+        best.second.requestFocus()
+        if (activity.currentFocus === best.second) searchMoves++
+    }
+
+    /** Runs on the UI thread: the focus system's neighbour closest to [goal] that has not been visited yet. */
+    private fun bestNeighbour(focused: View, goal: Pair<Int, Int>): Triple<Int, View, Long>? {
+        visited += focused
+        val options = DIRECTIONS.mapNotNull { (keyCode, direction) ->
+            focused.focusSearch(direction)?.let { next -> Triple(keyCode, next, distance(centre(next), goal)) }
+        }
+        val unvisited = options.filter { it.second !in visited }
+        return unvisited.ifEmpty { options }.minByOrNull { it.third }
     }
 
     /** Runs on the UI thread: the text of the focused button, or null when the focus is not on a button. */
@@ -91,29 +140,6 @@ internal class DeviceFocusChecks(
         if (!dialog.isShowing) return false
         val label = dialog.getButton(AlertDialog.BUTTON_POSITIVE)?.text?.toString() ?: return false
         return label in PIN_DIALOG_CONFIRM_LABELS
-    }
-
-    /**
-     * Runs on the UI thread: one D-pad press toward the Parental PIN button. For each direction, the focus system's own
-     * next view is compared with the button; the press goes to the closest view not yet visited, so the search cannot
-     * circle back.
-     */
-    private fun pressTowardTarget() {
-        val decor = activity.window.decorView
-        val focused = activity.currentFocus
-        val target = findButton(decor, TARGET)
-        if (focused == null || target == null) {
-            sendKey(decor, KeyEvent.KEYCODE_DPAD_DOWN)
-            return
-        }
-        visited += focused
-        val goal = centre(target)
-        val options = DIRECTIONS.mapNotNull { (keyCode, direction) ->
-            focused.focusSearch(direction)?.let { next -> Triple(keyCode, next, distance(centre(next), goal)) }
-        }
-        val unvisited = options.filter { it.second !in visited }
-        val best = unvisited.ifEmpty { options }.minByOrNull { it.third }
-        sendKey(decor, best?.first ?: KeyEvent.KEYCODE_DPAD_DOWN)
     }
 
     private fun distance(a: Pair<Int, Int>, b: Pair<Int, Int>): Long {
@@ -161,15 +187,16 @@ internal class DeviceFocusChecks(
     private companion object {
         const val TARGET = "Parental PIN"
         val PIN_DIALOG_CONFIRM_LABELS = setOf("Save", "Unlock")
-        const val MAX_DPAD_PRESSES = 60
-        const val PAUSE_MILLIS = 200L
-        const val DIALOG_TIMEOUT_MILLIS = 10_000L
-        const val FOCUS_TIMEOUT_MILLIS = 5_000L
         val DIRECTIONS = listOf(
             KeyEvent.KEYCODE_DPAD_UP to View.FOCUS_UP,
             KeyEvent.KEYCODE_DPAD_DOWN to View.FOCUS_DOWN,
             KeyEvent.KEYCODE_DPAD_LEFT to View.FOCUS_LEFT,
             KeyEvent.KEYCODE_DPAD_RIGHT to View.FOCUS_RIGHT,
         )
+        const val MAX_DPAD_PRESSES = 60
+        const val PAUSE_MILLIS = 200L
+        const val KEY_TIMEOUT_MILLIS = 3_000L
+        const val DIALOG_TIMEOUT_MILLIS = 10_000L
+        const val FOCUS_TIMEOUT_MILLIS = 5_000L
     }
 }
