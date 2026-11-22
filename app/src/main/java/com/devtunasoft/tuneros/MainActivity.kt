@@ -179,6 +179,8 @@ class MainActivity : Activity() {
     private lateinit var status: TextView
     private lateinit var diagnosticsSummary: TextView
     private var selfTestsQueued = false
+    /** Stream Doctor report for the playback failure on the status line. [showStatus] clears it with the message. */
+    private var streamReport: String? = null
     private var selfTestsDirty = false
     private var playbackTimeout: Runnable? = null
     private lateinit var timeRail: TextView
@@ -308,6 +310,7 @@ class MainActivity : Activity() {
         }
         root.addView(playerView, LinearLayout.LayoutParams(-1, 0, 0.7f))
         status = label("Enter an M3U URL to begin", 13)
+        status.setOnClickListener { showStreamReport() }
         root.addView(status)
         diagnosticsSummary = label("Autonomous QA: scheduled", 12)
         root.addView(diagnosticsSummary)
@@ -1371,15 +1374,18 @@ class MainActivity : Activity() {
             .setItems(shown.map { it.name }.toTypedArray()) { _, which -> openGuideSuggestions(shown[which]) }
             .setNegativeButton("Close", null)
             .setNeutralButton("Share summary") { _, _ ->
-                shareGuideDoctorSummary(GuideDoctor.summaryText(diagnosis, loadedGuide.warnings, nowSeconds))
+                shareText(
+                    GuideDoctor.summaryText(diagnosis, loadedGuide.warnings, nowSeconds),
+                    "Share Guide Doctor summary",
+                )
             }
             .show()
     }
 
-    /** Hands the Guide Doctor summary to the system share sheet. The user picks the destination; the app sends nothing. */
-    private fun shareGuideDoctorSummary(text: String) {
+    /** Hands text to the system share sheet. The user picks the destination; the app sends nothing. */
+    private fun shareText(text: String, chooserTitle: String) {
         val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text)
-        startActivity(Intent.createChooser(send, "Share Guide Doctor summary"))
+        startActivity(Intent.createChooser(send, chooserTitle))
     }
 
     /**
@@ -1564,6 +1570,7 @@ class MainActivity : Activity() {
                         clearPlaybackTimeout()
                         observe(OnDeviceSelfTest.Event.PLAYBACK_ERROR, error.errorCode.toLong())
                         showStatus(playbackFailureMessage(error, playbackEvidence))
+                        streamReport = StreamDoctor.report(error.errorCode, evidenceOf(error, playbackEvidence))
                     }
                 }
                 override fun onRenderedFirstFrame() {
@@ -2774,7 +2781,21 @@ class MainActivity : Activity() {
         return if (detail.isEmpty()) base else "$base. Detail: $detail"
     }
 
-    private fun showStatus(value: String) { status.text = value }
+    /** Opens the Stream Doctor report for the failure on the status line. The user chooses whether to share it. */
+    private fun showStreamReport() {
+        val report = streamReport ?: return
+        AlertDialog.Builder(this)
+            .setTitle("Stream Doctor report")
+            .setMessage(report)
+            .setPositiveButton("Close", null)
+            .setNeutralButton("Share report") { _, _ -> shareText(report, "Share Stream Doctor report") }
+            .show()
+    }
+
+    private fun showStatus(value: String) {
+        status.text = value
+        streamReport = null
+    }
 
     private fun isHttpUrl(value: String): Boolean = runCatching { SourceDownloader.checkedUrl(value) }.isSuccess
     override fun onStart() {
