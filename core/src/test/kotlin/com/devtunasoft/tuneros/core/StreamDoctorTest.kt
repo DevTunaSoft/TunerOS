@@ -6,6 +6,29 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class StreamDoctorTest {
+    @Test fun aReportNamesTheCodeIssueAndNextStepAndKeepsAnyAddressOut() {
+        val text = StreamDoctor.report(
+            2004, StreamEvidence(httpStatus = 404, contentType = "text/html; charset=utf-8", transport = null),
+        )
+        assertTrue(text.contains("playback error code: 2004"), text)
+        assertTrue(text.contains("issue: "), text)
+        assertTrue(text.contains("next step: "), text)
+        assertTrue(text.contains("detail: HTTP 404; content type text/html"), text)
+        assertFalse(text.contains("http://"), text)
+        assertFalse(text.contains("charset"), text)
+    }
+
+    @Test fun aReportIsBoundedAndDropsEvidenceThatLooksLikeAnAddress() {
+        val text = StreamDoctor.report(
+            3003,
+            StreamEvidence(httpStatus = 503, contentType = "https://evil.example/x?token=1", transport = TransportFault.TLS),
+        )
+        assertTrue(text.length <= 400, text)
+        assertFalse(text.contains("evil.example"), text)
+        assertFalse(text.contains("token"), text)
+        assertTrue(text.contains("detail: HTTP 503; TLS handshake failed"), text)
+    }
+
     @Test fun classifiesNetworkAndTimeoutSeparately() {
         assertEquals("Network connection failed", StreamDoctor.diagnose(2001).issue)
         assertEquals("Connection timed out", StreamDoctor.diagnose(2002).issue)
