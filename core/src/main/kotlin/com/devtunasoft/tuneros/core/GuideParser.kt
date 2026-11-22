@@ -44,7 +44,8 @@ object GuideParser {
         // The pool is capped independently of the programme count.
         val sharedIds = HashMap<String, String>()
         fun sharedChannelId(value: String?): String? {
-            val id = value?.take(256) ?: return null
+            // A blank ID can match no programme or channel, so it is treated as missing rather than kept.
+            val id = value?.take(256)?.takeIf { it.isNotBlank() } ?: return null
             sharedIds[id]?.let { return it }
             if (sharedIds.size < maxChannels) sharedIds[id] = id
             return id
