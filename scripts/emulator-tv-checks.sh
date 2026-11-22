@@ -7,6 +7,8 @@ set -euo pipefail
 #   1. --ez tuneros.debug.ui_checks true: parental PIN dialogs, playback gate, D-pad focus and restore checks.
 #   2. --ez tuneros.debug.keys true: remote key input (adb DPAD keys must reach the activity's dispatchKeyEvent).
 # No touch input is sent. The app uses a scratch PIN store and its own test clip, so no user data is read or changed.
+# Last, the script imports a loopback guide with current programmes and saves tv-guide.png, with a check that the
+# guide rows are in the view hierarchy. The fixture is generated at run time and nothing from it is committed.
 # Not run here: debug-ui-focus and debug-empty-guide-dpad (tuneros.debug.qa pass, the whole self-test suite) and
 # external-recording-storage (dispatch-only, and the phone script taps the folder picker with input tap).
 
@@ -175,4 +177,96 @@ if ! key_passed; then
 fi
 cat key-report.txt
 
+# Screenshot of the guide as a viewer sees it. The app is relaunched with the same debug import the phone script uses,
+# but with programmes around the current time: the guide window starts at the current half hour, so a fixture dated in
+# 2099 would show empty rows. The import report, the rendered channel row and the PNG header must all pass. The app's
+# data is cleared first, so no restriction or PIN state from the checks above is on screen. Nothing here is committed.
+TV_GUIDE_DIR=ci-tv-guide
+rm -rf "$TV_GUIDE_DIR"
+mkdir -p "$TV_GUIDE_DIR"
+NOW=$(date -u +%s)
+WINDOW=$(( NOW - NOW % 1800 ))
+xmltime() { date -u -d "@$1" +%Y%m%d%H%M%S; }
+{
+  echo '#EXTM3U'
+  for n in one two three; do
+    echo "#EXTINF:-1 tvg-id=\"qa.$n\" group-title=\"QA\",QA ${n^}"
+    echo "http://10.0.2.2:8766/stream-$n.m3u8"
+  done
+} > "$TV_GUIDE_DIR/playlist.m3u"
+{
+  echo '<?xml version="1.0" encoding="UTF-8"?>'
+  echo '<tv>'
+  for n in one two three; do
+    echo "<channel id=\"qa.$n\"><display-name>QA ${n^}</display-name></channel>"
+  done
+  for n in one two three; do
+    echo "<programme start=\"$(xmltime $((WINDOW - 1800))) +0000\" stop=\"$(xmltime $((WINDOW + 1800))) +0000\" channel=\"qa.$n\"><title>Now on QA ${n^}</title></programme>"
+    echo "<programme start=\"$(xmltime $((WINDOW + 1800))) +0000\" stop=\"$(xmltime $((WINDOW + 5400))) +0000\" channel=\"qa.$n\"><title>Next on QA ${n^}</title></programme>"
+    echo "<programme start=\"$(xmltime $((WINDOW + 5400))) +0000\" stop=\"$(xmltime $((WINDOW + 9000))) +0000\" channel=\"qa.$n\"><title>Later on QA ${n^}</title></programme>"
+  done
+  echo '</tv>'
+} > "$TV_GUIDE_DIR/guide.xml"
+python3 -m http.server 8766 --bind 0.0.0.0 --directory "$TV_GUIDE_DIR" > tv-guide-server.log 2>&1 &
+TV_GUIDE_HTTP_PID=$!
+sleep 2
+if ! curl -fsS --max-time 10 -o /dev/null http://127.0.0.1:8766/guide.xml; then
+  echo "The loopback guide fixture is not being served"
+  kill "$TV_GUIDE_HTTP_PID" 2>/dev/null || true
+  exit 1
+fi
+adb shell pm clear "$PACKAGE" > /dev/null
+launch_check --es tuneros.debug.import_playlist_url http://10.0.2.2:8766/playlist.m3u \
+  --es tuneros.debug.import_guide_url http://10.0.2.2:8766/guide.xml
+for attempt in $(seq 1 90); do
+  adb shell run-as "$PACKAGE" cat files/tuneros-import-report.txt > tv-guide-import.txt 2>/dev/null || true
+  if grep -Eq '^(PASS|FAIL)[[:space:]]qa-loopback-import' tv-guide-import.txt; then break; fi
+  sleep 2
+done
+kill "$TV_GUIDE_HTTP_PID" 2>/dev/null || true
+if ! grep -Eq '^PASS[[:space:]]qa-loopback-import[[:space:]]channels=3 programs=9$' tv-guide-import.txt; then
+  echo "The loopback guide import did not complete for the screenshot"
+  cat tv-guide-import.txt 2>/dev/null || echo "(no import report)"
+  exit 1
+fi
+# Let the guide render, then wait for the app to hold focus before the capture.
+sleep 3
+for attempt in $(seq 1 15); do
+  adb shell dumpsys window > tv-guide-focus.txt 2>/dev/null || true
+  if grep -q 'mCurrentFocus=.*com.devtunasoft.tuneros' tv-guide-focus.txt; then break; fi
+  sleep 2
+done
+adb exec-out screencap -p > tv-guide.png
+if [ "$(head -c 8 tv-guide.png | od -An -tx1 | tr -d ' \n')" != "89504e470d0a1a0a" ]; then
+  echo "The guide screenshot is not a PNG file"
+  exit 1
+fi
+read -r SHOT_W SHOT_H < <(od -An -tu1 -j16 -N8 tv-guide.png | awk '{print $1*16777216+$2*65536+$3*256+$4, $5*16777216+$6*65536+$7*256+$8}')
+if [ "$SHOT_W" -le 0 ] || [ "$SHOT_H" -le 0 ]; then
+  echo "The guide screenshot has no size"
+  exit 1
+fi
+# The rendered guide must be in the view hierarchy too: a channel name and its timeline description. This checks the
+# rows themselves, not only the PNG. The dump is retried, since the UI may still be settling.
+ROWS_OK=false
+for attempt in 1 2 3; do
+  adb shell uiautomator dump /data/local/tmp/tuneros-window.xml > /dev/null 2>&1 || true
+  adb shell cat /data/local/tmp/tuneros-window.xml > tv-guide-window.xml 2>/dev/null || true
+  if grep -Fq 'text="QA One"' tv-guide-window.xml && grep -Fq 'content-desc="QA One, ' tv-guide-window.xml; then
+    ROWS_OK=true
+    break
+  fi
+  sleep 3
+done
+if [ "$ROWS_OK" != true ]; then
+  echo "The guide rows are not in the view hierarchy, so the screenshot cannot be trusted to show the guide"
+  exit 1
+fi
+{
+  echo "screenshot=tv-guide.png ${SHOT_W}x${SHOT_H}"
+  echo "import: $(grep -o 'PASS.*' tv-guide-import.txt | head -1)"
+  echo "rendered: the QA One channel row and its timeline are in tv-guide-window.xml"
+  echo "guide window starts at $(date -u -d "@$WINDOW" +%Y-%m-%dT%H:%M:%SZ) UTC; captured $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+} > tv-guide-info.txt
+cat tv-guide-info.txt
 echo "Android TV device checks: ${#UI_REQUIRED[@]} of ${#UI_REQUIRED[@]} required device checks PASS and remote key input PASS, 0 FAIL"
