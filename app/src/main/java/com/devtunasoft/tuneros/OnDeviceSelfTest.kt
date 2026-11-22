@@ -1501,11 +1501,14 @@ internal object OnDeviceSelfTest {
             val missingAfter = GuideDoctor.channelsWithoutSchedule(
                 GuideDoctor.applyMappings(channels, mapping), guide,
             ).map { it.id }
-            val diagnosis = GuideDoctor.diagnose(channels, mapping + ("qa-gone" to "qa.five"), guide)
+            val diagnosis = GuideDoctor.diagnose(channels, mapping + ("qa-gone" to "qa.five"), guide, 0L)
             val diagnosisOk = diagnosis.scheduled == 1 && diagnosis.noGuideId == 1 &&
                 diagnosis.guideIdNotDeclared == 0 && diagnosis.noProgrammes == 2 &&
                 diagnosis.mappingsForMissingChannels == 1 && diagnosis.mappingsToUnscheduled == 1 &&
                 diagnosis.withoutSchedule == missingAfter.size
+            // The programme of qa.one ends at 3600. At 4000 that channel has ended, so exactly one scheduled channel is stale.
+            val laterDiagnosis = GuideDoctor.diagnose(channels, mapping, guide, 4_000L)
+            val staleOk = laterDiagnosis.staleChannels == 1 && laterDiagnosis.guideEndsAtEpochSeconds == 3_600L
             val saved = store.save(mapping)
             val reloaded = GuideMappingStore(context, scratch).load()
             store.clear()
@@ -1513,7 +1516,7 @@ internal object OnDeviceSelfTest {
             return missingBefore == listOf("qa-one", "qa-four", "qa-five", "qa-bbc") &&
                 suggestion == "qa.one" &&
                 missingAfter == listOf("qa-four", "qa-five", "qa-bbc") &&
-                saved && reloaded == mapping && cleared && diagnosisOk
+                saved && reloaded == mapping && cleared && diagnosisOk && staleOk
         } finally {
             store.clear()
             context.deleteSharedPreferences(scratch)
@@ -1552,7 +1555,7 @@ internal object OnDeviceSelfTest {
         val favoritesPass = runCatching { debugFavorites(context) }.getOrDefault(false)
         val favoritesDetail = if (favoritesPass) "Favorite toggle, favorites-only view and storage round-trip" else "Favorite rules or storage failed"
         val guideDoctorPass = runCatching { debugGuideDoctor(context) }.getOrDefault(false)
-        val guideDoctorDetail = if (guideDoctorPass) "Guide Doctor finds unscheduled channels, applies a saved mapping, suggests only scheduled guide channels and counts unused mappings" else "Guide Doctor rules or storage failed"
+        val guideDoctorDetail = if (guideDoctorPass) "Guide Doctor finds unscheduled channels, applies a saved mapping, suggests only scheduled guide channels, counts unused mappings and finds ended schedules" else "Guide Doctor rules or storage failed"
         listOf(
             Check(
                 "debug-favorites", if (favoritesPass) State.PASS else State.FAIL,

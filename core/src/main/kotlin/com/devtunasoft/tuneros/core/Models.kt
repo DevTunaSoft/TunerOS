@@ -66,6 +66,15 @@ data class GuideSnapshot(
     /** Call on the import worker; never construct the index on the UI thread. */
     fun prepareIndex() { byChannel.size }
     fun hasSchedule(channelId: String): Boolean = byChannel[channelId]?.entries?.isNotEmpty() == true
+    /**
+     * The latest end time among the channel's programmes, or null when it has none. Nonoverlapping schedules are
+     * ordered by end as well as start, so the last entry holds the maximum. Overlapping schedules keep prefix maxima,
+     * whose last value is the maximum over all programmes.
+     */
+    fun latestEnd(channelId: String): Long? {
+        val schedule = byChannel[channelId] ?: return null
+        return schedule.prefixMaxEnd?.last() ?: schedule.entries.lastOrNull()?.endEpochSeconds
+    }
     /** Returns only entries intersecting the requested window; no per-call guide-wide scan. */
     fun programsBetween(channelId: String, fromEpochSeconds: Long, toEpochSeconds: Long): List<GuideProgram> {
         require(toEpochSeconds > fromEpochSeconds)

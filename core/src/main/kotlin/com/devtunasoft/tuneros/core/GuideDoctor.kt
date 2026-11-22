@@ -11,7 +11,8 @@ object GuideDoctor {
      * Counts for the Guide Doctor summary. Channel counts are taken after saved mappings are applied, so
      * [withoutSchedule] equals the size of [channelsWithoutSchedule] for the same inputs. [mappingsForMissingChannels]
      * are saved mappings whose key is not in the playlist. [mappingsToUnscheduled] are saved mappings whose guide
-     * channel has no schedule.
+     * channel has no schedule. [staleChannels] are scheduled channels whose programmes all ended by the time given to
+     * [diagnose], and [guideEndsAtEpochSeconds] is the latest programme end in the whole guide.
      */
     data class Diagnosis(
         val channels: Int,
@@ -22,6 +23,8 @@ object GuideDoctor {
         val savedMappings: Int,
         val mappingsForMissingChannels: Int,
         val mappingsToUnscheduled: Int,
+        val staleChannels: Int,
+        val guideEndsAtEpochSeconds: Long?,
     ) {
         val withoutSchedule: Int get() = noGuideId + guideIdNotDeclared + noProgrammes
     }
@@ -42,19 +45,31 @@ object GuideDoctor {
 
     /**
      * Explains [channelsWithoutSchedule] and the saved [mappings]. A guide ID is not declared when the loaded guide has
-     * no channel entry with a display name for it. A declared guide channel with no programmes has no schedule.
+     * no channel entry with a display name for it. A declared guide channel with no programmes has no schedule. A
+     * scheduled channel is stale when every programme of its guide channel ended at or before [nowEpochSeconds].
      * Memory grows with the number of saved mappings, not with the playlist size.
      */
-    fun diagnose(channels: List<Channel>, mappings: Map<String, String>, guide: GuideSnapshot): Diagnosis {
+    fun diagnose(
+        channels: List<Channel>,
+        mappings: Map<String, String>,
+        guide: GuideSnapshot,
+        nowEpochSeconds: Long,
+    ): Diagnosis {
         var scheduled = 0
         var noGuideId = 0
         var notDeclared = 0
         var noProgrammes = 0
+        var stale = 0
         val unmatched = HashSet(mappings.keys)
         for (channel in channels) {
             unmatched.remove(channel.storageKey)
-            when (statusOf(mappings[channel.storageKey] ?: channel.guideId, guide)) {
-                Status.SCHEDULED -> scheduled++
+            val guideId = mappings[channel.storageKey] ?: channel.guideId
+            when (statusOf(guideId, guide)) {
+                Status.SCHEDULED -> {
+                    scheduled++
+                    val end = guideId?.let { guide.latestEnd(it) }
+                    if (end != null && end <= nowEpochSeconds) stale++
+                }
                 Status.NO_GUIDE_ID -> noGuideId++
                 Status.GUIDE_ID_NOT_DECLARED -> notDeclared++
                 Status.NO_PROGRAMMES -> noProgrammes++
@@ -70,6 +85,8 @@ object GuideDoctor {
             savedMappings = mappings.size,
             mappingsForMissingChannels = unmatched.size,
             mappingsToUnscheduled = unscheduled,
+            staleChannels = stale,
+            guideEndsAtEpochSeconds = guide.programs.maxOfOrNull { it.endEpochSeconds },
         )
     }
 
