@@ -262,6 +262,41 @@ if [ "$ROWS_OK" != true ]; then
   echo "The guide rows are not in the view hierarchy, so the screenshot cannot be trusted to show the guide"
   exit 1
 fi
+if grep -Fq 'text="Load guide"' tv-guide-window.xml; then
+  echo "The source rows are still visible after the guide loaded"
+  exit 1
+fi
+# Layout measurement from the device's own view tree (uiautomator bounds, not the image). It is printed to the log so
+# it can be read without downloading the artifact. dp = px x 160 / density, and the density is read from the device.
+DENSITY=$(adb shell wm density | tr -d '\r' | grep -oE '[0-9]+' | tail -1 || true)
+DENSITY=${DENSITY:-320}
+measure_layout() {
+  python3 -I - "$1" "$DENSITY" <<'PY'
+import re, sys
+import xml.etree.ElementTree as ET
+xml_path, density = sys.argv[1], float(sys.argv[2])
+scale = 160.0 / density
+bounds = re.compile(r'\[(\d+),(\d+)\]\[(\d+),(\d+)\]')
+def walk(node, depth):
+    m = bounds.match(node.get('bounds', ''))
+    if m:
+        x1, y1, x2, y2 = (int(v) for v in m.groups())
+        label = node.get('text') or node.get('content-desc') or node.get('resource-id') or ''
+        label = label.encode('ascii', 'replace').decode('ascii')[:60]
+        cls = (node.get('class') or '').rsplit('.', 1)[-1]
+        print(f"{'  ' * depth}{cls:<24} top={y1 * scale:6.1f} bottom={y2 * scale:6.1f} "
+              f"height={(y2 - y1) * scale:6.1f} width={(x2 - x1) * scale:6.1f}  {label}")
+    for child in node:
+        walk(child, depth + 1)
+for top in ET.parse(xml_path).getroot():
+    walk(top, 0)
+PY
+}
+{
+  echo "screen density=$DENSITY (dp = px x 160 / density); guide loaded, source rows hidden"
+  measure_layout tv-guide-window.xml
+} > tv-layout-guide-loaded.txt
+cat tv-layout-guide-loaded.txt
 {
   echo "screenshot=tv-guide.png ${SHOT_W}x${SHOT_H}"
   echo "import: $(grep -o 'PASS.*' tv-guide-import.txt | head -1)"
@@ -269,4 +304,33 @@ fi
   echo "guide window starts at $(date -u -d "@$WINDOW" +%Y-%m-%dT%H:%M:%SZ) UTC; captured $(date -u +%Y-%m-%dT%H:%M:%SZ)"
 } > tv-guide-info.txt
 cat tv-guide-info.txt
+# Second state: the same playlist, with a guide URL that the loopback server answers with 404. The channels load, the
+# guide does not, and the source rows stay visible. Only the layout is read from this state; its import report is not
+# asserted, because the guide is meant to fail here.
+python3 -m http.server 8766 --bind 0.0.0.0 --directory "$TV_GUIDE_DIR" > tv-layout-server.log 2>&1 &
+TV_LAYOUT_HTTP_PID=$!
+sleep 2
+adb shell pm clear "$PACKAGE" > /dev/null
+launch_check --es tuneros.debug.import_playlist_url http://10.0.2.2:8766/playlist.m3u \
+  --es tuneros.debug.import_guide_url http://10.0.2.2:8766/missing-guide.xml
+LAYOUT_OK=false
+for attempt in $(seq 1 30); do
+  adb shell uiautomator dump /data/local/tmp/tuneros-window-2.xml > /dev/null 2>&1 || true
+  adb shell cat /data/local/tmp/tuneros-window-2.xml 2>/dev/null | tr -d '\r' > tv-window-playlist-only.xml || true
+  if grep -Fq 'text="Load guide"' tv-window-playlist-only.xml && grep -Fq 'text="QA One"' tv-window-playlist-only.xml; then
+    LAYOUT_OK=true
+    break
+  fi
+  sleep 3
+done
+kill "$TV_LAYOUT_HTTP_PID" 2>/dev/null || true
+if [ "$LAYOUT_OK" != true ]; then
+  echo "The playlist-only state did not show its source rows and channel rows"
+  exit 1
+fi
+{
+  echo "screen density=$DENSITY (dp = px x 160 / density); channels loaded, guide not loaded, source rows visible"
+  measure_layout tv-window-playlist-only.xml
+} > tv-layout-playlist-only.txt
+cat tv-layout-playlist-only.txt
 echo "Android TV device checks: ${#UI_REQUIRED[@]} of ${#UI_REQUIRED[@]} required device checks PASS and remote key input PASS, 0 FAIL"

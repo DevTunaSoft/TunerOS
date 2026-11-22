@@ -81,5 +81,8 @@ jobs:
             tv-guide-info.txt
             tv-guide-import.txt
             tv-guide-window.xml
+            tv-layout-guide-loaded.txt
+            tv-window-playlist-only.xml
+            tv-layout-playlist-only.txt
           if-no-files-found: warn
           retention-days: 14
