@@ -147,6 +147,11 @@ object HlsPlaylistParserCore {
                 line.startsWith("#EXT-X-MEDIA-SEQUENCE:", ignoreCase = true) -> {
                     require(!sawMasterTag) { "Mixed HLS master and media playlist" }
                     require(variants.isEmpty()) { "Mixed HLS master and media playlist" }
+                    // RFC 8216 allows one media sequence tag, before the first segment. A later tag would renumber the
+                    // segments after it, so the playlist is refused instead.
+                    require(!mediaSequenceSeen && !sawSegmentUri) {
+                        "HLS media sequence must appear once, before the first segment"
+                    }
                     mediaSequence = line.substringAfter(':').trim().toLong()
                     nextSequence = mediaSequence
                     mediaSequenceSeen = true
