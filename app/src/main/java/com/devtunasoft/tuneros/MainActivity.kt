@@ -1370,7 +1370,16 @@ class MainActivity : Activity() {
             .setTitle(if (reasons.isEmpty()) title else "$title\n$reasons")
             .setItems(shown.map { it.name }.toTypedArray()) { _, which -> openGuideSuggestions(shown[which]) }
             .setNegativeButton("Close", null)
+            .setNeutralButton("Share summary") { _, _ ->
+                shareGuideDoctorSummary(GuideDoctor.summaryText(diagnosis, loadedGuide.warnings, nowSeconds))
+            }
             .show()
+    }
+
+    /** Hands the Guide Doctor summary to the system share sheet. The user picks the destination; the app sends nothing. */
+    private fun shareGuideDoctorSummary(text: String) {
+        val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text)
+        startActivity(Intent.createChooser(send, "Share Guide Doctor summary"))
     }
 
     /**

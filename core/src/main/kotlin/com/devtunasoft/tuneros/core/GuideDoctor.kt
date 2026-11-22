@@ -1,5 +1,7 @@
 package com.devtunasoft.tuneros.core
 
+import java.time.Instant
+
 /**
  * Guide Doctor. Finds channels with no schedule in the loaded guide, applies the user's saved guide mappings, and
  * suggests the guide channel a channel most likely is. A suggestion is never a guide channel without a schedule.
@@ -139,6 +141,34 @@ object GuideDoctor {
         return found
             .sortedWith(compareByDescending<Suggestion> { it.score }.thenBy { it.displayName }.thenBy { it.guideId })
             .take(limit)
+    }
+
+    /**
+     * A plain-text summary of [diagnosis] that the user can share on request. It holds counts, the guide's end time in
+     * UTC, the check time and the guide's own warnings. It never holds channel names, guide IDs, playlist or guide URLs,
+     * or credentials. A warning that contains a URL is left out, and each warning is cut to 200 characters.
+     */
+    fun summaryText(diagnosis: Diagnosis, guideWarnings: List<String>, nowEpochSeconds: Long): String = buildString {
+        appendLine("TunerOS Guide Doctor summary")
+        appendLine("checked at: ${Instant.ofEpochSecond(nowEpochSeconds)}")
+        appendLine("channels: ${diagnosis.channels}")
+        appendLine("scheduled: ${diagnosis.scheduled}")
+        appendLine(
+            "without a schedule: ${diagnosis.withoutSchedule} (no guide ID ${diagnosis.noGuideId}, " +
+                "guide ID not in the guide ${diagnosis.guideIdNotDeclared}, no programmes ${diagnosis.noProgrammes})",
+        )
+        appendLine("scheduled but ended: ${diagnosis.staleChannels}")
+        appendLine(
+            "saved mappings: ${diagnosis.savedMappings} (for channels not in the playlist " +
+                "${diagnosis.mappingsForMissingChannels}, to guide channels without a schedule ${diagnosis.mappingsToUnscheduled})",
+        )
+        val endsAt = diagnosis.guideEndsAtEpochSeconds
+        appendLine("guide ends: " + (endsAt?.let { Instant.ofEpochSecond(it).toString() } ?: "no programmes"))
+        val shareable = guideWarnings.filterNot { it.contains("http", ignoreCase = true) || it.contains("://") }
+        if (shareable.isNotEmpty()) {
+            appendLine("guide warnings:")
+            for (warning in shareable) appendLine("- ${warning.take(200)}")
+        }
     }
 
     /** Lower-case words without punctuation or quality words, for example "BBC One HD" becomes [bbc, one]. */

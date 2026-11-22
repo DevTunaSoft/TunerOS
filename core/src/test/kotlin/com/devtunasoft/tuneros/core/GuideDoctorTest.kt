@@ -2,6 +2,7 @@ package com.devtunasoft.tuneros.core
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
@@ -236,5 +237,34 @@ class GuideDoctorTest {
         )
         assertEquals(500L, overlapping.latestEnd("b"), "a long programme ends after the later ones")
         assertNull(overlapping.latestEnd("unknown"))
+    }
+
+    @Test fun theSummaryHoldsCountsAndTheGuideEndButNoNamesOrUrls() {
+        val guide = GuideSnapshot(
+            programs = listOf(GuideProgram("g1", "Old", 0L, 3_600L)),
+            channelNames = mapOf("g1" to "Secret Name"),
+        )
+        val channels = listOf(Channel("c1", "Secret Name", "https://example.org/private?token=abc", guideId = "g1"))
+        val diagnosis = GuideDoctor.diagnose(channels, emptyMap(), guide, 10_000L)
+        val text = GuideDoctor.summaryText(
+            diagnosis,
+            listOf("1 programmes lacked timezone: assumed UTC", "see https://example.org/x for details"),
+            10_000L,
+        )
+        assertTrue(text.contains("checked at: 1970-01-01T02:46:40Z"), text)
+        assertTrue(text.contains("channels: 1"), text)
+        assertTrue(text.contains("scheduled but ended: 1"), text)
+        assertTrue(text.contains("guide ends: 1970-01-01T01:00:00Z"), text)
+        assertTrue(text.contains("- 1 programmes lacked timezone: assumed UTC"), text)
+        assertFalse(text.contains("Secret Name"), text)
+        assertFalse(text.contains("example.org"), text)
+        assertFalse(text.contains("token"), text)
+    }
+
+    @Test fun aGuideWithoutProgrammesSaysSoAndOmitsTheWarningsLine() {
+        val empty = GuideSnapshot(emptyList(), emptyMap())
+        val text = GuideDoctor.summaryText(GuideDoctor.diagnose(emptyList(), emptyMap(), empty, 0L), emptyList(), 0L)
+        assertTrue(text.contains("guide ends: no programmes"), text)
+        assertFalse(text.contains("guide warnings:"), text)
     }
 }
