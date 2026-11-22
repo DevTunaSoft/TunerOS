@@ -107,7 +107,9 @@ object PlaylistParser {
     }.getOrDefault(false)
 
     private data class Pending(val name: String, val guideId: String?, val logo: String?, val group: String?)
-    private val attribute = Regex("([A-Za-z][A-Za-z0-9_-]*)\\s*=\\s*(?:\"([^\"]*)\"|'([^']*)'|([^\\s,]+))")
+    // Names are bounded at 64 characters. Unbounded, the scan tried every start inside a long run of letters with no
+    // '=' and took quadratic time: about 19 seconds for one 32 KiB line on the build container.
+    private val attribute = Regex("([A-Za-z][A-Za-z0-9_-]{0,63})\\s*=\\s*(?:\"([^\"]*)\"|'([^']*)'|([^\\s,]+))")
 
     /** Called only for fields TunerOS actually consumes. */
     private fun attributeValue(match: MatchResult): String =
