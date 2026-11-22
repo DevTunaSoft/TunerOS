@@ -330,7 +330,7 @@ The Android 35 emulator job still runs the app's 15 automatic assertions. To mak
 - **SAMPLE-AES:** recording was built in [#81](https://github.com/DevTunaSoft/TunerOS/pull/81) (run [44034687343](https://github.com/DevTunaSoft/TunerOS/actions/runs/44034687343) on `261d889`: success, `28 PASS / 0 FAIL`) and then refused again in [#85](https://github.com/DevTunaSoft/TunerOS/pull/85) (run [44126185802](https://github.com/DevTunaSoft/TunerOS/actions/runs/44126185802) on `cca1fa1`: success). The transform is unverified against any reference stream, and no SAMPLE-AES stream was run on the emulator.
 - **Correction to the entry above:** the `c200b3d` push run [44038603440](https://github.com/DevTunaSoft/TunerOS/actions/runs/44038603440) finished `success`, `28 PASS / 0 FAIL / 0 BLOCKED / 12 NOT RUN`. The note that it was still running is out of date.
 - **Open limits:**
-  - The TV landscape layout (`tv_1080p`, 960 × 540 dp) gives the guide list 60 dp, so only one guide row is visible. Changing that is a product decision. The TV check passes with the current layout.
+  - The TV landscape layout (`tv_1080p`, 960 × 540 dp) is measured in the 2026-11-22 entry below. The guide list is 123 dp with the guide loaded and 60 dp before the guide loads, so the earlier "only one row" note holds only for the second state. Changing the layout is a product decision. The TV check passes with the current layout.
   - No physical TV or real remote has been tested. The emulator is not a TV.
   - Memory: one before-and-after sample, with no peak, battery or device-class budget.
   - Upgrade: same-version only; schema migrations are not exercised.
@@ -343,3 +343,11 @@ The Android 35 emulator job still runs the app's 15 automatic assertions. To mak
 - **Verified on `1f7d27e`:** phone run [44201363226](https://github.com/DevTunaSoft/TunerOS/actions/runs/44201363226): `:core:test` and `:app:assembleDebug` pass, `debug-guide-doctor` PASS, `29 PASS / 0 FAIL / 0 BLOCKED / 12 NOT RUN`. TV run [44201363211](https://github.com/DevTunaSoft/TunerOS/actions/runs/44201363211): `21 of 21` required device checks and remote key input PASS, 0 FAIL.
 - **Local check:** the core JUnit suite passes 406 tests (401 on `main`). Two deliberate breaks in `GuideDoctor.kt`, each reverted, each fail 2 tests.
 - **Open limits:** the dialog wording and placement are an assumption for review. Timezone warnings and an exportable credential-safe summary are not implemented. The dialog on a TV is UNVERIFIED on a device.
+
+## 2026-11-22 — TV guide layout, measured
+
+- **Method:** the TV check reads the layout from the device's view tree (`uiautomator` bounds) and prints it to the job log, in dp at density 320 (`px × 160 / density`). Added in PR [DevTunaSoft/TunerOS#97](https://github.com/DevTunaSoft/TunerOS/pull/97). Verified on `17564fa`: TV run [44984814144](https://github.com/DevTunaSoft/TunerOS/actions/runs/44984814144) (21 of 21 required checks, remote key input PASS, 0 FAIL) and phone run [44984814182](https://github.com/DevTunaSoft/TunerOS/actions/runs/44984814182) (29 PASS, 0 FAIL, 12 NOT RUN).
+- **Guide loaded, source rows hidden:** the fixed rows take 331 dp (header 48, search field 41.5, two checkboxes 32 each, Guide Doctor 48, status 24, QA line 22.5, DVR row 48, time rail 35). The player is 66 dp and the guide list is 123 dp: one full 64 dp row and 59 dp of the next.
+- **Guide not loaded, source rows visible:** the source rows take 96 dp, so the player is 32.5 dp and the guide list is 60 dp: the first row is cut to 60 of 64 dp.
+- **Correction:** the 60 dp figure in the 2026-11-17 open limits describes the second state. With the guide loaded, the list is 123 dp.
+- **Limits:** measured on the Android 36 TV emulator (`tv_1080p`), not on a physical TV. The screenshot `tv-guide.png` is in the same artifact, but this entry uses the view-tree numbers, not the image.
