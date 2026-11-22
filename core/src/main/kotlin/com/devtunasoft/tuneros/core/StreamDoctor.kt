@@ -109,6 +109,25 @@ object StreamDoctor {
         return parts.joinToString("; ")
     }
 
+    /**
+     * A short report the user can share on request: the numeric code, its fixed diagnosis and the evidence detail. It
+     * holds no stream URL, header, response body or exception message, and it is cut to [MAX_REPORT_CHARS].
+     */
+    fun report(code: Int, evidence: StreamEvidence): String {
+        val diagnosis = diagnose(code)
+        val detail = describe(evidence)
+        val text = buildString {
+            appendLine("TunerOS stream report")
+            appendLine("playback error code: $code")
+            appendLine("issue: ${diagnosis.issue}")
+            appendLine("next step: ${diagnosis.nextStep}")
+            if (detail.isNotEmpty()) appendLine("detail: $detail")
+        }
+        return text.take(MAX_REPORT_CHARS)
+    }
+
+    private const val MAX_REPORT_CHARS = 400
+
     /** A bare lowercase type/subtype without parameters, or null. */
     fun safeContentType(raw: String?): String? {
         val value = raw?.substringBefore(';')?.trim()?.lowercase() ?: return null
