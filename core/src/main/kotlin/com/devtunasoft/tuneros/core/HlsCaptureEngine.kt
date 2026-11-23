@@ -36,6 +36,7 @@ interface HlsSegmentListener {
 }
 
 private const val MAX_CACHED_KEYS = 4
+private const val INVALID_BYTE_COUNT = "HLS byte count is invalid"
 
 class HlsCaptureEngine(
     private val maxStalledPolls: Int = 6,
@@ -272,9 +273,10 @@ class HlsCaptureEngine(
                                     byteRange = mapRange,
                                     output = output,
                                     cancelled = cancelled,
-                                    onProgress = { bytes -> onProgress(before + bytes) },
+                                    onProgress = { bytes -> onProgress(progressBytes(before, bytes)) },
                                 )
-                                totalBytes = Math.addExact(totalBytes, initCopy.bytesWritten)
+                                totalBytes = addBytes(totalBytes, initCopy.bytesWritten)
+                                    ?: return Result(totalBytes, lastSequence, StopReason.UNSUPPORTED, INVALID_BYTE_COUNT)
                                 when (initCopy.stopReason) {
                                     StreamRecorder.StopReason.END_OF_STREAM -> {
                                         if (initCopy.bytesWritten == 0L) {
@@ -330,7 +332,7 @@ class HlsCaptureEngine(
                             cancelled = cancelled,
                             // Progress counts plaintext on disk. The copy counts the ciphertext it read.
                             onProgress = { segmentBytes ->
-                                onProgress(before + (decryptor?.plaintextBytes ?: segmentBytes))
+                                onProgress(progressBytes(before, decryptor?.plaintextBytes ?: segmentBytes))
                             },
                         )
                         if (decryptor != null && copy.stopReason == StreamRecorder.StopReason.END_OF_STREAM) {
@@ -348,7 +350,8 @@ class HlsCaptureEngine(
                         }
                         // Byte-range and body-length checks use ciphertext. Disk totals use plaintext.
                         val segmentBytes = decryptor?.plaintextBytes ?: copy.bytesWritten
-                        totalBytes = Math.addExact(totalBytes, segmentBytes)
+                        totalBytes = addBytes(totalBytes, segmentBytes)
+                            ?: return Result(totalBytes, lastSequence, StopReason.UNSUPPORTED, INVALID_BYTE_COUNT)
 
                         when (copy.stopReason) {
                             StreamRecorder.StopReason.END_OF_STREAM -> {
@@ -388,6 +391,20 @@ class HlsCaptureEngine(
                 }
             }
         }
+    }
+
+    /**
+     * Adds a byte count reported by a source to the running total. A negative count or one that would overflow is
+     * refused instead of escaping as an unchecked exception or wrapping into a negative total.
+     */
+    private fun addBytes(total: Long, bytes: Long): Long? =
+        if (bytes < 0 || total > Long.MAX_VALUE - bytes) null else total + bytes
+
+    /** Progress saturates rather than wrapping, even while a source is reporting an impossible byte count. */
+    private fun progressBytes(before: Long, bytes: Long): Long = when {
+        bytes <= 0L -> before
+        before > Long.MAX_VALUE - bytes -> Long.MAX_VALUE
+        else -> before + bytes
     }
 
     /** Clamp seconds before multiplication so malformed manifests cannot overflow into rapid polls. */
