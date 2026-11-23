@@ -1,0 +1,1 @@
+{"live.channel":"guide.live","stale.channel":"guide.stale"}

@@ -1,0 +1,5 @@
+# key	full-commit-sha	role	context
+MAP04	9d27d9e25ec3a72a5d7bade03d513546d95a9b3a	fix	PR 210 storage fix
+MAP04_BASE	126f9635a08a37f5793260ca5528417a064d2730	base	MAP04 parent
+CORE49	85563da9200eff57c5c34ab271d6ecc67db4ae18	fix	PR 208 URI redaction
+CORE49_BASE	6c8fed5cd3348f73ca1b13e502181211be9900a8	base	CORE49 parent

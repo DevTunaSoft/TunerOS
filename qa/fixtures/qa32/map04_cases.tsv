@@ -1,0 +1,6 @@
+# case_id	raw_json	 expected_entries
+valid_pair	{"live.channel":"guide.live","stale.channel":"guide.stale"}	live.channel=guide.live,stale.channel=guide.stale
+nonstring	{"keep.me":"guide.keep","bad.value":7}	keep.me=guide.keep
+boolnull	{"ok.one":"guide.one","ok.two":"guide.two","bad.bool":true,"bad.null":null}	ok.one=guide.one,ok.two=guide.two
+total_corrupt	{not-json	EMPTY
+empty_payload		EMPTY
