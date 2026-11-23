@@ -73,3 +73,38 @@ internal class SeriesRuleStore(
     fun remove(rule: SeriesRule): Boolean =
         writableDatabase.delete("series_rules", "id = ?", arrayOf(rule.id)) > 0
 }
+
+/** The identity of one schedule row a series rule reserved, needed to cancel it cleanly. */
+internal data class SeriesDerivedSchedule(val id: String, val secureSourceKey: String)
+
+/** The rule-store surface cancellation needs, kept small so it has a plain-JVM test double. */
+internal interface SeriesRuleRemovalSink {
+    fun remove(rule: SeriesRule): Boolean
+}
+
+/** The schedule-store surface cancellation needs. Only exact rule-id matches are returned. */
+internal interface SeriesScheduleCancellationSink {
+    fun derivedFor(ruleId: String): List<SeriesDerivedSchedule>
+    fun cancel(id: String, secureSourceKey: String)
+}
+
+internal data class SeriesCancellationOutcome(val ruleRemoved: Boolean, val schedulesCancelled: Int)
+
+/**
+ * Removes [rule] and every schedule row reserved for its exact id. Rows from manual requests or other rules are never
+ * selected, even when title or channel matches. Idempotent: a second call removes nothing and returns false / zero,
+ * including after a partially completed earlier cancellation.
+ */
+internal fun cancelSeriesRuleWithSchedules(
+    rule: SeriesRule,
+    rules: SeriesRuleRemovalSink,
+    schedules: SeriesScheduleCancellationSink,
+): SeriesCancellationOutcome {
+    val ruleRemoved = rules.remove(rule)
+    var schedulesCancelled = 0
+    for (entry in schedules.derivedFor(rule.id)) {
+        schedules.cancel(entry.id, entry.secureSourceKey)
+        schedulesCancelled++
+    }
+    return SeriesCancellationOutcome(ruleRemoved, schedulesCancelled)
+}
