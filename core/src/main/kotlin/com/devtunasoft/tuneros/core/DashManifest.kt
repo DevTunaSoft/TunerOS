@@ -653,7 +653,10 @@ object DashManifest {
     private fun seconds(value: String): Double? {
         val parsed = runCatching { Duration.parse(value) }.getOrNull() ?: return null
         if (parsed.isNegative) return null
-        return parsed.toMillis() / 1000.0
+        // A duration can parse and still be too large for a long count of milliseconds. Refuse it like any
+        // other malformed value instead of letting an arithmetic exception escape the planner.
+        val millis = runCatching { parsed.toMillis() }.getOrNull() ?: return null
+        return millis / 1000.0
     }
 
     /** Epoch seconds of an xs:dateTime that carries an offset. A time without one is ambiguous, so it is refused. */
