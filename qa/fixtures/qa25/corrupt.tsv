@@ -1,0 +1,9 @@
+case	kind	payload
+C01_HEADER	header	id\ttitle_code\tchannel_id\tstate\tstarted_epoch\tstopped_epoch\tbytes_written\tlocation_code\tfailure_code\tprotecte
+C02_FIELDS	row	rec-00003\ttitle-00032\tc-00042\tCOMPLETE\t1700001887\t1700003690\t16384\tloc-00051\t-
+C03_EPOCH	row	rec-00003\ttitle-00032\tc-00042\tCOMPLETE\txx\t1700003690\t16384\tloc-00051\t-\t0
+C04_BYTES	row	rec-00003\ttitle-00032\tc-00042\tCOMPLETE\t1700001887\t1700003690\t-1\tloc-00051\t-\t0
+C05_PROTECTED	row	rec-00003\ttitle-00032\tc-00042\tCOMPLETE\t1700001887\t1700003690\t16384\tloc-00051\t-\t7
+C06_TRUNCATED	row	rec-00003\ttitle-00032\tc-00042\tCOMPLETE\t170000188
+C07_STATE	row	rec-00003\ttitle-00032\tc-00042\tUNKNOWN_STATE\t1700001887\t1700003690\t16384\tloc-00051\t-\t0
+C08_ID	row	rec-00003 extra\ttitle-00032\tc-00042\tCOMPLETE\t1700001887\t1700003690\t16384\tloc-00051\t-\t0
