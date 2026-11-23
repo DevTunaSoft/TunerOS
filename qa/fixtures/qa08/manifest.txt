@@ -1,0 +1,17 @@
+qa08-manifest-v1
+schedules=480
+rules=64
+programs=900
+raw-conflict-pairs=11574
+padded-only-pairs=369
+expired=168
+unmatched=120
+duplicate-skipped=10
+duplicates=7
+distinct-rules=57
+effective-rules=50
+planned=500
+reserved=341
+conflict-skipped=159
+terminal-only=83
+selection-digest=19808cb65184d824
