@@ -1,0 +1,9 @@
+QA-27 bounded EPG colour/theme token registry.
+All roles, values and notes are invented scratch constants.
+Seven roles: surface, outline, glyph, live marker and three cell states.
+Values are eight upper-case hexadecimal digits in alpha-red-green-blue order.
+The surface role carries zero alpha; every other role is opaque.
+Glyph contrast, cell separation, marker separation and outline visibility
+are bounded by the pinned dimensions. Corrupted variants are fail-closed.
+No external address, access marker, personal code, protection material
+or captured media appears in this fixture or in any diagnostic.
