@@ -131,6 +131,12 @@ Use this template per completed/blocked task, append it below, and commit/push a
 ### QA-03 CI repair — sibling cron tick / PASS at new exact SHA / 2026-11-23T06:50Z
 - PR #122 at `516e04a` had genuine red CI: build run 45125274214 failed on `loopback handler threads survived close: 1` (`QaPlaybackSoakCheck.java:438`). A sibling cron tick found an uncommitted thread-join fix in `workerB2` (track handler threads in a `List<Thread>`, join after `awaitTermination`) and deliberately did not duplicate the edit. Branch advanced to `86e148c753c194e42ed2c1828e5bda533dfb969f`; at that head TV checks PASS (45126273162, 3m3s), both builds PASS (37s, 1m36s), Android-35 self-tests pending at last check. Red test was repaired, not waived.
 
+### CORE-01 — Worker A5 (`sa-0-6d729ce2`) / PASS (audit + tests) / 2026-11-23T07:10Z
+- Audit result **PASS**: no production defect found, no production code changed. `GuideParser.parseTime` (`GuideParser.kt:208–216`) already handles fixed offsets via `OffsetDateTime.parse(value, withOffset)` with pattern `yyyyMMddHHmmss Z`, and timezone-less values via `LocalDateTime…atZone(fallbackZone).toEpochSecond()` with java.time's documented overlap (earlier offset) and gap (shift forward) semantics. The user-visible fallback warning already exists (lines 198–199) and had UTC coverage. No DST-specific warning policy exists, so none was invented.
+- Gap found and fixed: zero tests for fixed non-UTC offsets, named fallback zones, DST overlap or DST gap. Added `core/src/test/kotlin/com/devtunasoft/tuneros/core/GuideParserTimezoneDstTest.kt` (6 tests, 97 lines), owned paths only.
+- **PASS** jshell semantics probe (`+0530`→1794112200, `-0500`→1794150000, NY overlap 01:30→1793511000 @-04:00, NY gap 02:30→1772955000/local 03:30); baseline `:core:test` 441 tests PASS; targeted 6 tests PASS; final `:core:test` 54 classes/447 tests PASS; `--rerun-tasks` at exact SHA 5 tasks/447 tests PASS, 0 failures/errors/skipped. **BLOCKED** `:app:compileDebugKotlin` — `SDK location not found`.
+- Commit `f4074a6ed82cf8d96a4972861f060686d9a932dc` pushed; PR #124 opened at that head. Next: Worker A6 `sa-0-614533a8` on SEC-01 (core slice), dispatched immediately; `core/src/**` ownership handed over cleanly.
+
 ## F. Failed-attempt / anti-loop record
 
 No Hermes worker attempts have occurred as part of the handoff creation. Do not invent failures or successful tests. After two equivalent failures, record both logs, root-cause investigation and changed strategy here. After two no-progress cycles move to a separate unblocked task.
