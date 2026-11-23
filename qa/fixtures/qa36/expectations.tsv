@@ -1,0 +1,25 @@
+H_FIXED_REFUSAL_BOTH_SITES	HTTP07	app/src/main/java/com/devtunasoft/tuneros/SourceHttp.kt	count	throw IllegalArgumentException(MALFORMED_SOURCE)	2
+H_FIXED_CONSTANT_ONCE	HTTP07	app/src/main/java/com/devtunasoft/tuneros/SourceHttp.kt	count	private const val MALFORMED_SOURCE = "Source URL is malformed"	1
+H_CATCH_NO_BINDING	HTTP07	app/src/main/java/com/devtunasoft/tuneros/SourceHttp.kt	count	catch (_: Exception)	2
+H_URL_SOURCE_SITE	HTTP07	app/src/main/java/com/devtunasoft/tuneros/SourceHttp.kt	count	URL(value)	1
+H_URL_REDIRECT_SITE	HTTP07	app/src/main/java/com/devtunasoft/tuneros/SourceHttp.kt	count	URL(current, location)	1
+H_NO_MESSAGE_ECHO	HTTP07	app/src/main/java/com/devtunasoft/tuneros/SourceHttp.kt	absent	.message	0
+H_NO_LOCALIZED_ECHO	HTTP07	app/src/main/java/com/devtunasoft/tuneros/SourceHttp.kt	absent	localizedMessage	0
+H_NO_RAW_VALUE_INTERP	HTTP07	app/src/main/java/com/devtunasoft/tuneros/SourceHttp.kt	absent	$value	0
+H_NO_RAW_LOCATION_INTERP	HTTP07	app/src/main/java/com/devtunasoft/tuneros/SourceHttp.kt	absent	$location	0
+H_BASE_RAW_SOURCE_URL	HTTP07_BASE	app/src/main/java/com/devtunasoft/tuneros/SourceHttp.kt	count	var current = URL(value)	1
+H_BASE_RAW_REDIRECT_URL	HTTP07_BASE	app/src/main/java/com/devtunasoft/tuneros/SourceHttp.kt	count	val next = URL(current, location)	1
+H_BASE_NO_FIXED_REFUSAL	HTTP07_BASE	app/src/main/java/com/devtunasoft/tuneros/SourceHttp.kt	absent	MALFORMED_SOURCE	0
+H_BASE_NO_CATCH_GUARD	HTTP07_BASE	app/src/main/java/com/devtunasoft/tuneros/SourceHttp.kt	absent	catch (_: Exception)	0
+H_TEST_CLASS	HTTP07	app/src/test/java/com/devtunasoft/tuneros/http07/SourceHttpHygieneTest.kt	count	class SourceHttpHygieneTest	1
+H_TEST_ANNOTATIONS	HTTP07	app/src/test/java/com/devtunasoft/tuneros/http07/SourceHttpHygieneTest.kt	count	@Test	3
+H_TEST_SOURCE_REGRESSION	HTTP07	app/src/test/java/com/devtunasoft/tuneros/http07/SourceHttpHygieneTest.kt	count	fun malformedSourceUrlDoesNotEchoTheAddressOrItsQueryCredentials()	1
+H_TEST_REDIRECT_REGRESSION	HTTP07	app/src/test/java/com/devtunasoft/tuneros/http07/SourceHttpHygieneTest.kt	count	fun malformedRedirectLocationDoesNotEchoTheAddressOrItsCredentials()	1
+H_TEST_STATUS_REGRESSION	HTTP07	app/src/test/java/com/devtunasoft/tuneros/http07/SourceHttpHygieneTest.kt	count	fun httpStatusFailureCarriesOnlyTheStatusCode()	1
+H_TEST_SYNTHETIC_MARKERS	HTTP07	app/src/test/java/com/devtunasoft/tuneros/http07/SourceHttpHygieneTest.kt	count	SYNTHETIC_HTTP07	4
+C49_FIXED_CONSTANT	CORE49	core/src/main/kotlin/com/devtunasoft/tuneros/core/HlsCaptureEngine.kt	count	private const val MALFORMED_RESOURCE = "HLS resource URI is malformed"	1
+C49_FIXED_REFUSALS	CORE49	core/src/main/kotlin/com/devtunasoft/tuneros/core/HlsCaptureEngine.kt	count	throw IllegalArgumentException(MALFORMED_RESOURCE)	2
+C49_BASE_RAW_URI	CORE49_BASE	core/src/main/kotlin/com/devtunasoft/tuneros/core/HlsCaptureEngine.kt	count	val baseUri = URI(base)	1
+C49_BASE_NO_GUARD	CORE49_BASE	core/src/main/kotlin/com/devtunasoft/tuneros/core/HlsCaptureEngine.kt	absent	MALFORMED_RESOURCE	0
+C49_ADVERSARIAL_TEST_CLASS	CORE49	core/src/test/kotlin/com/devtunasoft/tuneros/core/HlsResourceUriAdversarialTest.kt	count	class HlsResourceUriAdversarialTest	1
+C49_TEST_SYNTHETIC_MARKERS	CORE49	core/src/test/kotlin/com/devtunasoft/tuneros/core/HlsResourceUriAdversarialTest.kt	count	SYNTHETIC_	3
