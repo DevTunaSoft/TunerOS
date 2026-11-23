@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <instrumentation
+        android:name="com.devtunasoft.tuneros.qa22.Qa22Instrumentation"
+        android:targetPackage="com.devtunasoft.tuneros"
+        android:label="QA-22 bounded HLS admission mirror" />
+</manifest>
