@@ -1,0 +1,4 @@
+QA-17 synthetic scratch fixture for SAF recording destination and location lifetime.
+Identifiers, tree ids, document ids and paths are invented tokens derived from a seed.
+Tables are tab separated with exact headers; dimensions use equals-separated pairs.
+No external feed address, access marker, personal code, key or media bytes are stored.

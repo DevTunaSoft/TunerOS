@@ -1,0 +1,14 @@
+grantId	authority	treeId	read	write
+g-root	com.android.externalstorage.documents	023219f97f44:e74bd4a59c2b	1	1
+g-sub	com.android.externalstorage.documents	fd32cea5ae9f:ce383a6b2e23/sub	1	1
+g-readonly	com.android.externalstorage.documents	023219f97f44:e74bd4a59c2b	1	0
+g-wrongauth	scratch.invalid	023219f97f44:e74bd4a59c2b	1	1
+g-other	com.android.externalstorage.documents	dc499ab9da38:f6b2ab8fd371	1	1
+g-noread	com.android.externalstorage.documents	023219f97f44:e74bd4a59c2b	0	1
+g-empty	com.android.externalstorage.documents		1	1
+g-expired	com.android.externalstorage.documents	023219f97f44:e74bd4a59c2b	1	1
+g-neg	com.android.externalstorage.documents	dc499ab9da38:f6b2ab8fd371	1	1
+g-wrongmime	com.android.externalstorage.documents	f5be538d7ac1:35cba875732f	1	1
+g-nocreate	com.android.externalstorage.documents	6787cf324e51:14583b925852	1	1
+g-second	com.android.externalstorage.documents	dc499ab9da38:f6b2ab8fd371	1	1
+g-sub2	com.android.externalstorage.documents	fd32cea5ae9f:ce383a6b2e23/sub	1	0

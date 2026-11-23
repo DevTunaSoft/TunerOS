@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <instrumentation
+        android:name="com.devtunasoft.tuneros.qa17.Qa17Instrumentation"
+        android:targetPackage="com.devtunasoft.tuneros"
+        android:label="QA-17 SAF destination and recording location gate" />
+</manifest>
