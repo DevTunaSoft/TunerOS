@@ -1,0 +1,17 @@
+seed=20261123
+event_families=8
+events_per_family=20
+events=160
+policy_families=4
+policy_per_family=20
+policy_rows=80
+corrupt_variants=8
+max_line=256
+max_groups=100
+cycles=6
+secret_length=12
+events_digest=96558c99df745559
+policy_digest=e5a9f72a0b9ad040
+events_sha256=8c2c8cdec14e90ccc5bf2054e20626ae51c26ef578c7389555bfa389de21578d
+policy_sha256=9403de81e5688cd5f961a7313276b8dfa3acb281dbec3b90bd293a903d2a117b
+corrupt_sha256=cfd50e7debea1c2f8825cd867ec30bd196658b30947abd88a2ecd222caa30e63
