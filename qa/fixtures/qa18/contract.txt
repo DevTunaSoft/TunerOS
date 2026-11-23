@@ -1,0 +1,4 @@
+QA-18 synthetic scratch fixture for corrupt diagnostic evidence ingestion.
+Envelope header: QA18 + version byte + big-endian record count.
+Each record carries a sha256 digest over its own fields; every value is bounded.
+All markers are derived from the pinned seed; no real feed address, credential, PIN, key or payload.
