@@ -124,7 +124,9 @@ class DashCaptureEngine {
             if (request.url.isEmpty()) return Result(totalBytes, StopReason.UNSUPPORTED, UNSUPPORTED_RESOURCE)
             val before = totalBytes
             val copy = try {
-                source.copySegment(request.url, request.range, output, cancelled) { bytes -> onProgress(before + bytes) }
+                source.copySegment(request.url, request.range, output, cancelled) { bytes ->
+                    onProgress(progressBytes(before, bytes))
+                }
             } catch (missing: DashSegmentNotPublishedException) {
                 if (timing is DashTiming.Live && withinPublishGrace(timing, plan, number, nowEpochSeconds())) {
                     sleepMillis(LIVE_POLL_MILLIS)
@@ -133,7 +135,8 @@ class DashCaptureEngine {
                 val reason = if (timing is DashTiming.Live) UNPUBLISHED_LIVE_SEGMENT else UNAVAILABLE_SEGMENT
                 return Result(totalBytes, StopReason.UNSUPPORTED, reason)
             }
-            totalBytes = Math.addExact(totalBytes, copy.bytesWritten)
+            totalBytes = addBytes(totalBytes, copy.bytesWritten)
+                ?: return Result(totalBytes, StopReason.UNSUPPORTED, INVALID_BYTE_COUNT)
             when (copy.stopReason) {
                 StreamRecorder.StopReason.END_OF_STREAM -> {
                     if (request.range != null && copy.bytesWritten != request.range.length) {
@@ -204,13 +207,14 @@ class DashCaptureEngine {
                 if (request.url.isEmpty()) return Result(totalBytes, StopReason.UNSUPPORTED, UNSUPPORTED_RESOURCE)
                 val before = totalBytes
                 val copy = copyWhenPublished(source, request, output, cancelled, sleepMillis) { bytes ->
-                    onProgress(before + bytes)
+                    onProgress(progressBytes(before, bytes))
                 } ?: return if (cancelled()) {
                     Result(totalBytes, StopReason.CANCELLED)
                 } else {
                     Result(totalBytes, StopReason.UNSUPPORTED, UNPUBLISHED_LIVE_SEGMENT)
                 }
-                totalBytes = Math.addExact(totalBytes, copy.bytesWritten)
+                totalBytes = addBytes(totalBytes, copy.bytesWritten)
+                    ?: return Result(totalBytes, StopReason.UNSUPPORTED, INVALID_BYTE_COUNT)
                 when (copy.stopReason) {
                     StreamRecorder.StopReason.END_OF_STREAM -> {
                         if (request.range != null && copy.bytesWritten != request.range.length) {
@@ -336,6 +340,9 @@ class DashCaptureEngine {
         }
         when (init.stopReason) {
             StreamRecorder.StopReason.END_OF_STREAM -> {
+                if (addBytes(0L, init.bytesWritten) == null) {
+                    return Initialization.Stopped(Result(0, StopReason.UNSUPPORTED, INVALID_BYTE_COUNT))
+                }
                 if (init.bytesWritten == 0L) {
                     return Initialization.Stopped(Result(0, StopReason.UNSUPPORTED, "DASH initialization segment is empty"))
                 }
@@ -460,6 +467,20 @@ class DashCaptureEngine {
     private fun incompleteRange(range: HlsByteRange, received: Long): String =
         "DASH byte range incomplete: expected ${range.length} bytes, received $received"
 
+    /**
+     * Adds a byte count reported by a source to the running total. A negative count or one that would overflow is
+     * refused instead of escaping as an unchecked exception or wrapping into a negative total.
+     */
+    private fun addBytes(total: Long, bytes: Long): Long? =
+        if (bytes < 0 || total > Long.MAX_VALUE - bytes) null else total + bytes
+
+    /** Progress saturates rather than wrapping, even while a source is reporting an impossible byte count. */
+    private fun progressBytes(before: Long, bytes: Long): Long = when {
+        bytes <= 0L -> before
+        before > Long.MAX_VALUE - bytes -> Long.MAX_VALUE
+        else -> before + bytes
+    }
+
     /** Start time of segment [number] in timescale units: the first segment's start plus whole durations. */
     private fun timeTicks(plan: DashPlan, number: Long): Long =
         Math.addExact(plan.startTimeTicks, Math.multiplyExact(number - plan.startNumber, plan.segmentDurationTicks))
@@ -518,6 +539,7 @@ class DashCaptureEngine {
         /** A listed live presentation that brings no segment past the next one, or answers no manifest read, for this long stops. */
         const val STALL_LIMIT_MILLIS = 30_000L
         const val UNSUPPORTED_RESOURCE = "DASH resource must use HTTP or HTTPS"
+        const val INVALID_BYTE_COUNT = "DASH byte count is invalid"
         const val UNSUPPORTED_TOKEN = "DASH template uses a token that is not supported"
         const val UNAVAILABLE_INITIALIZATION = "DASH initialization segment is not available"
         const val UNAVAILABLE_SEGMENT = "DASH segment is not available"
