@@ -1,0 +1,13 @@
+package android.net
+
+/** JVM-test-only stub. Never compiled into the app. */
+class Uri private constructor(private val raw: String) {
+    val scheme: String? get() = raw.indexOf(':').let { i -> if (i > 0) raw.substring(0, i) else null }
+    val authority: String? get() = raw.substringAfter("://", "").substringBefore('/').takeIf { it.isNotEmpty() }
+
+    override fun toString(): String = raw
+
+    companion object {
+        fun parse(value: String): Uri = Uri(value)
+    }
+}

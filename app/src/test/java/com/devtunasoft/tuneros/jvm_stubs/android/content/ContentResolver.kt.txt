@@ -1,0 +1,9 @@
+package android.content
+
+import android.net.Uri
+import java.io.OutputStream
+
+/** JVM-test-only stub. Never compiled into the app. */
+abstract class ContentResolver {
+    abstract fun openOutputStream(uri: Uri, mode: String): OutputStream?
+}

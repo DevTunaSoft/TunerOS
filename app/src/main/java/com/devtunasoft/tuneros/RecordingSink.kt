@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import android.provider.DocumentsContract
 import com.devtunasoft.tuneros.core.RecordingPolicy
+import com.devtunasoft.tuneros.core.RecordingState
 import java.io.File
 import java.io.FilterOutputStream
 import java.io.OutputStream
@@ -16,6 +17,61 @@ internal interface RecordingSink {
     fun freeBytes(): Long
     fun finalizeRecording(): String?
     fun delete(): Boolean
+}
+
+/** Terminal result requested by a capture engine, shared so finalization can be tested on the JVM. */
+internal data class RecordingOutcome(
+    val state: String,
+    val bytesWritten: Long,
+    val finalizeFile: Boolean,
+    val failureReason: String? = null,
+)
+
+/** The single terminal transition a recorder is allowed to perform for one capture. */
+internal data class RecordingFinalization(
+    val state: String,
+    val finalize: Boolean,
+    val discardEmpty: Boolean,
+    val failureReason: String?,
+)
+
+internal object RecordingOutcomePolicy {
+    /**
+     * Resolve a capture result against the live cancellation flag and the sink's authoritative byte count.
+     * Cancellation (including service destruction) and an empty capture never produce COMPLETED and never
+     * rename a partial file. Only bytes acknowledged by both sides can justify finalization.
+     */
+    fun settle(requested: RecordingOutcome, cancelled: Boolean, sinkBytes: Long): RecordingFinalization {
+        require(requested.bytesWritten >= 0) { "Negative reported bytes" }
+        require(sinkBytes >= 0) { "Negative sink bytes" }
+        if (cancelled) return RecordingFinalization("CANCELLED", false, false, null)
+
+        val bytes = minOf(requested.bytesWritten, sinkBytes)
+        if (bytes == 0L) {
+            val state = RecordingPolicy.finalState(RecordingState.valueOf(requested.state), 0L).name
+            val transitioned = state != requested.state
+            return RecordingFinalization(
+                state = state,
+                finalize = false,
+                discardEmpty = state == "FAILED",
+                failureReason = requested.failureReason
+                    ?: if (transitioned) "No bytes before scheduled stop" else null,
+            )
+        }
+
+        val state = RecordingPolicy.finalState(RecordingState.valueOf(requested.state), bytes).name
+        if (state != "COMPLETED" || !requested.finalizeFile) {
+            val settled = if (state == "COMPLETED") "PARTIAL" else state
+            return RecordingFinalization(
+                state = settled,
+                finalize = false,
+                discardEmpty = false,
+                failureReason = requested.failureReason
+                    ?: if (settled == "PARTIAL") "Output was not finalized" else null,
+            )
+        }
+        return RecordingFinalization("COMPLETED", true, false, null)
+    }
 }
 
 internal object RecordingSinkFactory {
@@ -68,6 +124,7 @@ internal class InternalRecordingSink(
     private var current = partial
     private var ownsCurrent = false
     private var counter: CountingOutputStream? = null
+    private var finalizedLocation: String? = null
 
     override val location: String get() = current.absolutePath
     override val bytesWritten: Long get() =
@@ -91,11 +148,17 @@ internal class InternalRecordingSink(
     override fun freeBytes(): Long = directory.usableSpace
 
     override fun finalizeRecording(): String? {
+        // Repeated finalization is a no-op: never rename twice or report a completed
+        // recording as PARTIAL because a stale caller asked a second time.
+        finalizedLocation?.let { return it }
+        // An empty capture must never become a playable completed file.
+        if (bytesWritten <= 0L) return null
         // Never delete an older recording to make a colliding filename available.
         if (completed.exists()) return null
         if (!partial.renameTo(completed)) return null
         current = completed
-        return current.absolutePath
+        finalizedLocation = current.absolutePath
+        return finalizedLocation
     }
 
     override fun delete(): Boolean =
@@ -113,6 +176,7 @@ private class SafRecordingSink(
     private val finalDisplayName = safeId + extension
     private var documentUri: Uri = createDocument(safeId + ".partial" + extension)
     private var counter: CountingOutputStream? = null
+    private var finalizedLocation: String? = null
     private var lastReportedAvailable = info.availableBytes
     private var writtenAtLastRefresh = 0L
 
@@ -143,6 +207,9 @@ private class SafRecordingSink(
     }
 
     override fun finalizeRecording(): String? {
+        finalizedLocation?.let { return it }
+        // No acknowledged bytes means no playable recording; leave the .partial document as-is.
+        if (bytesWritten <= 0L) return null
         val renamed = runCatching {
             DocumentsContract.renameDocument(resolver, documentUri, finalDisplayName)
         }.getOrNull()
@@ -150,7 +217,8 @@ private class SafRecordingSink(
         // Let the catalog mark it PARTIAL rather than report false completion.
         if (renamed == null) return null
         documentUri = renamed
-        return documentUri.toString()
+        finalizedLocation = documentUri.toString()
+        return finalizedLocation
     }
 
     override fun delete(): Boolean = runCatching {

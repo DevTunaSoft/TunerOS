@@ -1,0 +1,18 @@
+package android.provider
+
+import android.content.ContentResolver
+import android.net.Uri
+
+/** JVM-test-only stub. Never compiled into the app. */
+object DocumentsContract {
+    fun renameDocument(resolver: ContentResolver, documentUri: Uri, displayName: String): Uri? = null
+    fun deleteDocument(resolver: ContentResolver, documentUri: Uri): Boolean = false
+    fun getTreeDocumentId(treeUri: Uri): String = ""
+    fun buildDocumentUriUsingTree(treeUri: Uri, treeDocumentId: String): Uri = Uri.parse("stub-tree:$treeDocumentId")
+    fun createDocument(
+        resolver: ContentResolver,
+        parentDocumentUri: Uri,
+        mimeType: String,
+        displayName: String,
+    ): Uri? = null
+}

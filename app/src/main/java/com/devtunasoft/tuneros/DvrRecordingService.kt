@@ -10,8 +10,6 @@ import com.devtunasoft.tuneros.core.AbortableSlot
 import com.devtunasoft.tuneros.core.DashCaptureEngine
 import com.devtunasoft.tuneros.core.HlsByteRange
 import com.devtunasoft.tuneros.core.HlsCaptureEngine
-import com.devtunasoft.tuneros.core.RecordingPolicy
-import com.devtunasoft.tuneros.core.RecordingState
 import com.devtunasoft.tuneros.core.RecordingWorkerLifecycle
 import com.devtunasoft.tuneros.core.StreamRecorder
 import java.io.InputStream
@@ -21,6 +19,9 @@ import java.net.URL
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
+
+/** Capture results use the shared outcome so finalization obeys one testable policy. */
+private typealias CaptureOutcome = RecordingOutcome
 
 /**
  * Single-capture foreground DVR service.
@@ -47,13 +48,6 @@ class DvrRecordingService : Service() {
         private const val NOTIFICATION_ID = 4001
         private const val CATALOG_PROGRESS_BYTES = 4L * 1024 * 1024
     }
-
-    private data class CaptureOutcome(
-        val state: String,
-        val bytesWritten: Long,
-        val finalizeFile: Boolean,
-        val failureReason: String? = null,
-    )
 
     private val worker = Executors.newSingleThreadExecutor()
     private val cancelled = AtomicBoolean(false)
@@ -402,26 +396,6 @@ class DvrRecordingService : Service() {
         }
     }
 
-    /**
-     * A capture that reached its stop without writing a byte is a failure, even at the scheduled
-     * deadline. Keeping it COMPLETED would offer an empty file for playback.
-     */
-    private fun settledOutcome(requested: CaptureOutcome): CaptureOutcome {
-        val state = RecordingPolicy.finalState(
-            RecordingState.valueOf(requested.state),
-            requested.bytesWritten,
-        ).name
-        return if (state == requested.state) {
-            requested
-        } else {
-            requested.copy(
-                state = state,
-                finalizeFile = false,
-                failureReason = "No bytes before scheduled stop",
-            )
-        }
-    }
-
     private fun captureDash(
         id: String,
         streamUrl: String,
@@ -485,33 +459,35 @@ class DvrRecordingService : Service() {
         sink: RecordingSink,
         requested: CaptureOutcome,
     ) {
-        val outcome = settledOutcome(requested)
-        if (outcome.finalizeFile) {
+        // Read cancellation once, at the moment of finalization: STOP or onDestroy after the
+        // copy loop must not allow a partial capture to be promoted to COMPLETED.
+        val decision = RecordingOutcomePolicy.settle(requested, cancelled.get(), sink.bytesWritten)
+        if (decision.finalize) {
             val finalizedLocation = sink.finalizeRecording()
             val state = if (finalizedLocation != null) "COMPLETED" else "PARTIAL"
             catalog.finish(
                 id = id,
                 state = state,
                 stoppedEpochSeconds = nowSeconds(),
-                bytesWritten = outcome.bytesWritten,
-                storageLocation = finalizedLocation ?: sink.location.takeIf { outcome.bytesWritten > 0 },
+                bytesWritten = requested.bytesWritten,
+                storageLocation = finalizedLocation ?: sink.location.takeIf { requested.bytesWritten > 0 },
                 failureReason = if (finalizedLocation != null) null else
                     "Unable to finalize recording output",
             )
-            observeOutcome(state, outcome.bytesWritten)
+            observeOutcome(state, requested.bytesWritten)
             return
         }
 
-        if (outcome.bytesWritten == 0L && outcome.state == "FAILED") sink.delete()
+        if (decision.discardEmpty) sink.delete()
         catalog.finish(
             id = id,
-            state = outcome.state,
+            state = decision.state,
             stoppedEpochSeconds = nowSeconds(),
-            bytesWritten = outcome.bytesWritten,
-            storageLocation = sink.location.takeIf { outcome.bytesWritten > 0 },
-            failureReason = outcome.failureReason,
+            bytesWritten = requested.bytesWritten,
+            storageLocation = sink.location.takeIf { requested.bytesWritten > 0 },
+            failureReason = decision.failureReason,
         )
-        observeOutcome(outcome.state, outcome.bytesWritten)
+        observeOutcome(decision.state, requested.bytesWritten)
     }
 
     private fun observeOutcome(state: String, bytes: Long) {

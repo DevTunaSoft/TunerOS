@@ -133,6 +133,11 @@ internal class RecordingCatalog(
         return writableDatabase.update("recordings", values, "state=?", arrayOf("RECORDING"))
     }
 
+    /**
+     * Terminal transition for a recording that is still active. Returning the number of rows
+     * changed makes a stale callback or a second finalizer harmless: only the first terminal
+     * write wins and no later result can overwrite it.
+     */
     fun finish(
         id: String,
         state: String,
@@ -140,7 +145,7 @@ internal class RecordingCatalog(
         bytesWritten: Long,
         storageLocation: String?,
         failureReason: String?,
-    ) {
+    ): Int {
         val values = ContentValues().apply {
             put("state", state)
             put("stopped_epoch", stoppedEpochSeconds)
@@ -148,7 +153,9 @@ internal class RecordingCatalog(
             if (storageLocation == null) putNull("file_path") else put("file_path", storageLocation)
             if (failureReason == null) putNull("failure_reason") else put("failure_reason", failureReason)
         }
-        writableDatabase.update("recordings", values, "id=?", arrayOf(id))
+        return writableDatabase.update(
+            "recordings", values, "id=? AND state='RECORDING'", arrayOf(id),
+        )
     }
 
     fun recent(limit: Int = 100): List<RecordingCatalogEntry> {

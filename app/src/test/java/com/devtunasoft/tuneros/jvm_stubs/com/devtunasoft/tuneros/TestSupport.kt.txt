@@ -1,0 +1,19 @@
+package com.devtunasoft.tuneros
+
+import android.content.Context
+import android.net.Uri
+
+/** JVM-test-only stubs for sibling app classes; never compiled into the app. */
+internal data class SafStorageInfo(
+    val treeUri: Uri,
+    val rootTitle: String?,
+    val availableBytes: Long,
+)
+
+internal object SafStorageInspector {
+    fun inspect(context: Context, treeUri: Uri): SafStorageInfo? = null
+}
+
+internal class RecordingDestinationStore(context: Context) {
+    fun selectedTreeUri(): Uri? = null
+}
