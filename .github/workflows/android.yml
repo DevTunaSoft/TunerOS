@@ -55,6 +55,13 @@ jobs:
       - name: Large EPG deterministic fixture check (QA-02/PERF-01)
         timeout-minutes: 12
         run: bash scripts/qa_epg_fixture_check.sh
+      # QA-03: one bounded JVM step in this existing job. It reuses the QA-02 loopback
+      # channel fixture when present, opens only a short-lived 127.0.0.1 source, and
+      # asserts deterministic switching, player/thread cleanup, error taxonomy and
+      # privacy. No emulator, second workflow, provider URL or new dependency.
+      - name: Playback regression and switching soak (QA-03)
+        timeout-minutes: 5
+        run: bash scripts/qa_playback_soak_check.sh
       - uses: actions/upload-artifact@v4
         if: success()
         with:
