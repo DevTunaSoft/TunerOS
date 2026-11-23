@@ -41,6 +41,9 @@ class StreamRecorder(
             if (cancelled()) return Result(total, StopReason.CANCELLED)
             if (freeBytes() < minFreeBytes) return Result(total, StopReason.LOW_STORAGE)
             val count = input.read(buffer, 0, bufferBytes)
+            // A broken stream must not report a false EOF or make the caller write past the buffer.
+            // Keep the refusal generic: the count is untrusted and must not reach diagnostics.
+            if (count < -1 || count > bufferBytes) throw IOException("Input stream returned an invalid byte count")
             if (count < 0) return Result(total, StopReason.END_OF_STREAM)
             if (count == 0) {
                 // Broken streams can return zero forever; do not spin at 100% CPU.
