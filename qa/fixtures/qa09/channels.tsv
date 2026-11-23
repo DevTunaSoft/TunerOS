@@ -1,0 +1,7 @@
+#id	name	url	guideId	stableKey
+QC001	QA One	https://qa09-provider.invalid/1?token=SYNTHQA09_5af446b3f9	qa.one	k-one
+QC002	QA Two	https://qa09-provider.invalid/2?pin=80542970	qa.two	k-two
+QC003	QA Three	https://qa09-provider.invalid/3	qa.three	k-three
+QC004	BBC One HD	https://qa09-provider.invalid/4?payload=SYNTHQA09_REC_a3a2a7fe	bbc1	k-bbc
+QC005	QA Five	https://qa09-provider.invalid/5	qa.five	k-five
+QC006	QA Six	https://qa09-provider.invalid/6		k-six

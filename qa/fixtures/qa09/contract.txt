@@ -1,0 +1,4 @@
+QA-09 synthetic fixture. All hosts use the RFC 2606 .invalid suffix.
+Dimensions are parsed as key=value; all other tables are tab separated with an exact header.
+Every marker in the data is derived from the fixed seed; no real URL, credential, PIN or
+recording payload appears here. The verifier parses these bytes, never a second in-memory copy.

@@ -1,0 +1,10 @@
+version=qa09-fixture-v1
+seed=QA09-FIXED-SEED-2026-11-23
+channels=6
+programs=1024
+warnings=3
+oversizedChars=6000
+hugeWarningChars=20000
+maxStreamChars=400
+maxWarningChars=200
+largeChannels=512
