@@ -1,0 +1,4 @@
+id	name	url	token	pin	payload
+QC001	QA Synthetic 77308	https://qa10-provider.invalid/stream?token=SYNTHQA10_5dc8b02249	SYNTHQA10_5dc8b02249	36165940	SYNTHQA10_REC_f931ded3
+QC002	QA Synthetic 77308	https://qa10-provider.invalid/stream?token=SYNTHQA10_5dc8b02249	SYNTHQA10_5dc8b02249	36165940	SYNTHQA10_REC_f931ded3
+QC003	QA Synthetic 77308	https://qa10-provider.invalid/stream?token=SYNTHQA10_5dc8b02249	SYNTHQA10_5dc8b02249	36165940	SYNTHQA10_REC_f931ded3

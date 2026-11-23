@@ -1,0 +1,14 @@
+version=qa10-fixture-v1
+max_events_bytes=32768
+max_share_events=8192
+max_report_bytes=8192
+max_output_lines=256
+oversize_lines=140
+oversize_metric_digits=300
+observe_write_lines=900
+log_cases=13
+log_rows=244
+share_log_rows=220
+expect_cases=12
+report_cases=5
+channel_rows=3
