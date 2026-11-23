@@ -1,0 +1,43 @@
+P_NO_PENDING_FIELD	PRE	CableGuideAdapter.kt	absent	pendingFocusShiftDirection	0
+P_NO_POLICY	PRE	CableGuideAdapter.kt	absent	GuideRowFocusPolicy	0
+P_NO_REQUEST_SHIFT	PRE	CableGuideAdapter.kt	absent	requestWindowShift	0
+P_OLD_DIRECT_FORWARD	PRE	CableGuideAdapter.kt	count	onWindowShift = onWindowShift,	1
+V_PER_VIEW_STATE_EXISTED	PRE	ProgramTimelineView.kt	count	pendingWindowShiftDirection = 0	2
+V_OLD_PREV_CHANNEL	PRE	ProgramTimelineView.kt	count	val previousChannelId = this.channel?.id	1
+V_NO_DEFAULTED_PARAM	PRE	ProgramTimelineView.kt	absent	windowShiftDirection	0
+A_PENDING_FIELD	FIX	CableGuideAdapter.kt	count	private var pendingFocusShiftDirection = 0	1
+A_REQUEST_SHIFT_FN	FIX	CableGuideAdapter.kt	count	fun requestWindowShift(direction: Int) {	1
+A_DIRECTION_GUARD	FIX	CableGuideAdapter.kt	count	if (direction != -1 && direction != 1) return	1
+A_STORE_DIRECTION	FIX	CableGuideAdapter.kt	count	pendingFocusShiftDirection = direction	1
+A_WIRE_CALLBACK	FIX	CableGuideAdapter.kt	count	onWindowShift = ::requestWindowShift,	1
+A_WIRE_KEYLISTENER	FIX	CableGuideAdapter.kt	count	requestWindowShift(-1)	1
+A_POLICY_CALL	FIX	CableGuideAdapter.kt	count	val shiftDirection = GuideRowFocusPolicy.shiftDirectionForBind(	1
+A_PASS_TO_BIND	FIX	CableGuideAdapter.kt	count	windowShiftDirection = shiftDirection,	1
+A_CLEAR_AFTER_BIND	FIX	CableGuideAdapter.kt	count	if (shiftDirection != 0) pendingFocusShiftDirection = 0	1
+A_CLEAR_ON_CHANNEL_CHANGE	FIX	CableGuideAdapter.kt	count	if (focusedChannelId != channel.id) pendingFocusShiftDirection = 0	1
+A_POLICY_OBJECT	FIX	CableGuideAdapter.kt	count	internal object GuideRowFocusPolicy {	1
+A_POLICY_FN	FIX	CableGuideAdapter.kt	count	fun shiftDirectionForBind(	1
+A_POLICY_OWNER_KEY	FIX	CableGuideAdapter.kt	count	focusedChannelId == boundChannelId && pendingDirection != 0	1
+A_POLICY_VIEW_HISTORY_IGNORED	FIX	CableGuideAdapter.kt	count	viewPreviousChannelId: String?,	1
+A_POLICY_PENDING_PARAM	FIX	CableGuideAdapter.kt	count	pendingDirection: Int,	1
+V_DEFAULTED_PARAM	FIX	ProgramTimelineView.kt	count	windowShiftDirection: Int = 0,	1
+V_USES_DIRECTION	FIX	ProgramTimelineView.kt	count	if (windowShiftDirection != 0) {	1
+V_SHIFTED_INDEX	FIX	ProgramTimelineView.kt	count	TimelineFocusPolicy.shiftedIndex(entries, preferredProgramStart, windowShiftDirection)	1
+V_NO_VIEW_STATE	FIX	ProgramTimelineView.kt	absent	pendingWindowShiftDirection	0
+V_NO_VIEW_PREV_CHANNEL	FIX	ProgramTimelineView.kt	absent	val previousChannelId = this.channel?.id	0
+V_DRAW_GUARD_INTACT	FIX	ProgramTimelineView.kt	count	if (right - textLeft <= horizontalPadding) continue	1
+T_COUNT	FIX	GuideRecycledRowFocusTest.kt	count	@Test	5
+T_IMPORT_POLICY	FIX	GuideRecycledRowFocusTest.kt	count	import com.devtunasoft.tuneros.GuideRowFocusPolicy	1
+T_POLICY_CALLS	FIX	GuideRecycledRowFocusTest.kt	count	GuideRowFocusPolicy.shiftDirectionForBind(	5
+T01_RECYCLED_OWNER	FIX	GuideRecycledRowFocusTest.kt	count	fun shiftIntentIsNotLostWhenTheFocusedChannelRowWasRecycledFromAnotherChannel()	1
+T02_NO_LEAK	FIX	GuideRecycledRowFocusTest.kt	count	fun shiftIntentNeverLeaksToADifferentChannel()	1
+T03_NO_OWNER	FIX	GuideRecycledRowFocusTest.kt	count	fun noFocusOwnerMeansNoShiftDirection()	1
+T04_ANCHOR	FIX	GuideRecycledRowFocusTest.kt	count	fun focusKeepsItsDirectionalAnchorWhenTheFocusedRowWasRecycled()	1
+T05_LARGE_RECYCLE	FIX	GuideRecycledRowFocusTest.kt	count	fun largeChannelRecycleGivesTheDirectionToExactlyOneFocusedRow()	1
+T_LARGE_160	FIX	GuideRecycledRowFocusTest.kt	count	assertEquals(160, recipients.size)	1
+U_POLICY_FN	UX01	GuideCellLabelPolicy.kt	count	fun drawsTitle(	1
+U_TEXT_REGION	UX01	GuideCellLabelPolicy.kt	count	fun textRegionWidth(	1
+U_GLYPH_GUARD	UX01	GuideCellLabelPolicy.kt	count	textRegionWidth(cellWidthPx, horizontalPaddingPx) >= glyphWidthPx	1
+U_MIN_GLYPH	UX01	ProgramTimelineView.kt	count	private val minTitleGlyphWidthPx = textPaint.measureText("M").coerceAtLeast(1f)	1
+U_GUARD_CALL	UX01	ProgramTimelineView.kt	count	!GuideCellLabelPolicy.drawsTitle(right - left, horizontalPadding, minTitleGlyphWidthPx)	1
+U_GUARD_IMPORT	UX01	ProgramTimelineView.kt	count	import com.devtunasoft.tuneros.guide.GuideCellLabelPolicy	1
