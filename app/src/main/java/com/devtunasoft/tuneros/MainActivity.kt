@@ -62,6 +62,13 @@ import com.devtunasoft.tuneros.core.PlayerReusePolicy
 import com.devtunasoft.tuneros.core.PlaylistParser
 import com.devtunasoft.tuneros.core.RecordingPolicy
 import com.devtunasoft.tuneros.core.TimelineEntry
+import com.devtunasoft.tuneros.multiview.ExoPlayerMultiviewPlayer
+import com.devtunasoft.tuneros.multiview.FocusResult
+import com.devtunasoft.tuneros.multiview.MultiviewPlayer
+import com.devtunasoft.tuneros.multiview.MultiviewPlayerFactory
+import com.devtunasoft.tuneros.multiview.MultiviewTileController
+import com.devtunasoft.tuneros.multiview.MultiviewUiPolicy
+import com.devtunasoft.tuneros.multiview.OpenResult
 import java.io.File
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
@@ -142,6 +149,11 @@ class MainActivity : Activity() {
     private var player: ExoPlayer? = null
     // Reuse a single decoder for channels with identical provider request headers.
     private var playerHeaders: Map<String, String>? = null
+    // Opt-in two-tile multiview. Classic Cable keeps the single player above as the default.
+    private val multiviewUi = MultiviewUiPolicy()
+    private val tileController = MultiviewTileController(MultiviewPlayerFactory { tileId -> createTilePlayer(tileId) })
+    /** Single bounded handoff for the channel the next tile player must open. Never a collection. */
+    private var pendingTileChannel: Channel? = null
     /** The timeshift running for the channel in the player, and that channel's live URL. Null while timeshift is off. */
     private var timeshift: TimeshiftRecorder? = null
     private var timeshiftLiveUri: String? = null
@@ -164,6 +176,9 @@ class MainActivity : Activity() {
     private val timeFormatter = DateTimeFormatter.ofPattern("h:mm a")
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density + 0.5f).toInt()
     private lateinit var playerView: PlayerView
+    private lateinit var tileViews: Array<PlayerView>
+    private lateinit var tileRow: LinearLayout
+    private lateinit var multiviewButton: Button
     private lateinit var channelList: ListView
     private lateinit var channelAdapter: CableGuideAdapter
     private lateinit var recordingAdapter: RecordingLibraryAdapter
@@ -309,6 +324,30 @@ class MainActivity : Activity() {
             isFocusable = true
         }
         root.addView(playerView, LinearLayout.LayoutParams(-1, 0, 0.7f))
+        // Opt-in only: the two tile views exist from creation but stay hidden in Classic Cable.
+        multiviewButton = button("Multiview: off") { toggleMultiview() }
+        root.addView(multiviewButton)
+        tileViews = Array(MultiviewTileController.MAX_TILES) { index ->
+            PlayerView(this).apply {
+                useController = false
+                setBackgroundColor(Color.BLACK)
+                isFocusable = true
+                foreground = focusRingForeground()
+                contentDescription = "Video tile ${index + 1}, empty"
+                // A focusable View turns D-pad OK / ENTER into performClick on Android.
+                setOnClickListener { onTileClicked(index) }
+            }
+        }
+        tileRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            visibility = android.view.View.GONE
+            tileViews.forEachIndexed { index, view ->
+                addView(view, LinearLayout.LayoutParams(0, -1, 1f).apply {
+                    if (index > 0) leftMargin = dp(4)
+                })
+            }
+        }
+        root.addView(tileRow, LinearLayout.LayoutParams(-1, 0, 0.7f))
         status = label("Enter an M3U URL to begin", 13)
         status.setOnClickListener { showStreamReport() }
         root.addView(status)
@@ -1519,6 +1558,10 @@ class MainActivity : Activity() {
             requireParentalPin { play(channel) }
             return
         }
+        if (multiviewUi.isEnabled) {
+            playMultiview(channel)
+            return
+        }
         stopTimeshift(restoreLive = false)
         val headers = mutableMapOf<String, String>()
         channel.userAgent?.let { headers["User-Agent"] = it }
@@ -1594,17 +1637,172 @@ class MainActivity : Activity() {
         }
 
         activeChannelName = channel.name
-        val builder = MediaItem.Builder().setUri(channel.streamUrl)
-        val path = channel.streamUrl.substringBefore('?').lowercase()
-        if (path.endsWith(".m3u8")) builder.setMimeType(MimeTypes.APPLICATION_M3U8)
-        if (path.endsWith(".mpd")) builder.setMimeType(MimeTypes.APPLICATION_MPD)
         observe(OnDeviceSelfTest.Event.PLAYBACK_REQUESTED)
         playbackEvidence?.reset()
-        target.setMediaItem(builder.build())
+        target.setMediaItem(mediaItemFor(channel))
         armPlaybackTimeout(target)
         target.prepare()
         target.playWhenReady = true
         showStatus("Connecting: ${channel.name}")
+    }
+
+    private fun mediaItemFor(channel: Channel): MediaItem {
+        val builder = MediaItem.Builder().setUri(channel.streamUrl)
+        val path = channel.streamUrl.substringBefore('?').lowercase()
+        if (path.endsWith(".m3u8")) builder.setMimeType(MimeTypes.APPLICATION_M3U8)
+        if (path.endsWith(".mpd")) builder.setMimeType(MimeTypes.APPLICATION_MPD)
+        return builder.build()
+    }
+
+    /** Explicit user opt-in. Enabling releases the Classic Cable player so only two tiles can decode. */
+    private fun toggleMultiview() {
+        if (multiviewUi.isEnabled) {
+            disableMultiview()
+            showStatus("Multiview off · Classic Cable")
+        } else {
+            releasePlayer()
+            multiviewUi.enable()
+            playerView.visibility = android.view.View.GONE
+            tileRow.visibility = android.view.View.VISIBLE
+            showStatus("Multiview on · select a channel, then focus a tile for sound")
+        }
+        multiviewButton.text = if (multiviewUi.isEnabled) "Multiview: on" else "Multiview: off"
+        updateTileFocusIndicators()
+    }
+
+    /** Returns to the unchanged Classic Cable path and releases every tile decoder. */
+    private fun disableMultiview() {
+        tileController.stop()
+        multiviewUi.disable()
+        pendingTileChannel = null
+        tileRow.visibility = android.view.View.GONE
+        playerView.visibility = android.view.View.VISIBLE
+        multiviewButton.text = "Multiview: off"
+        updateTileFocusIndicators()
+    }
+
+    /** Lifecycle teardown: release every tile while keeping the user's opt-in choice for this session. */
+    private fun stopMultiviewPlayers() {
+        if (!::tileViews.isInitialized) return
+        tileController.stop()
+        multiviewUi.clearSlots()
+        pendingTileChannel = null
+        updateTileFocusIndicators()
+    }
+
+    /**
+     * Builds one tile player. The slot is claimed before allocation and always released from
+     * [SlotBoundTilePlayer.release], including when construction or volume setting fails, so a rapid
+     * switch can never strand a decoder or a physical view.
+     */
+    private fun createTilePlayer(tileId: String): MultiviewPlayer {
+        val channel = pendingTileChannel ?: error("Tile player requested without a channel")
+        val slot = multiviewUi.acquireSlot(tileId)
+        return try {
+            val headers = mutableMapOf<String, String>()
+            channel.userAgent?.let { headers["User-Agent"] = it }
+            channel.referer?.let { if (isHttpUrl(it)) headers["Referer"] = it }
+            val http = DefaultHttpDataSource.Factory()
+                .setConnectTimeoutMs(12_000)
+                .setReadTimeoutMs(15_000)
+                .setAllowCrossProtocolRedirects(false)
+                .setDefaultRequestProperties(headers)
+            val player = ExoPlayer.Builder(applicationContext)
+                .setMediaSourceFactory(
+                    DefaultMediaSourceFactory(DefaultDataSource.Factory(applicationContext, http)),
+                )
+                .build()
+                .apply {
+                    setAudioAttributes(
+                        AudioAttributes.Builder()
+                            .setUsage(C.USAGE_MEDIA)
+                            .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
+                            .build(),
+                        true,
+                    )
+                    setMediaItem(mediaItemFor(channel))
+                    prepare()
+                    playWhenReady = true
+                }
+            SlotBoundTilePlayer(tileId, ExoPlayerMultiviewPlayer(player, tileViews[slot]))
+        } catch (failure: Throwable) {
+            multiviewUi.releaseSlot(tileId)
+            throw failure
+        }
+    }
+
+    /** Frees the physical view slot exactly once, even if the platform release itself throws. */
+    private inner class SlotBoundTilePlayer(
+        private val tileId: String,
+        private val delegate: MultiviewPlayer,
+    ) : MultiviewPlayer {
+        override fun setVolume(volume: Float) = delegate.setVolume(volume)
+
+        override fun release() {
+            try {
+                delegate.release()
+            } finally {
+                multiviewUi.releaseSlot(tileId)
+            }
+        }
+    }
+
+    /** Strict two-decoder selection: a third channel is refused instead of replacing a live tile. */
+    private fun playMultiview(channel: Channel) {
+        stopTimeshift(restoreLive = false)
+        val tileId = MultiviewUiPolicy.tileIdFor(channel.storageKey)
+        pendingTileChannel = channel
+        try {
+            val attempt = tileController.openWithinCapacity(tileId)
+            when (attempt.result) {
+                OpenResult.PRIMARY_OPENED, OpenResult.SECONDARY_OPENED, OpenResult.SECONDARY_REPLACED ->
+                    showStatus(
+                        "Tile: ${channel.name}" +
+                            if (tileController.isMuted(tileId)) " · muted" else " · audible",
+                    )
+                OpenResult.ALREADY_OPEN -> showStatus("${channel.name} is already on a tile")
+                OpenResult.INVALID_ID -> showStatus("Channel cannot be shown as a tile")
+                OpenResult.CAPACITY_REFUSED -> showStatus("Two tiles are open · focus a tile to switch sound")
+                OpenResult.CREATE_FAILED -> showStatus("Could not open video tile · sound unchanged")
+            }
+        } catch (failure: Throwable) {
+            showStatus("Could not open video tile")
+        } finally {
+            pendingTileChannel = null
+        }
+        updateTileFocusIndicators()
+    }
+
+    /** D-pad OK / touch on a tile moves the single audible source to that tile. */
+    private fun onTileClicked(slot: Int) {
+        if (!multiviewUi.isEnabled) return
+        val tileId = multiviewUi.tileAt(slot) ?: return
+        when (tileController.focus(tileId)) {
+            FocusResult.FOCUSED -> showStatus("Sound switched to the focused tile")
+            FocusResult.ALREADY_AUDIBLE -> showStatus("This tile already has the sound")
+            FocusResult.NOT_OPEN, FocusResult.INVALID_ID -> Unit
+            FocusResult.RELEASED_ON_FAILURE -> showStatus("Audio switch failed · both tiles released")
+        }
+        updateTileFocusIndicators()
+    }
+
+    /** Accessibility labels and dimming identify the audible tile without exposing any URL. */
+    private fun updateTileFocusIndicators() {
+        if (!::tileViews.isInitialized) return
+        val audible = tileController.audibleTileId
+        tileViews.forEachIndexed { index, view ->
+            val tileId = multiviewUi.tileAt(index)
+            view.alpha = when {
+                tileId == null -> 0.5f
+                tileId == audible -> 1f
+                else -> 0.85f
+            }
+            view.contentDescription = when {
+                tileId == null -> "Video tile ${index + 1}, empty"
+                tileId == audible -> "Video tile ${index + 1}, audible"
+                else -> "Video tile ${index + 1}, muted, select for sound"
+            }
+        }
     }
 
     private fun recordFocusedProgram() {
@@ -2351,6 +2549,10 @@ class MainActivity : Activity() {
     }
 
     private fun playRecording(entry: RecordingCatalogEntry) {
+        if (multiviewUi.isEnabled) {
+            showStatus("Turn off Multiview to play a recording")
+            return
+        }
         // A recording waits for the PIN under the rule for its channel. An unknown channel waits while any group is restricted.
         val channel = channels.firstOrNull { it.id == entry.channelId }
         val restricted = parentalStore.restrictedGroups()
@@ -2803,11 +3005,20 @@ class MainActivity : Activity() {
         activityStarted = true
         syncGuideClock()
     }
+    override fun onPause() {
+        // Backgrounding frees the muted decoder first; onStop releases everything deterministically.
+        if (multiviewUi.isEnabled) {
+            tileController.pause()
+            updateTileFocusIndicators()
+        }
+        super.onPause()
+    }
     override fun onStop() {
         activityStarted = false
         uiHandler.removeCallbacks(clockRefresh)
         super.onStop()
         releasePlayer()
+        stopMultiviewPlayers()
     }
     override fun onSaveInstanceState(outState: Bundle) {
         outState.putString(
@@ -2838,6 +3049,7 @@ class MainActivity : Activity() {
         uiHandler.removeCallbacks(searchRefresh)
         worker.shutdownNow()
         releasePlayer()
+        stopMultiviewPlayers()
         super.onDestroy()
     }
 }
