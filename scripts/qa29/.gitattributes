@@ -1,0 +1,4 @@
+*.tsv text eol=lf
+*.txt text eol=lf
+*.kt text eol=lf
+*.sh text eol=lf
