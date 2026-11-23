@@ -230,6 +230,8 @@ No Hermes worker attempts have occurred as part of the handoff creation. Do not 
 
 - **RAM CAP / WORKER REDUCTION (23:45Z, owner directive)**: runtime target reduced from five coding workers to EXACTLY TWO plus the Hermes coordinator (3 agents total). Kept: A59 `sa-0-b29d7b99` (CORE-52, `core/src/**`) and C14 `sa-0-62819acf` (FOCUS-41, `MainActivity.kt` + `focus41/**`) — disjoint core/app product-code scopes. Retiring after their current tasks: B45 (QA-38), B46 (QA-39), B47 (QA-40), all host-side QA-gate workers whose coverage is already represented. Registry marks them RETIRING (no new tasks, no replacements); ownership sync now includes RETIRING so their in-flight commits still pass the hooks, while cron counts only RUNNING. Both cron prompts received an explicit RAM-cap override forbidding a third worker. No worker is being killed mid-task and no hook is bypassed.
 
+- **QA-38 RESULT / B45 RETIRED (23:50Z)**: B45 `1da0e70` (PR 226) delivered a 30/30 pinned host gate for C13 RESTORE-02 fc89867: apply calls ruleRefusal then replaceSeriesRules with no unchecked remove/add, checks precede writes, failed insert restores prior rules, six restore02 test paths present. Mutation RED first C13_REFUSAL_THROW with 4 restored refs, GREEN 30/30, hook PASS. Static evidence only, no Kotlin/device claim. B45 obeyed the RAM-cap steer, started no new task, and is marked RETIRED; no replacement launched. RUNNING remains exactly A59 + C14; B46/B47 still RETIRING.
+
 ## G. Session recovery (run automatically; do not ask owner to paste commands)
 
 1. Re-open `AGENTS.md` and `docs/HERMES_AUTONOMOUS_TAKEOVER.md`; finish all mandatory full-document reading.
