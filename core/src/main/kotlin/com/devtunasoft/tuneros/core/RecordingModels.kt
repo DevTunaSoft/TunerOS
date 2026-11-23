@@ -6,6 +6,13 @@ package com.devtunasoft.tuneros.core
  */
 enum class RecordingState { SCHEDULED, RECORDING, COMPLETED, PARTIAL, FAILED, CANCELLED }
 
+/** Padding moves a capture window outwards; leaving Long range saturates so it stays ordered and never drops a conflict. */
+private fun paddedStart(epochSeconds: Long, paddingSeconds: Int): Long =
+    if (epochSeconds < Long.MIN_VALUE + paddingSeconds) Long.MIN_VALUE else epochSeconds - paddingSeconds
+
+private fun paddedEnd(epochSeconds: Long, paddingSeconds: Int): Long =
+    if (epochSeconds > Long.MAX_VALUE - paddingSeconds) Long.MAX_VALUE else epochSeconds + paddingSeconds
+
 data class RecordingRequest(
     val id: String,
     val channelId: String,
@@ -26,8 +33,8 @@ data class RecordingRequest(
         require(endPaddingSeconds >= 0)
     }
 
-    val captureStartEpochSeconds: Long get() = startEpochSeconds - startPaddingSeconds
-    val captureEndEpochSeconds: Long get() = endEpochSeconds + endPaddingSeconds
+    val captureStartEpochSeconds: Long get() = paddedStart(startEpochSeconds, startPaddingSeconds)
+    val captureEndEpochSeconds: Long get() = paddedEnd(endEpochSeconds, endPaddingSeconds)
 }
 
 data class RecordingProgress(
