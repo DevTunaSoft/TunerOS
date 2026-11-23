@@ -1,0 +1,23 @@
+package android.content
+
+/** JVM-test-only stub of the SharedPreferences surface the QA stores use. */
+interface SharedPreferences {
+    fun contains(key: String): Boolean
+    fun getString(key: String, defaultValue: String?): String?
+    fun getInt(key: String, defaultValue: Int): Int
+    fun getLong(key: String, defaultValue: Long): Long
+    fun getStringSet(key: String, defaultValue: Set<String>?): Set<String>?
+    val all: Map<String, Any?>
+    fun edit(): Editor
+
+    interface Editor {
+        fun putString(key: String, value: String?): Editor
+        fun putInt(key: String, value: Int): Editor
+        fun putLong(key: String, value: Long): Editor
+        fun putStringSet(key: String, value: Set<String>?): Editor
+        fun remove(key: String): Editor
+        fun clear(): Editor
+        fun apply()
+        fun commit(): Boolean
+    }
+}
