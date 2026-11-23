@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- MV-04 only: declares a bounded platform-Instrumentation runner for multiview lifecycle
+     churn. No test dependency, no application manifest edit and no external fixture URL. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <instrumentation
+        android:name="com.devtunasoft.tuneros.Mv04LifecycleChurnInstrumentation"
+        android:targetPackage="com.devtunasoft.tuneros"
+        android:label="TunerOS multiview lifecycle churn acceptance" />
+</manifest>
