@@ -144,6 +144,7 @@ class DashCaptureEngine {
                 StreamRecorder.StopReason.CANCELLED -> return Result(totalBytes, StopReason.CANCELLED)
                 StreamRecorder.StopReason.LOW_STORAGE -> return Result(totalBytes, StopReason.LOW_STORAGE)
             }
+            if (number == Long.MAX_VALUE) return Result(totalBytes, StopReason.END_LIST)
             number++
         }
     }
