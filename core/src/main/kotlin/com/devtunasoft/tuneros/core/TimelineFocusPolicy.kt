@@ -48,9 +48,10 @@ object TimelineFocusPolicy {
         var last = -1
         var nearest = -1
         var same = -1
+        var hasNearest = false
+        var nearestStart = 0L
         var firstStart = Long.MAX_VALUE
         var lastStart = Long.MIN_VALUE
-        var nearestStart = if (direction < 0) Long.MIN_VALUE else Long.MAX_VALUE
         for (index in entries.indices) {
             val start = entries[index].program?.startEpochSeconds ?: continue
             if (first < 0) {
@@ -60,16 +61,22 @@ object TimelineFocusPolicy {
             last = index
             lastStart = start
             if (previousProgramStart == null) continue
-            if (start == previousProgramStart) same = index
-            if (direction < 0 && start < previousProgramStart && start >= nearestStart) {
-                nearest = index
-                nearestStart = start
-            } else if (direction > 0 && start > previousProgramStart && start <= nearestStart) {
-                nearest = index
-                nearestStart = start
+            if (start == previousProgramStart && same < 0) same = index
+            if (direction < 0 && start < previousProgramStart) {
+                if (!hasNearest || start >= nearestStart) {
+                    nearest = index
+                    nearestStart = start
+                    hasNearest = true
+                }
+            } else if (direction > 0 && start > previousProgramStart) {
+                if (!hasNearest || start < nearestStart) {
+                    nearest = index
+                    nearestStart = start
+                    hasNearest = true
+                }
             }
         }
-        if (nearest >= 0) return nearest
+        if (hasNearest) return nearest
         if (previousProgramStart != null) {
             if (same >= 0) return same
             if (direction > 0 && lastStart <= previousProgramStart) return last
