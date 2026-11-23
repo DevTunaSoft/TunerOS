@@ -16,7 +16,7 @@ object ChannelVisibility {
         if (hideWithoutGuide && guide == null) return emptyList()
         return channels.filter { channel ->
             (search.isEmpty() || channel.name.contains(search, ignoreCase = true)) &&
-                (!hideWithoutGuide || channel.guideId?.let { guide?.hasSchedule(it) } == true)
+                (!hideWithoutGuide || channel.guideId?.takeIf { it.isNotBlank() }?.let { guide?.hasSchedule(it) } == true)
         }
     }
 }
