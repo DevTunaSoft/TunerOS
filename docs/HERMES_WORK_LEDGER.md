@@ -212,6 +212,8 @@ Use this template per completed/blocked task, append it below, and commit/push a
 
 No Hermes worker attempts have occurred as part of the handoff creation. Do not invent failures or successful tests. After two equivalent failures, record both logs, root-cause investigation and changed strategy here. After two no-progress cycles move to a separate unblocked task.
 
+- **C10 SECOND INTERRUPTION (23:11Z)**: after the first recovery, C10 reached a verified RED state (7 tests, 4 failures) and restored the GREEN source byte-identically, but the final full-suite terminal call was cancelled by a lost session lease. No commit or push had occurred; the worktree still held only owned changes. The SAME subagent was continued again with explicit instructions not to redo RED, to run a bounded targeted GREEN then one bounded full-suite run, to label any cancellation NOT RUN rather than fabricate a PASS, and to commit/push only owned paths. Its new transcript showed live tool calls within 8 s; registry delegation ID/transcript updated, ownership check PASS with 5 RUNNING slots.
+
 ## G. Session recovery (run automatically; do not ask owner to paste commands)
 
 1. Re-open `AGENTS.md` and `docs/HERMES_AUTONOMOUS_TAKEOVER.md`; finish all mandatory full-document reading.
