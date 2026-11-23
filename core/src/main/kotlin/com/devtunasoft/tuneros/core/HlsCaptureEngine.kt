@@ -116,8 +116,12 @@ class HlsCaptureEngine(
                             candidate.videoGroup in playlist.externalVideoGroups
                         if (hasExternalAudio || hasExternalVideo) continue
 
-                        val current = variant
+                        // BANDWIDTH is a positive decimal-integer (RFC 8216). A variant without one, or with a
+                        // non-positive value, is malformed metadata and must not be admitted.
                         val candidateBandwidth = candidate.bandwidth ?: 0L
+                        if (candidateBandwidth <= 0L) continue
+
+                        val current = variant
                         val currentBandwidth = current?.bandwidth ?: Long.MIN_VALUE
                         if (current == null ||
                             candidateBandwidth > currentBandwidth ||
