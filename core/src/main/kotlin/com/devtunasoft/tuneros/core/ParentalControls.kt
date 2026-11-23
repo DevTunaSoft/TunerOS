@@ -77,7 +77,11 @@ class ParentalAttemptLimit(
         failures++
         if (failures >= maxFailures) {
             failures = 0
-            lockedUntilMillis = nowMillis + lockMillis
+            lockedUntilMillis = if (nowMillis > Long.MAX_VALUE - lockMillis) {
+                Long.MAX_VALUE
+            } else {
+                nowMillis + lockMillis
+            }
             return Outcome.Locked(lockedUntilMillis)
         }
         return Outcome.Rejected(maxFailures - failures)
