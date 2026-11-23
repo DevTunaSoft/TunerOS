@@ -1,0 +1,9 @@
+# id	branch	sha	status	verdict	hazard	markers	script-count	fixture-count
+QA31	hermes/worker-b40-qa31	fcabc641cb2444219dbbedfbaaf235df4668090a	DELIVERED	PASS	0	0	4	4
+QA32	hermes/worker-b41-qa32	cc45c4790a9aa216d5ec2fa9e38d906d2b4aa1dd	DELIVERED	PASS	0	0	9	7
+QA33	hermes/worker-c9-qa33	a584c39df00e825bf68ff9ebae039fbc5dd6e51e	DELIVERED	MERGE-REVIEW-NEEDED	1	1	4	5
+QA34	hermes/worker-b42-qa34	2f4aa76870dae0eb991492329132a8fdf39ea132	DELIVERED	MERGE-REVIEW-NEEDED	1	2	4	5
+QA35	hermes/worker-b43-qa35	3cfc95a64d33e197850780cc324fd0ebc356cde4	DELIVERED	PASS	0	0	4	5
+QA36	hermes/worker-c12-qa36	d8495e4af738f497e6f79e791d790c07428e1245	DELIVERED	PASS	0	0	4	4
+QA37	hermes/worker-b44-qa37	9df525ad5c1b11f8625949888474b24f86967b81	DELIVERED	PASS	0	0	4	5
+QA38	hermes/worker-b45-qa38	1da0e7079595d39741599d7a32194103fa8b9ca7	DELIVERED	PASS	0	1	4	5
