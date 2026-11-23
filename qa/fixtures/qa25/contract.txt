@@ -1,0 +1,6 @@
+QA-25 scratch fixture for bounded DVR recording catalog paging.
+All ids, codes and epoch values are invented constants derived from a fixed seed.
+catalog.tsv carries ten tab separated columns; pages.tsv pins bounded query results.
+corrupt.tsv stores escaped malformed rows with their named strict rejection cases.
+No feed address, access marker, personal code, media content or real path is stored.
+Diagnostics name checks, counts and digests only.
