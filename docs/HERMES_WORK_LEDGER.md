@@ -166,6 +166,13 @@ Use this template per completed/blocked task, append it below, and commit/push a
 - 8 new files under `app/src/test/java/com/devtunasoft/tuneros/ux03/**` only. Commit `2dd8cae6d3253ea9f6e8c23b81723067597fc4b0` pushed; PR #128 head advanced to that SHA; checks pending at last observation.
 - Floor maintained without waiting for the integrator: at the 08:05Z/08:07Z ticks the cron found A8 and B4 stale, replaced them with durable A9 and B5 in fresh disjoint worktrees (heartbeats 08:07:33Z / 08:07:38Z). A7 marked COMPLETED.
 
+### Runtime hardening — SDK, registry repair, backup watchdog / 2026-11-23T18:10Z
+- Owner granted full authority to install tooling on this coding-only PC. Android SDK installed at `C:/Android/Sdk`: platform-tools, `platforms;android-35`, `build-tools;35.0.0`, cmdline-tools; `ANDROID_HOME` persisted with `setx`; `local.properties` (`sdk.dir=C:/Android/Sdk`) written into all 84 worktrees. JDK 17 remains at `C:/Users/X1/AppData/Local/Temp/tunerostools/jdk17/jdk-17.0.21.1+2`.
+- **PASS** local AGP verification: `./gradlew --no-daemon :app:compileDebugKotlin` in the `integrator` worktree → `BUILD SUCCESSFUL in 1m 21s` (16 tasks). This removes the standing "SDK location not found" blocker for app-side compile/tests; device/emulator acceptance still requires an emulator image, which is NOT yet installed.
+- Worker registry `workers.json` was found INVALID JSON (missing comma at the `reconciliation_2026_11_23T1802Z` boundary after concurrent cron writes). Repaired that single delimiter in place; `json.load` now succeeds (51 keys, 81 records, 2 RUNNING). History preserved.
+- Backup safety net registered with Hermes internal cron CLI: job **`25138154afbf`**, name "TunerOS worker-floor backup watchdog", `*/10 * * * *`, deliver local, workdir TunerOS. It checks primary job health first and is a strict no-op when primary `0f160f15b5a4` fired within 12 minutes or when 2+ workers are active; it only repairs the registry or replenishes to exactly 2 on genuine failure. Primary job remains the single five-minute driver as originally specified.
+- At 18:03Z the two RUNNING workers were A53 (`hermes/worker-a53-core46`, `core/src/**`, audit phase) and B37 (`hermes/worker-b37-qa28`, QA paths disjoint from A53), both with live PIDs and fresh heartbeats. Open PRs: 30 (highest #198), zero merges. PR #118 4/4 PASS; #197 self-test rerun still pending at check time; #198 self-test pending.
+
 ## F. Failed-attempt / anti-loop record
 
 No Hermes worker attempts have occurred as part of the handoff creation. Do not invent failures or successful tests. After two equivalent failures, record both logs, root-cause investigation and changed strategy here. After two no-progress cycles move to a separate unblocked task.
