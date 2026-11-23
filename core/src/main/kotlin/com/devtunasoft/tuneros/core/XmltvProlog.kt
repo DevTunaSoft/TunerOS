@@ -49,13 +49,15 @@ internal object XmltvProlog {
         }
         var sawDoctype = false
         while (true) {
-            val byte = reader.read()
+            val byte = reader.readRootStart()
             when {
                 byte == -1 -> throw SAXException("XMLTV document has no root element")
                 byte == SPACE || byte == TAB || byte == LF || byte == CR -> Unit
                 byte != LT -> throw SAXException("Unexpected content before the XMLTV root element")
                 else -> {
-                    val next = reader.read()
+                    // The byte after '<' decides whether this is a prolog directive or the root element. A root name
+                    // byte is the first document byte, not part of the prolog, so it does not count against MAX_BYTES.
+                    val next = reader.read(allowPastCap = true)
                     when {
                         next == QUESTION -> reader.skipPast(QUESTION, GT)
                         next == BANG -> { sawDoctype = readDeclaration(reader, sawDoctype) }
@@ -113,15 +115,24 @@ internal object XmltvProlog {
         private var consumed = 0
         private var pushedBack = NO_BYTE
 
-        fun read(): Int {
+        fun read(allowPastCap: Boolean = false): Int {
             if (pushedBack != NO_BYTE) {
                 val byte = pushedBack
                 pushedBack = NO_BYTE
                 return byte
             }
-            if (consumed >= MAX_BYTES) throw SAXException("XMLTV prolog exceeds $MAX_BYTES bytes")
+            if (!allowPastCap && consumed >= MAX_BYTES) throw SAXException("XMLTV prolog exceeds $MAX_BYTES bytes")
             val byte = input.read()
             if (byte >= 0) consumed++
+            return byte
+        }
+
+        /** At the byte cap only the root element's opening '<' may pass; every other byte is still bounded. */
+        fun readRootStart(): Int {
+            if (pushedBack != NO_BYTE || consumed < MAX_BYTES) return read()
+            val byte = input.read()
+            if (byte >= 0) consumed++
+            if (byte != LT) throw SAXException("XMLTV prolog exceeds $MAX_BYTES bytes")
             return byte
         }
 
