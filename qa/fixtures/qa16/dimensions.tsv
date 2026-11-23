@@ -1,0 +1,13 @@
+version=qa16-fixture-v1
+seed=QA16-FIXED-SEED-2026-11-23
+chunks=192
+rowsPerChunk=24
+rows=4608
+stagingRows=24
+channels=96
+baseEpoch=1800000000
+slotSeconds=1800
+maxJournalBytes=16384
+maxHeapBytes=50331648
+corruptCases=10
+attempts=8
