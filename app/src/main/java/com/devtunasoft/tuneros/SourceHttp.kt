@@ -6,6 +6,8 @@ import com.devtunasoft.tuneros.core.HlsContentRange
 import java.net.HttpURLConnection
 import java.net.URL
 
+private const val MALFORMED_SOURCE = "Source URL is malformed"
+
 /**
  * Opens one HTTP(S) request for a recording or timeshift source. Redirects are followed by hand so an HTTPS source can
  * never fall back to HTTP, and every connection is registered in [connections] so a cancel can abort it while it is
@@ -18,7 +20,13 @@ internal fun openSourceConnection(
     byteRange: HlsByteRange?,
     connections: AbortableSlot<HttpURLConnection>,
 ): HttpURLConnection {
-    var current = URL(value)
+    // java.net.URL failures copy the raw spec into their message. A source URL can carry a provider token,
+    // so the failure must never propagate that text into a log or a shareable diagnostic.
+    var current = try {
+        URL(value)
+    } catch (_: Exception) {
+        throw IllegalArgumentException(MALFORMED_SOURCE)
+    }
     repeat(6) {
         val connection = current.openConnection() as HttpURLConnection
         if (!connections.register(connection)) error("Recording cancelled")
@@ -39,7 +47,14 @@ internal fun openSourceConnection(
                     connection.disconnect()
                     error("Redirect without Location")
                 }
-            val next = URL(current, location)
+            // A redirect Location can carry a signed token too, and URL resolution echoes its raw spec on failure.
+            val next = try {
+                URL(current, location)
+            } catch (_: Exception) {
+                connection.disconnect()
+                connections.release(connection)
+                throw IllegalArgumentException(MALFORMED_SOURCE)
+            }
             if (current.protocol == "https" && next.protocol != "https") {
                 connection.disconnect()
                 error("HTTPS downgrade blocked")
