@@ -10,6 +10,9 @@ import java.util.concurrent.ExecutorService
  */
 object RecordingWorkerLifecycle {
     fun shutdownAfterPendingWork(worker: ExecutorService, cleanup: () -> Unit) {
+        // Terminal lifecycle callbacks can arrive more than once (for example onStop then onDestroy).
+        // Once shutdown has started, cleanup is already queued or running; a repeat must be a no-op.
+        if (worker.isShutdown) return
         worker.execute(cleanup)
         worker.shutdown()
     }
