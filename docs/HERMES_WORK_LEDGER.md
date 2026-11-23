@@ -222,6 +222,8 @@ No Hermes worker attempts have occurred as part of the handoff creation. Do not 
 
 - **QA-34 RESULT / B45 SLOT REFILL (23:20Z)**: B42 `2f4aa76` (PR 221) delivered the dual merge-hazard gate: 46/46 checks PASS with verdict MERGE-REVIEW-NEEDED and exit 3, both HAZARD lines present, two independent RED controls (D_C3_REC_DISPATCH 5 fails, M_C8_FAIL_CLOSED 3 fails) and 13/13 byte-identical restores. B45 `sa-0-b1450211` (`deleg_89aeb8a3`, `hermes/worker-b45-qa38`) registered before launch with `scripts/qa38/**` + `qa/fixtures/qa38/**`, building a host gate for RESTORE-02. Five RUNNING slots: A58, C12, B44, C13, B45; ownership `sync` PASS at 23:20:05Z. No merges.
 
+- **QA-36 RESULT / FIVE-SLOT RESTORE (23:35Z)**: C12 `d8495e4` (PR 223) delivered a 35/35 host gate for HTTP-07, mutation RED 28/35 with pinned first H_FIXED_REFUSAL_BOTH_SITES, byte-identical restore, 8 LF-only tracked files, ownership hook PASS. A58 also completed, leaving four live. Registered A59 `sa-0-b29d7b99` (CORE-52, `core/src/**`) and B46 `sa-0-bea6000e` (QA-39 consolidated gate consistency, `scripts/qa39/**` + fixtures) BEFORE launch. Five RUNNING slots: B44, C13, B45, A59, B46; ownership `sync` PASS at 23:35:23Z. No merges.
+
 ## G. Session recovery (run automatically; do not ask owner to paste commands)
 
 1. Re-open `AGENTS.md` and `docs/HERMES_AUTONOMOUS_TAKEOVER.md`; finish all mandatory full-document reading.
