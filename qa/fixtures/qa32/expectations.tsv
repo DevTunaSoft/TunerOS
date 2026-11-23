@@ -1,0 +1,28 @@
+# key	value
+map.source.path	app/src/main/java/com/devtunasoft/tuneros/GuideMappingStore.kt
+core.source.path	core/src/main/kotlin/com/devtunasoft/tuneros/core/HlsCaptureEngine.kt
+core.deps.paths	core/src/main/kotlin/com/devtunasoft/tuneros/core/HlsPlaylistParserCore.kt;core/src/main/kotlin/com/devtunasoft/tuneros/core/HlsAes128.kt;core/src/main/kotlin/com/devtunasoft/tuneros/core/StreamRecorder.kt;core/src/main/kotlin/com/devtunasoft/tuneros/core/HlsContentRange.kt;core/src/main/kotlin/com/devtunasoft/tuneros/core/BoundedLines.kt;core/src/main/kotlin/com/devtunasoft/tuneros/core/RecordingModels.kt;core/src/main/kotlin/com/devtunasoft/tuneros/core/Models.kt
+map.save.writes	1
+map.load.removes	0
+map.json_get.count	1
+map.string_filter.count	1
+map.json_getstring.count	0
+map.storage.key	guide_mappings
+map.prefs.name	tuneros_alpha
+core.generic.message	HLS resource URI is malformed
+core.const.count	1
+core.catch.count	2
+core.throw.generic.count	2
+core.base.guard.count	0
+map.mutation.count	1
+map.mutation.from	json.get(channelId)
+map.mutation.to	json.getString(channelId)
+core.mutation.count	2
+core.mutation.from	throw IllegalArgumentException(MALFORMED_RESOURCE)
+core.mutation.to	throw IllegalArgumentException(relative)
+map.expected.first	M_NONSTRING_RECOVERY
+core.expected.first	C_CANARY_ABSENT_RELATIVE
+max.bytes	131072
+max.lines	4000
+expected.checks.gate	25
+expected.checks.verify	26

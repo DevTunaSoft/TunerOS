@@ -1,0 +1,3 @@
+# case_id	base_template	relative_template
+malformed_relative	{SCHEME}://qa32.invalid/live.m3u8	seg\u0007{CANARY}.ts
+malformed_base	{SCHEME}://qa32.invalid/\u0007{CANARY}/live.m3u8	seg.ts
