@@ -23,10 +23,13 @@ object SeriesRules {
     fun titleKeyOf(title: String): String? {
         val out = StringBuilder(title.length)
         var pendingSpace = false
-        for (ch in title) {
-            if (ch.isLetterOrDigit()) {
+        var offset = 0
+        while (offset < title.length) {
+            val codePoint = title.codePointAt(offset)
+            offset += Character.charCount(codePoint)
+            if (Character.isLetterOrDigit(codePoint)) {
                 if (pendingSpace && out.isNotEmpty()) out.append(' ')
-                out.append(ch.lowercaseChar())
+                appendLower(out, codePoint)
                 pendingSpace = false
             } else {
                 pendingSpace = true
@@ -68,14 +71,17 @@ object SeriesRules {
         var position = 0
         var pendingSpace = false
         var started = false
-        for (ch in title) {
-            if (ch.isLetterOrDigit()) {
+        var offset = 0
+        while (offset < title.length) {
+            val codePoint = title.codePointAt(offset)
+            offset += Character.charCount(codePoint)
+            if (Character.isLetterOrDigit(codePoint)) {
                 if (pendingSpace && started) {
                     if (position >= key.length || key[position] != ' ') return false
                     position++
                 }
-                if (position >= key.length || key[position] != ch.lowercaseChar()) return false
-                position++
+                position = matchLower(key, position, codePoint)
+                if (position < 0) return false
                 started = true
                 pendingSpace = false
             } else {
@@ -83,5 +89,31 @@ object SeriesRules {
             }
         }
         return position == key.length
+    }
+
+    private fun appendLower(out: StringBuilder, codePoint: Int) {
+        val lower = Character.toLowerCase(codePoint)
+        if (lower <= Char.MAX_VALUE.code) {
+            out.append(lower.toChar())
+        } else {
+            val value = lower - Character.MIN_SUPPLEMENTARY_CODE_POINT
+            out.append(('\uD800'.code + (value ushr 10)).toChar())
+            out.append(('\uDC00'.code + (value and 0x3FF)).toChar())
+        }
+    }
+
+    /** The next key position after a lower-cased code point, or -1 when it does not match. */
+    private fun matchLower(key: String, position: Int, codePoint: Int): Int {
+        val lower = Character.toLowerCase(codePoint)
+        if (lower <= Char.MAX_VALUE.code) {
+            if (position >= key.length || key[position] != lower.toChar()) return -1
+            return position + 1
+        }
+        if (position + 1 >= key.length) return -1
+        val value = lower - Character.MIN_SUPPLEMENTARY_CODE_POINT
+        if (key[position] != ('\uD800'.code + (value ushr 10)).toChar() ||
+            key[position + 1] != ('\uDC00'.code + (value and 0x3FF)).toChar()
+        ) return -1
+        return position + 2
     }
 }
