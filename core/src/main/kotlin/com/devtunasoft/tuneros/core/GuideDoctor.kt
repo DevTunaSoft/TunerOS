@@ -36,6 +36,17 @@ object GuideDoctor {
     private val separator = Regex("[^\\p{L}\\p{N}]+")
     private val qualityWords = setOf("hd", "sd", "fhd", "uhd", "4k", "tv", "channel", "the", "and")
 
+    // Only the guide parser's fixed numeric warning templates are shareable. Any other text is dropped,
+    // so a warning carrying a URL, credential, PIN or payload cannot reach the summary.
+    private val safeWarning = Regex(
+        "^\\d+ (?:programmes omitted: limit \\d+|channel names omitted: limit \\d+|" +
+            "programmes lacked timezone: assumed (?:UTC|Z|[A-Za-z]+/[A-Za-z_+/-]+|GMT[+-]\\d{1,2}(?::\\d{2})?)|" +
+            "programmes had invalid timestamps|programme titles shortened to \\d+ characters|" +
+            "channel names shortened to \\d+ characters|descriptions shortened to \\d+ characters)$",
+    )
+    private const val MAX_WARNINGS = 8
+    private const val MAX_SUMMARY_CHARS = 2_000
+
     /**
      * Channels with no guide ID, or whose guide ID has no schedule. Every channel is listed when no guide is loaded.
      */
@@ -146,11 +157,13 @@ object GuideDoctor {
     /**
      * A plain-text summary of [diagnosis] that the user can share on request. It holds counts, the guide's end time in
      * UTC, the check time and the guide's own warnings. It never holds channel names, guide IDs, playlist or guide URLs,
-     * or credentials. A warning that contains a URL is left out, and each warning is cut to 200 characters.
+     * or credentials. Only the parser's fixed safe warning templates are included; other text is dropped, at most 8
+     * warnings are listed and the whole summary is cut to 2,000 characters. Times java.time cannot represent are
+     * reported as "unavailable".
      */
     fun summaryText(diagnosis: Diagnosis, guideWarnings: List<String>, nowEpochSeconds: Long): String = buildString {
         appendLine("TunerOS Guide Doctor summary")
-        appendLine("checked at: ${Instant.ofEpochSecond(nowEpochSeconds)}")
+        appendLine("checked at: ${formatEpoch(nowEpochSeconds)}")
         appendLine("channels: ${diagnosis.channels}")
         appendLine("scheduled: ${diagnosis.scheduled}")
         appendLine(
@@ -163,13 +176,24 @@ object GuideDoctor {
                 "${diagnosis.mappingsForMissingChannels}, to guide channels without a schedule ${diagnosis.mappingsToUnscheduled})",
         )
         val endsAt = diagnosis.guideEndsAtEpochSeconds
-        appendLine("guide ends: " + (endsAt?.let { Instant.ofEpochSecond(it).toString() } ?: "no programmes"))
-        val shareable = guideWarnings.filterNot { it.contains("http", ignoreCase = true) || it.contains("://") }
-        if (shareable.isNotEmpty()) {
-            appendLine("guide warnings:")
-            for (warning in shareable) appendLine("- ${warning.take(200)}")
+        appendLine("guide ends: " + (endsAt?.let { formatEpoch(it) } ?: "no programmes"))
+        var listed = 0
+        var header = false
+        for (warning in guideWarnings) {
+            if (listed == MAX_WARNINGS) break
+            if (!safeWarning.matches(warning) || warning.contains("http", ignoreCase = true) || warning.contains("://")) continue
+            if (!header) {
+                appendLine("guide warnings:")
+                header = true
+            }
+            appendLine("- ${warning.take(200)}")
+            listed++
         }
-    }
+    }.take(MAX_SUMMARY_CHARS)
+
+    /** An unrepresentable epoch is reported as fixed text, never echoed as a number or thrown across the seam. */
+    private fun formatEpoch(epochSeconds: Long): String =
+        runCatching { Instant.ofEpochSecond(epochSeconds).toString() }.getOrDefault("unavailable")
 
     /** Lower-case words without punctuation or quality words, for example "BBC One HD" becomes [bbc, one]. */
     private fun tokens(name: String): List<String> =
