@@ -1,0 +1,11 @@
+QA-29 bounded DVR final-state transition scratch fixture.
+All ids and tokens are symbolic. Every value is derived from a fixed seed.
+
+F1 COMPLETED with zero bytes is terminal FAILED.
+F2 COMPLETED with a positive byte count stays COMPLETED.
+F3 every non-COMPLETED state is preserved at zero and positive bytes.
+F4 positive byte counts at segment boundaries stay COMPLETED.
+F5 a negative byte count is rejected before any state decision.
+F6 all six terminal and non-terminal states are covered exhaustively.
+
+corrupt.tsv carries bounded malformed rows that must be rejected.
