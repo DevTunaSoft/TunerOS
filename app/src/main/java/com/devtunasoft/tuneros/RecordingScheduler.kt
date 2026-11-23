@@ -15,6 +15,13 @@ internal object RecordingScheduler {
     // The recovery must run once on a fresh app process before the Activity
     // can queue a new preparation on its existing serial worker.
     private val startupRecoveryClaimed = AtomicBoolean(false)
+    // Both the BOOT_COMPLETED receiver and MainActivity invoke rearmPending in
+    // the same process. Without these guards a second call re-arms past-due
+    // rows with a fresh now+1s trigger and emits a duplicate telemetry batch.
+    // A blocked or partially failed pass stays retryable (e.g. after the user
+    // grants exact-alarm access); only a fully successful exact pass is claimed.
+    private val rearmInProgress = AtomicBoolean(false)
+    private val exactRearmDone = AtomicBoolean(false)
     private const val PREPARATION_RECOVERY_LIMIT = 256
     private const val PREPARATION_PAGE_SIZE = 32
 
@@ -118,52 +125,65 @@ internal object RecordingScheduler {
 
     /** True only when at least one pending recording was actually visited. */
     fun rearmPending(context: Context): Boolean {
-        val now = System.currentTimeMillis() / 1000
-        var visited = false
-        var exact = 0L
-        var blocked = 0L
-        var failed = 0L
+        // A boot receiver, a permission-state broadcast and MainActivity can
+        // all ask for a rearm in one process. Serialise them and let exactly
+        // one successful exact pass arm the durable rows.
+        if (!rearmInProgress.compareAndSet(false, true)) return false
         try {
-            RecordingScheduleStore(context).use { store ->
-                var after: RecordingScheduleEntry? = null
-                while (true) {
-                    val batch = store.pendingAfter(now, after = after)
-                    if (batch.isEmpty()) break
-                    visited = true
-                    for (entry in batch) {
-                        // One invalid alarm must not prevent other entries being re-armed.
-                        try {
-                            when (schedule(context, entry, store)) {
-                                Mode.EXACT -> exact++
-                                Mode.PERMISSION_REQUIRED -> blocked++
-                            }
-                        } catch (error: Exception) {
-                            failed++
-                            runCatching {
-                                store.updateAlarmMode(
-                                    entry.id,
-                                    exact = false,
-                                    lastError = "Alarm re-arm failed: " + error.javaClass.simpleName,
-                                )
+            if (exactRearmDone.get()) return false
+            val now = System.currentTimeMillis() / 1000
+            var visited = false
+            var exact = 0L
+            var blocked = 0L
+            var failed = 0L
+            try {
+                RecordingScheduleStore(context).use { store ->
+                    var after: RecordingScheduleEntry? = null
+                    while (true) {
+                        val batch = store.pendingAfter(now, after = after)
+                        if (batch.isEmpty()) break
+                        visited = true
+                        for (entry in batch) {
+                            // One invalid alarm must not prevent other entries being re-armed.
+                            try {
+                                when (schedule(context, entry, store)) {
+                                    Mode.EXACT -> exact++
+                                    Mode.PERMISSION_REQUIRED -> blocked++
+                                }
+                            } catch (error: Exception) {
+                                failed++
+                                runCatching {
+                                    store.updateAlarmMode(
+                                        entry.id,
+                                        exact = false,
+                                        lastError = "Alarm re-arm failed: " + error.javaClass.simpleName,
+                                    )
+                                }
                             }
                         }
+                        after = batch.last()
                     }
-                    after = batch.last()
                 }
+            } finally {
+                // Report only nonzero findings. No polling, extra threads, identifiers,
+                // stream URLs or new long-lived state. Telemetry never blocks alarms.
+                fun emit(event: OnDeviceSelfTest.Event, count: Long) {
+                    if (count > 0) runCatching {
+                        OnDeviceSelfTest.observe(context.applicationContext, event, count)
+                    }
+                }
+                emit(OnDeviceSelfTest.Event.DVR_REARM_EXACT_COUNT, exact)
+                emit(OnDeviceSelfTest.Event.DVR_REARM_BLOCKED_COUNT, blocked)
+                emit(OnDeviceSelfTest.Event.DVR_REARM_FAILURE_COUNT, failed)
             }
+            // Only a fully successful pass is idempotent. A blocked or failed
+            // pass must stay retryable when permission is granted or the store
+            // becomes available again.
+            if (exact > 0 && blocked == 0L && failed == 0L) exactRearmDone.set(true)
+            return visited
         } finally {
-            // Report only nonzero findings. No polling, extra threads, identifiers,
-            // stream URLs or new long-lived state. Telemetry never blocks alarms.
-            fun emit(event: OnDeviceSelfTest.Event, count: Long) {
-                if (count > 0) runCatching {
-                    OnDeviceSelfTest.observe(context.applicationContext, event, count)
-                }
-            }
-            emit(OnDeviceSelfTest.Event.DVR_REARM_EXACT_COUNT, exact)
-            emit(OnDeviceSelfTest.Event.DVR_REARM_BLOCKED_COUNT, blocked)
-            emit(OnDeviceSelfTest.Event.DVR_REARM_FAILURE_COUNT, failed)
+            rearmInProgress.set(false)
         }
-        return visited
     }
 
     private fun alarmIntent(context: Context, id: String): PendingIntent {
