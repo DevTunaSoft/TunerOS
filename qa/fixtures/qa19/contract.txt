@@ -1,0 +1,5 @@
+QA-19 bounded source-feed acquisition scratch fixture.
+All fields are symbolic tokens; no feed address or access marker is stored.
+Address-shaped values are assembled in memory from character arrays.
+The reserved suffix is used only in memory and never printed.
+Every marker is derived from the fixed seed at generation time.

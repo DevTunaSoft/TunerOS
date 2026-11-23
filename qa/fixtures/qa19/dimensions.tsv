@@ -1,0 +1,11 @@
+seed=20261123
+families=14
+cases_per_family=16
+cases=224
+corrupt_variants=8
+max_case_line=256
+secret_length=12
+cases_sha256=4ddecf905954e89cb620de0fcb863b3ea4e9d592248ce27eb0dcbda013a58120
+snapshot_digest=354f3670826699d9
+max_body_bytes=2048
+max_cap_bytes=2048
