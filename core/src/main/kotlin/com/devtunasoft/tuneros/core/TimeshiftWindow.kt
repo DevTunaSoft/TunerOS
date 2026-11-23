@@ -34,8 +34,12 @@ class TimeshiftWindow(val maxSegments: Int, val maxBytes: Long) {
             require(sequence >= 0)
             require(durationSeconds > 0.0 && durationSeconds.isFinite())
             require(bytes >= 0)
-            // A file name names a file in the window's own directory. A path separator would reach outside it.
-            require(fileName.isNotEmpty() && '/' !in fileName)
+            // A file name names a file in the window's own directory. A separator or a relative directory would reach
+            // outside it.
+            require(
+                fileName.isNotEmpty() && '/' !in fileName && '\\' !in fileName &&
+                    fileName != "." && fileName != "..",
+            )
         }
     }
 
@@ -55,14 +59,16 @@ class TimeshiftWindow(val maxSegments: Int, val maxBytes: Long) {
     fun add(segment: Segment): List<Segment> {
         require(window.isEmpty() || segment.sequence > window.last().sequence)
         if (segment.bytes > maxBytes) return listOf(segment)
-        window.addLast(segment)
-        retainedBytes += segment.bytes
+        // Free room before adding, so the running total can never overflow past the budget. The comparison uses the
+        // remaining room rather than adding first; retainedBytes is always <= maxBytes.
         val evicted = ArrayList<Segment>()
-        while (window.size > maxSegments || retainedBytes > maxBytes) {
+        while (window.isNotEmpty() && (window.size >= maxSegments || segment.bytes > maxBytes - retainedBytes)) {
             val oldest = window.removeFirst()
             retainedBytes -= oldest.bytes
             evicted += oldest
         }
+        window.addLast(segment)
+        retainedBytes += segment.bytes
         return evicted
     }
 

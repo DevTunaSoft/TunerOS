@@ -61,11 +61,19 @@ class TimeshiftCapture(
         checkNotNull(openStream).close()
         openStream = null
         openName = null
-        // A segment starts one duration before it completes, so its program date is the completion time less that duration.
-        val started = nowMillis() - (durationSeconds * 1000.0).toLong()
-        val evicted = window.add(
-            TimeshiftWindow.Segment(sequence, durationSeconds, bytes, name, discontinuity, started),
-        )
+        // A segment that is refused must not leave its file behind: it is no longer in the window, so finish could not
+        // delete it. Validate and add before opening the next file; a rejection deletes this file and stops the cycle.
+        val evicted = try {
+            // A segment starts one duration before it completes, so its program date is the completion time less that
+            // duration.
+            val started = nowMillis() - (durationSeconds * 1000.0).toLong()
+            window.add(
+                TimeshiftWindow.Segment(sequence, durationSeconds, bytes, name, discontinuity, started),
+            )
+        } catch (error: RuntimeException) {
+            runCatching { ring.delete(name) }.exceptionOrNull()?.let { error.addSuppressed(it) }
+            throw error
+        }
         evicted.forEach { ring.delete(it.fileName) }
         // A segment that cannot fit is never listed, so the playlist would skip it. Stop instead of listing a gap.
         if (evicted.any { it.fileName == name }) {
