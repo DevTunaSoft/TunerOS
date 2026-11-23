@@ -15,6 +15,8 @@ internal data class RecordingScheduleEntry(
     val state: String,
     val exactAlarm: Boolean,
     val lastError: String?,
+    /** Set only for rows reserved by a series rule; manual reservations stay tagged null. */
+    val seriesRuleId: String? = null,
 )
 
 internal data class OrphanedPreparation(val id: String, val secureSourceKey: String)
@@ -22,7 +24,7 @@ internal data class OrphanedPreparation(val id: String, val secureSourceKey: Str
 internal class RecordingScheduleStore(
     context: Context,
     databaseName: String = qaDatabaseName ?: "recording_schedules.db",
-) : SQLiteOpenHelper(context.applicationContext, databaseName, null, 1) {
+) : SQLiteOpenHelper(context.applicationContext, databaseName, null, 2) {
 
 
     override fun onCreate(db: SQLiteDatabase) {
@@ -37,14 +39,17 @@ internal class RecordingScheduleStore(
                 end_epoch INTEGER NOT NULL,
                 state TEXT NOT NULL,
                 exact_alarm INTEGER NOT NULL DEFAULT 0,
-                last_error TEXT
+                last_error TEXT,
+                series_rule_id TEXT
             )""".trimIndent(),
         )
         db.execSQL("CREATE INDEX IF NOT EXISTS schedules_start_idx ON schedules(start_epoch)")
         db.execSQL("CREATE INDEX IF NOT EXISTS schedules_state_idx ON schedules(state)")
     }
 
-    override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) = Unit
+    override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
+        if (oldVersion < 2) db.execSQL("ALTER TABLE schedules ADD COLUMN series_rule_id TEXT")
+    }
 
     /**
      * Reserve a schedule ID once; never overwrite a previously scheduled or
@@ -62,6 +67,7 @@ internal class RecordingScheduleStore(
             put("state", entry.state)
             put("exact_alarm", if (entry.exactAlarm) 1 else 0)
             if (entry.lastError == null) putNull("last_error") else put("last_error", entry.lastError)
+            if (entry.seriesRuleId == null) putNull("series_rule_id") else put("series_rule_id", entry.seriesRuleId)
         }
         return writableDatabase.insertWithOnConflict(
             "schedules", null, values, SQLiteDatabase.CONFLICT_IGNORE,
@@ -237,6 +243,22 @@ internal class RecordingScheduleStore(
         writableDatabase.delete("schedules", "id=?", arrayOf(id))
     }
 
+    /**
+     * Rows reserved for one exact series rule, so removing that rule cancels its own future recordings only. Manual
+     * reservations and other rules carry a different (or null) rule id and are never returned.
+     */
+    fun derivedFor(ruleId: String): List<SeriesDerivedSchedule> =
+        readableDatabase.query(
+            "schedules", arrayOf("id", "secure_source_key"), "series_rule_id=?", arrayOf(ruleId),
+            null, null, "id",
+        ).use { cursor ->
+            val result = ArrayList<SeriesDerivedSchedule>(cursor.count)
+            while (cursor.moveToNext()) {
+                result += SeriesDerivedSchedule(cursor.getString(0), cursor.getString(1))
+            }
+            result
+        }
+
     private fun android.database.Cursor.toEntry(): RecordingScheduleEntry =
         RecordingScheduleEntry(
             id = getString(getColumnIndexOrThrow("id")),
@@ -248,6 +270,7 @@ internal class RecordingScheduleStore(
             state = getString(getColumnIndexOrThrow("state")),
             exactAlarm = getInt(getColumnIndexOrThrow("exact_alarm")) != 0,
             lastError = getColumnIndexOrThrow("last_error").let { if (isNull(it)) null else getString(it) },
+            seriesRuleId = getColumnIndexOrThrow("series_rule_id").let { if (isNull(it)) null else getString(it) },
         )
 
     companion object {
@@ -256,7 +279,7 @@ internal class RecordingScheduleStore(
 
         private val COLUMNS = arrayOf(
             "id","title","channel_id","secure_source_key","start_epoch","end_epoch",
-            "state","exact_alarm","last_error",
+            "state","exact_alarm","last_error","series_rule_id",
         )
     }
 }

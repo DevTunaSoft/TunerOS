@@ -1680,7 +1680,11 @@ class MainActivity : Activity() {
      * Reserves one scheduled recording and arms it. Runs on the worker thread and shows nothing itself, so a manual
      * request and a series rule take exactly the same steps.
      */
-    private fun reserveRecording(channel: Channel, program: GuideProgram): Reservation {
+    private fun reserveRecording(
+        channel: Channel,
+        program: GuideProgram,
+        seriesRuleId: String? = null,
+    ): Reservation {
         val safeChannel = channel.id.take(40).replace(Regex("[^A-Za-z0-9._-]"), "_")
         val id = "$safeChannel-${program.startEpochSeconds}"
         val sourceKey = "scheduled_recording.$id"
@@ -1699,6 +1703,7 @@ class MainActivity : Activity() {
             state = "PREPARING",
             exactAlarm = false,
             lastError = null,
+            seriesRuleId = seriesRuleId,
         )
         val reservation = runCatching {
             RecordingScheduleStore(this).use { it.insertIfAbsent(entry) }
@@ -1767,8 +1772,24 @@ class MainActivity : Activity() {
             val message = runCatching {
                 SeriesRuleStore(this).use { store ->
                     if (store.contains(rule)) {
-                        if (store.remove(rule)) "Series removed: " + program.title
-                        else "Could not remove the series rule"
+                        val outcome = cancelSeriesRuleWithSchedules(
+                            rule,
+                            object : SeriesRuleRemovalSink {
+                                override fun remove(rule: SeriesRule) = store.remove(rule)
+                            },
+                            object : SeriesScheduleCancellationSink {
+                                override fun derivedFor(ruleId: String) =
+                                    RecordingScheduleStore(this@MainActivity).use { it.derivedFor(ruleId) }
+
+                                override fun cancel(id: String, secureSourceKey: String) {
+                                    RecordingScheduler.cancel(this@MainActivity, id)
+                                    RecordingScheduleStore(this@MainActivity).use { it.delete(id) }
+                                    ScheduledRecordingSecrets.delete(secureSources, secureSourceKey)
+                                }
+                            },
+                        )
+                        "Series removed: " + program.title +
+                            (if (outcome.schedulesCancelled == 0) "" else " (${outcome.schedulesCancelled} recordings cancelled)")
                     } else {
                         added = store.add(rule, System.currentTimeMillis() / 1000)
                         if (added) "Series added: " + program.title
@@ -1810,7 +1831,8 @@ class MainActivity : Activity() {
                     skipped++
                     continue
                 }
-                when (reserveRecording(channel, program)) {
+                val ruleId = rules.firstOrNull { SeriesRules.matches(it, program) }?.id
+                when (reserveRecording(channel, program, ruleId)) {
                     is Reservation.Scheduled -> scheduled++
                     is Reservation.Conflict, Reservation.AlreadyScheduled -> skipped++
                     else -> failed++
