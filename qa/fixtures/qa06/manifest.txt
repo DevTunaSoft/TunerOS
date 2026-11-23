@@ -1,0 +1,8 @@
+QUA06-LARGE-EPG-V1
+channels=25000
+programmes=250000
+window_from=1800003600
+window_to=1800014400
+page_rows=24
+max_cells=8
+sha256=873347fe676274dc5e2064c572d7b256e5041cdd174cd97d3619dc62b81d57ce
