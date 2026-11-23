@@ -1,0 +1,5001 @@
+TUNEROS-BACKUP 1
+favorite	ch00000
+favorite	ch00002
+favorite	ch00004
+favorite	ch00006
+favorite	ch00008
+favorite	ch00010
+favorite	ch00012
+favorite	ch00014
+favorite	ch00016
+favorite	ch00018
+favorite	ch00020
+favorite	ch00022
+favorite	ch00024
+favorite	ch00026
+favorite	ch00028
+favorite	ch00030
+favorite	ch00032
+favorite	ch00034
+favorite	ch00036
+favorite	ch00038
+favorite	ch00040
+favorite	ch00042
+favorite	ch00044
+favorite	ch00046
+favorite	ch00048
+favorite	ch00050
+favorite	ch00052
+favorite	ch00054
+favorite	ch00056
+favorite	ch00058
+favorite	ch00060
+favorite	ch00062
+favorite	ch00064
+favorite	ch00066
+favorite	ch00068
+favorite	ch00070
+favorite	ch00072
+favorite	ch00074
+favorite	ch00076
+favorite	ch00078
+favorite	ch00080
+favorite	ch00082
+favorite	ch00084
+favorite	ch00086
+favorite	ch00088
+favorite	ch00090
+favorite	ch00092
+favorite	ch00094
+favorite	ch00096
+favorite	ch00098
+favorite	ch00100
+favorite	ch00102
+favorite	ch00104
+favorite	ch00106
+favorite	ch00108
+favorite	ch00110
+favorite	ch00112
+favorite	ch00114
+favorite	ch00116
+favorite	ch00118
+favorite	ch00120
+favorite	ch00122
+favorite	ch00124
+favorite	ch00126
+favorite	ch00128
+favorite	ch00130
+favorite	ch00132
+favorite	ch00134
+favorite	ch00136
+favorite	ch00138
+favorite	ch00140
+favorite	ch00142
+favorite	ch00144
+favorite	ch00146
+favorite	ch00148
+favorite	ch00150
+favorite	ch00152
+favorite	ch00154
+favorite	ch00156
+favorite	ch00158
+favorite	ch00160
+favorite	ch00162
+favorite	ch00164
+favorite	ch00166
+favorite	ch00168
+favorite	ch00170
+favorite	ch00172
+favorite	ch00174
+favorite	ch00176
+favorite	ch00178
+favorite	ch00180
+favorite	ch00182
+favorite	ch00184
+favorite	ch00186
+favorite	ch00188
+favorite	ch00190
+favorite	ch00192
+favorite	ch00194
+favorite	ch00196
+favorite	ch00198
+favorite	ch00200
+favorite	ch00202
+favorite	ch00204
+favorite	ch00206
+favorite	ch00208
+favorite	ch00210
+favorite	ch00212
+favorite	ch00214
+favorite	ch00216
+favorite	ch00218
+favorite	ch00220
+favorite	ch00222
+favorite	ch00224
+favorite	ch00226
+favorite	ch00228
+favorite	ch00230
+favorite	ch00232
+favorite	ch00234
+favorite	ch00236
+favorite	ch00238
+favorite	ch00240
+favorite	ch00242
+favorite	ch00244
+favorite	ch00246
+favorite	ch00248
+favorite	ch00250
+favorite	ch00252
+favorite	ch00254
+favorite	ch00256
+favorite	ch00258
+favorite	ch00260
+favorite	ch00262
+favorite	ch00264
+favorite	ch00266
+favorite	ch00268
+favorite	ch00270
+favorite	ch00272
+favorite	ch00274
+favorite	ch00276
+favorite	ch00278
+favorite	ch00280
+favorite	ch00282
+favorite	ch00284
+favorite	ch00286
+favorite	ch00288
+favorite	ch00290
+favorite	ch00292
+favorite	ch00294
+favorite	ch00296
+favorite	ch00298
+favorite	ch00300
+favorite	ch00302
+favorite	ch00304
+favorite	ch00306
+favorite	ch00308
+favorite	ch00310
+favorite	ch00312
+favorite	ch00314
+favorite	ch00316
+favorite	ch00318
+favorite	ch00320
+favorite	ch00322
+favorite	ch00324
+favorite	ch00326
+favorite	ch00328
+favorite	ch00330
+favorite	ch00332
+favorite	ch00334
+favorite	ch00336
+favorite	ch00338
+favorite	ch00340
+favorite	ch00342
+favorite	ch00344
+favorite	ch00346
+favorite	ch00348
+favorite	ch00350
+favorite	ch00352
+favorite	ch00354
+favorite	ch00356
+favorite	ch00358
+favorite	ch00360
+favorite	ch00362
+favorite	ch00364
+favorite	ch00366
+favorite	ch00368
+favorite	ch00370
+favorite	ch00372
+favorite	ch00374
+favorite	ch00376
+favorite	ch00378
+favorite	ch00380
+favorite	ch00382
+favorite	ch00384
+favorite	ch00386
+favorite	ch00388
+favorite	ch00390
+favorite	ch00392
+favorite	ch00394
+favorite	ch00396
+favorite	ch00398
+favorite	ch00400
+favorite	ch00402
+favorite	ch00404
+favorite	ch00406
+favorite	ch00408
+favorite	ch00410
+favorite	ch00412
+favorite	ch00414
+favorite	ch00416
+favorite	ch00418
+favorite	ch00420
+favorite	ch00422
+favorite	ch00424
+favorite	ch00426
+favorite	ch00428
+favorite	ch00430
+favorite	ch00432
+favorite	ch00434
+favorite	ch00436
+favorite	ch00438
+favorite	ch00440
+favorite	ch00442
+favorite	ch00444
+favorite	ch00446
+favorite	ch00448
+favorite	ch00450
+favorite	ch00452
+favorite	ch00454
+favorite	ch00456
+favorite	ch00458
+favorite	ch00460
+favorite	ch00462
+favorite	ch00464
+favorite	ch00466
+favorite	ch00468
+favorite	ch00470
+favorite	ch00472
+favorite	ch00474
+favorite	ch00476
+favorite	ch00478
+favorite	ch00480
+favorite	ch00482
+favorite	ch00484
+favorite	ch00486
+favorite	ch00488
+favorite	ch00490
+favorite	ch00492
+favorite	ch00494
+favorite	ch00496
+favorite	ch00498
+favorite	ch00500
+favorite	ch00502
+favorite	ch00504
+favorite	ch00506
+favorite	ch00508
+favorite	ch00510
+favorite	ch00512
+favorite	ch00514
+favorite	ch00516
+favorite	ch00518
+favorite	ch00520
+favorite	ch00522
+favorite	ch00524
+favorite	ch00526
+favorite	ch00528
+favorite	ch00530
+favorite	ch00532
+favorite	ch00534
+favorite	ch00536
+favorite	ch00538
+favorite	ch00540
+favorite	ch00542
+favorite	ch00544
+favorite	ch00546
+favorite	ch00548
+favorite	ch00550
+favorite	ch00552
+favorite	ch00554
+favorite	ch00556
+favorite	ch00558
+favorite	ch00560
+favorite	ch00562
+favorite	ch00564
+favorite	ch00566
+favorite	ch00568
+favorite	ch00570
+favorite	ch00572
+favorite	ch00574
+favorite	ch00576
+favorite	ch00578
+favorite	ch00580
+favorite	ch00582
+favorite	ch00584
+favorite	ch00586
+favorite	ch00588
+favorite	ch00590
+favorite	ch00592
+favorite	ch00594
+favorite	ch00596
+favorite	ch00598
+favorite	ch00600
+favorite	ch00602
+favorite	ch00604
+favorite	ch00606
+favorite	ch00608
+favorite	ch00610
+favorite	ch00612
+favorite	ch00614
+favorite	ch00616
+favorite	ch00618
+favorite	ch00620
+favorite	ch00622
+favorite	ch00624
+favorite	ch00626
+favorite	ch00628
+favorite	ch00630
+favorite	ch00632
+favorite	ch00634
+favorite	ch00636
+favorite	ch00638
+favorite	ch00640
+favorite	ch00642
+favorite	ch00644
+favorite	ch00646
+favorite	ch00648
+favorite	ch00650
+favorite	ch00652
+favorite	ch00654
+favorite	ch00656
+favorite	ch00658
+favorite	ch00660
+favorite	ch00662
+favorite	ch00664
+favorite	ch00666
+favorite	ch00668
+favorite	ch00670
+favorite	ch00672
+favorite	ch00674
+favorite	ch00676
+favorite	ch00678
+favorite	ch00680
+favorite	ch00682
+favorite	ch00684
+favorite	ch00686
+favorite	ch00688
+favorite	ch00690
+favorite	ch00692
+favorite	ch00694
+favorite	ch00696
+favorite	ch00698
+favorite	ch00700
+favorite	ch00702
+favorite	ch00704
+favorite	ch00706
+favorite	ch00708
+favorite	ch00710
+favorite	ch00712
+favorite	ch00714
+favorite	ch00716
+favorite	ch00718
+favorite	ch00720
+favorite	ch00722
+favorite	ch00724
+favorite	ch00726
+favorite	ch00728
+favorite	ch00730
+favorite	ch00732
+favorite	ch00734
+favorite	ch00736
+favorite	ch00738
+favorite	ch00740
+favorite	ch00742
+favorite	ch00744
+favorite	ch00746
+favorite	ch00748
+favorite	ch00750
+favorite	ch00752
+favorite	ch00754
+favorite	ch00756
+favorite	ch00758
+favorite	ch00760
+favorite	ch00762
+favorite	ch00764
+favorite	ch00766
+favorite	ch00768
+favorite	ch00770
+favorite	ch00772
+favorite	ch00774
+favorite	ch00776
+favorite	ch00778
+favorite	ch00780
+favorite	ch00782
+favorite	ch00784
+favorite	ch00786
+favorite	ch00788
+favorite	ch00790
+favorite	ch00792
+favorite	ch00794
+favorite	ch00796
+favorite	ch00798
+favorite	ch00800
+favorite	ch00802
+favorite	ch00804
+favorite	ch00806
+favorite	ch00808
+favorite	ch00810
+favorite	ch00812
+favorite	ch00814
+favorite	ch00816
+favorite	ch00818
+favorite	ch00820
+favorite	ch00822
+favorite	ch00824
+favorite	ch00826
+favorite	ch00828
+favorite	ch00830
+favorite	ch00832
+favorite	ch00834
+favorite	ch00836
+favorite	ch00838
+favorite	ch00840
+favorite	ch00842
+favorite	ch00844
+favorite	ch00846
+favorite	ch00848
+favorite	ch00850
+favorite	ch00852
+favorite	ch00854
+favorite	ch00856
+favorite	ch00858
+favorite	ch00860
+favorite	ch00862
+favorite	ch00864
+favorite	ch00866
+favorite	ch00868
+favorite	ch00870
+favorite	ch00872
+favorite	ch00874
+favorite	ch00876
+favorite	ch00878
+favorite	ch00880
+favorite	ch00882
+favorite	ch00884
+favorite	ch00886
+favorite	ch00888
+favorite	ch00890
+favorite	ch00892
+favorite	ch00894
+favorite	ch00896
+favorite	ch00898
+favorite	ch00900
+favorite	ch00902
+favorite	ch00904
+favorite	ch00906
+favorite	ch00908
+favorite	ch00910
+favorite	ch00912
+favorite	ch00914
+favorite	ch00916
+favorite	ch00918
+favorite	ch00920
+favorite	ch00922
+favorite	ch00924
+favorite	ch00926
+favorite	ch00928
+favorite	ch00930
+favorite	ch00932
+favorite	ch00934
+favorite	ch00936
+favorite	ch00938
+favorite	ch00940
+favorite	ch00942
+favorite	ch00944
+favorite	ch00946
+favorite	ch00948
+favorite	ch00950
+favorite	ch00952
+favorite	ch00954
+favorite	ch00956
+favorite	ch00958
+favorite	ch00960
+favorite	ch00962
+favorite	ch00964
+favorite	ch00966
+favorite	ch00968
+favorite	ch00970
+favorite	ch00972
+favorite	ch00974
+favorite	ch00976
+favorite	ch00978
+favorite	ch00980
+favorite	ch00982
+favorite	ch00984
+favorite	ch00986
+favorite	ch00988
+favorite	ch00990
+favorite	ch00992
+favorite	ch00994
+favorite	ch00996
+favorite	ch00998
+favorite	ch01000
+favorite	ch01002
+favorite	ch01004
+favorite	ch01006
+favorite	ch01008
+favorite	ch01010
+favorite	ch01012
+favorite	ch01014
+favorite	ch01016
+favorite	ch01018
+favorite	ch01020
+favorite	ch01022
+favorite	ch01024
+favorite	ch01026
+favorite	ch01028
+favorite	ch01030
+favorite	ch01032
+favorite	ch01034
+favorite	ch01036
+favorite	ch01038
+favorite	ch01040
+favorite	ch01042
+favorite	ch01044
+favorite	ch01046
+favorite	ch01048
+favorite	ch01050
+favorite	ch01052
+favorite	ch01054
+favorite	ch01056
+favorite	ch01058
+favorite	ch01060
+favorite	ch01062
+favorite	ch01064
+favorite	ch01066
+favorite	ch01068
+favorite	ch01070
+favorite	ch01072
+favorite	ch01074
+favorite	ch01076
+favorite	ch01078
+favorite	ch01080
+favorite	ch01082
+favorite	ch01084
+favorite	ch01086
+favorite	ch01088
+favorite	ch01090
+favorite	ch01092
+favorite	ch01094
+favorite	ch01096
+favorite	ch01098
+favorite	ch01100
+favorite	ch01102
+favorite	ch01104
+favorite	ch01106
+favorite	ch01108
+favorite	ch01110
+favorite	ch01112
+favorite	ch01114
+favorite	ch01116
+favorite	ch01118
+favorite	ch01120
+favorite	ch01122
+favorite	ch01124
+favorite	ch01126
+favorite	ch01128
+favorite	ch01130
+favorite	ch01132
+favorite	ch01134
+favorite	ch01136
+favorite	ch01138
+favorite	ch01140
+favorite	ch01142
+favorite	ch01144
+favorite	ch01146
+favorite	ch01148
+favorite	ch01150
+favorite	ch01152
+favorite	ch01154
+favorite	ch01156
+favorite	ch01158
+favorite	ch01160
+favorite	ch01162
+favorite	ch01164
+favorite	ch01166
+favorite	ch01168
+favorite	ch01170
+favorite	ch01172
+favorite	ch01174
+favorite	ch01176
+favorite	ch01178
+favorite	ch01180
+favorite	ch01182
+favorite	ch01184
+favorite	ch01186
+favorite	ch01188
+favorite	ch01190
+favorite	ch01192
+favorite	ch01194
+favorite	ch01196
+favorite	ch01198
+favorite	ch01200
+favorite	ch01202
+favorite	ch01204
+favorite	ch01206
+favorite	ch01208
+favorite	ch01210
+favorite	ch01212
+favorite	ch01214
+favorite	ch01216
+favorite	ch01218
+favorite	ch01220
+favorite	ch01222
+favorite	ch01224
+favorite	ch01226
+favorite	ch01228
+favorite	ch01230
+favorite	ch01232
+favorite	ch01234
+favorite	ch01236
+favorite	ch01238
+favorite	ch01240
+favorite	ch01242
+favorite	ch01244
+favorite	ch01246
+favorite	ch01248
+favorite	ch01250
+favorite	ch01252
+favorite	ch01254
+favorite	ch01256
+favorite	ch01258
+favorite	ch01260
+favorite	ch01262
+favorite	ch01264
+favorite	ch01266
+favorite	ch01268
+favorite	ch01270
+favorite	ch01272
+favorite	ch01274
+favorite	ch01276
+favorite	ch01278
+favorite	ch01280
+favorite	ch01282
+favorite	ch01284
+favorite	ch01286
+favorite	ch01288
+favorite	ch01290
+favorite	ch01292
+favorite	ch01294
+favorite	ch01296
+favorite	ch01298
+favorite	ch01300
+favorite	ch01302
+favorite	ch01304
+favorite	ch01306
+favorite	ch01308
+favorite	ch01310
+favorite	ch01312
+favorite	ch01314
+favorite	ch01316
+favorite	ch01318
+favorite	ch01320
+favorite	ch01322
+favorite	ch01324
+favorite	ch01326
+favorite	ch01328
+favorite	ch01330
+favorite	ch01332
+favorite	ch01334
+favorite	ch01336
+favorite	ch01338
+favorite	ch01340
+favorite	ch01342
+favorite	ch01344
+favorite	ch01346
+favorite	ch01348
+favorite	ch01350
+favorite	ch01352
+favorite	ch01354
+favorite	ch01356
+favorite	ch01358
+favorite	ch01360
+favorite	ch01362
+favorite	ch01364
+favorite	ch01366
+favorite	ch01368
+favorite	ch01370
+favorite	ch01372
+favorite	ch01374
+favorite	ch01376
+favorite	ch01378
+favorite	ch01380
+favorite	ch01382
+favorite	ch01384
+favorite	ch01386
+favorite	ch01388
+favorite	ch01390
+favorite	ch01392
+favorite	ch01394
+favorite	ch01396
+favorite	ch01398
+favorite	ch01400
+favorite	ch01402
+favorite	ch01404
+favorite	ch01406
+favorite	ch01408
+favorite	ch01410
+favorite	ch01412
+favorite	ch01414
+favorite	ch01416
+favorite	ch01418
+favorite	ch01420
+favorite	ch01422
+favorite	ch01424
+favorite	ch01426
+favorite	ch01428
+favorite	ch01430
+favorite	ch01432
+favorite	ch01434
+favorite	ch01436
+favorite	ch01438
+favorite	ch01440
+favorite	ch01442
+favorite	ch01444
+favorite	ch01446
+favorite	ch01448
+favorite	ch01450
+favorite	ch01452
+favorite	ch01454
+favorite	ch01456
+favorite	ch01458
+favorite	ch01460
+favorite	ch01462
+favorite	ch01464
+favorite	ch01466
+favorite	ch01468
+favorite	ch01470
+favorite	ch01472
+favorite	ch01474
+favorite	ch01476
+favorite	ch01478
+favorite	ch01480
+favorite	ch01482
+favorite	ch01484
+favorite	ch01486
+favorite	ch01488
+favorite	ch01490
+favorite	ch01492
+favorite	ch01494
+favorite	ch01496
+favorite	ch01498
+favorite	ch01500
+favorite	ch01502
+favorite	ch01504
+favorite	ch01506
+favorite	ch01508
+favorite	ch01510
+favorite	ch01512
+favorite	ch01514
+favorite	ch01516
+favorite	ch01518
+favorite	ch01520
+favorite	ch01522
+favorite	ch01524
+favorite	ch01526
+favorite	ch01528
+favorite	ch01530
+favorite	ch01532
+favorite	ch01534
+favorite	ch01536
+favorite	ch01538
+favorite	ch01540
+favorite	ch01542
+favorite	ch01544
+favorite	ch01546
+favorite	ch01548
+favorite	ch01550
+favorite	ch01552
+favorite	ch01554
+favorite	ch01556
+favorite	ch01558
+favorite	ch01560
+favorite	ch01562
+favorite	ch01564
+favorite	ch01566
+favorite	ch01568
+favorite	ch01570
+favorite	ch01572
+favorite	ch01574
+favorite	ch01576
+favorite	ch01578
+favorite	ch01580
+favorite	ch01582
+favorite	ch01584
+favorite	ch01586
+favorite	ch01588
+favorite	ch01590
+favorite	ch01592
+favorite	ch01594
+favorite	ch01596
+favorite	ch01598
+favorite	ch01600
+favorite	ch01602
+favorite	ch01604
+favorite	ch01606
+favorite	ch01608
+favorite	ch01610
+favorite	ch01612
+favorite	ch01614
+favorite	ch01616
+favorite	ch01618
+favorite	ch01620
+favorite	ch01622
+favorite	ch01624
+favorite	ch01626
+favorite	ch01628
+favorite	ch01630
+favorite	ch01632
+favorite	ch01634
+favorite	ch01636
+favorite	ch01638
+favorite	ch01640
+favorite	ch01642
+favorite	ch01644
+favorite	ch01646
+favorite	ch01648
+favorite	ch01650
+favorite	ch01652
+favorite	ch01654
+favorite	ch01656
+favorite	ch01658
+favorite	ch01660
+favorite	ch01662
+favorite	ch01664
+favorite	ch01666
+favorite	ch01668
+favorite	ch01670
+favorite	ch01672
+favorite	ch01674
+favorite	ch01676
+favorite	ch01678
+favorite	ch01680
+favorite	ch01682
+favorite	ch01684
+favorite	ch01686
+favorite	ch01688
+favorite	ch01690
+favorite	ch01692
+favorite	ch01694
+favorite	ch01696
+favorite	ch01698
+favorite	ch01700
+favorite	ch01702
+favorite	ch01704
+favorite	ch01706
+favorite	ch01708
+favorite	ch01710
+favorite	ch01712
+favorite	ch01714
+favorite	ch01716
+favorite	ch01718
+favorite	ch01720
+favorite	ch01722
+favorite	ch01724
+favorite	ch01726
+favorite	ch01728
+favorite	ch01730
+favorite	ch01732
+favorite	ch01734
+favorite	ch01736
+favorite	ch01738
+favorite	ch01740
+favorite	ch01742
+favorite	ch01744
+favorite	ch01746
+favorite	ch01748
+favorite	ch01750
+favorite	ch01752
+favorite	ch01754
+favorite	ch01756
+favorite	ch01758
+favorite	ch01760
+favorite	ch01762
+favorite	ch01764
+favorite	ch01766
+favorite	ch01768
+favorite	ch01770
+favorite	ch01772
+favorite	ch01774
+favorite	ch01776
+favorite	ch01778
+favorite	ch01780
+favorite	ch01782
+favorite	ch01784
+favorite	ch01786
+favorite	ch01788
+favorite	ch01790
+favorite	ch01792
+favorite	ch01794
+favorite	ch01796
+favorite	ch01798
+favorite	ch01800
+favorite	ch01802
+favorite	ch01804
+favorite	ch01806
+favorite	ch01808
+favorite	ch01810
+favorite	ch01812
+favorite	ch01814
+favorite	ch01816
+favorite	ch01818
+favorite	ch01820
+favorite	ch01822
+favorite	ch01824
+favorite	ch01826
+favorite	ch01828
+favorite	ch01830
+favorite	ch01832
+favorite	ch01834
+favorite	ch01836
+favorite	ch01838
+favorite	ch01840
+favorite	ch01842
+favorite	ch01844
+favorite	ch01846
+favorite	ch01848
+favorite	ch01850
+favorite	ch01852
+favorite	ch01854
+favorite	ch01856
+favorite	ch01858
+favorite	ch01860
+favorite	ch01862
+favorite	ch01864
+favorite	ch01866
+favorite	ch01868
+favorite	ch01870
+favorite	ch01872
+favorite	ch01874
+favorite	ch01876
+favorite	ch01878
+favorite	ch01880
+favorite	ch01882
+favorite	ch01884
+favorite	ch01886
+favorite	ch01888
+favorite	ch01890
+favorite	ch01892
+favorite	ch01894
+favorite	ch01896
+favorite	ch01898
+favorite	ch01900
+favorite	ch01902
+favorite	ch01904
+favorite	ch01906
+favorite	ch01908
+favorite	ch01910
+favorite	ch01912
+favorite	ch01914
+favorite	ch01916
+favorite	ch01918
+favorite	ch01920
+favorite	ch01922
+favorite	ch01924
+favorite	ch01926
+favorite	ch01928
+favorite	ch01930
+favorite	ch01932
+favorite	ch01934
+favorite	ch01936
+favorite	ch01938
+favorite	ch01940
+favorite	ch01942
+favorite	ch01944
+favorite	ch01946
+favorite	ch01948
+favorite	ch01950
+favorite	ch01952
+favorite	ch01954
+favorite	ch01956
+favorite	ch01958
+favorite	ch01960
+favorite	ch01962
+favorite	ch01964
+favorite	ch01966
+favorite	ch01968
+favorite	ch01970
+favorite	ch01972
+favorite	ch01974
+favorite	ch01976
+favorite	ch01978
+favorite	ch01980
+favorite	ch01982
+favorite	ch01984
+favorite	ch01986
+favorite	ch01988
+favorite	ch01990
+favorite	ch01992
+favorite	ch01994
+favorite	ch01996
+favorite	ch01998
+favorite	ch02000
+favorite	ch02002
+favorite	ch02004
+favorite	ch02006
+favorite	ch02008
+favorite	ch02010
+favorite	ch02012
+favorite	ch02014
+favorite	ch02016
+favorite	ch02018
+favorite	ch02020
+favorite	ch02022
+favorite	ch02024
+favorite	ch02026
+favorite	ch02028
+favorite	ch02030
+favorite	ch02032
+favorite	ch02034
+favorite	ch02036
+favorite	ch02038
+favorite	ch02040
+favorite	ch02042
+favorite	ch02044
+favorite	ch02046
+favorite	ch02048
+favorite	ch02050
+favorite	ch02052
+favorite	ch02054
+favorite	ch02056
+favorite	ch02058
+favorite	ch02060
+favorite	ch02062
+favorite	ch02064
+favorite	ch02066
+favorite	ch02068
+favorite	ch02070
+favorite	ch02072
+favorite	ch02074
+favorite	ch02076
+favorite	ch02078
+favorite	ch02080
+favorite	ch02082
+favorite	ch02084
+favorite	ch02086
+favorite	ch02088
+favorite	ch02090
+favorite	ch02092
+favorite	ch02094
+favorite	ch02096
+favorite	ch02098
+favorite	ch02100
+favorite	ch02102
+favorite	ch02104
+favorite	ch02106
+favorite	ch02108
+favorite	ch02110
+favorite	ch02112
+favorite	ch02114
+favorite	ch02116
+favorite	ch02118
+favorite	ch02120
+favorite	ch02122
+favorite	ch02124
+favorite	ch02126
+favorite	ch02128
+favorite	ch02130
+favorite	ch02132
+favorite	ch02134
+favorite	ch02136
+favorite	ch02138
+favorite	ch02140
+favorite	ch02142
+favorite	ch02144
+favorite	ch02146
+favorite	ch02148
+favorite	ch02150
+favorite	ch02152
+favorite	ch02154
+favorite	ch02156
+favorite	ch02158
+favorite	ch02160
+favorite	ch02162
+favorite	ch02164
+favorite	ch02166
+favorite	ch02168
+favorite	ch02170
+favorite	ch02172
+favorite	ch02174
+favorite	ch02176
+favorite	ch02178
+favorite	ch02180
+favorite	ch02182
+favorite	ch02184
+favorite	ch02186
+favorite	ch02188
+favorite	ch02190
+favorite	ch02192
+favorite	ch02194
+favorite	ch02196
+favorite	ch02198
+favorite	ch02200
+favorite	ch02202
+favorite	ch02204
+favorite	ch02206
+favorite	ch02208
+favorite	ch02210
+favorite	ch02212
+favorite	ch02214
+favorite	ch02216
+favorite	ch02218
+favorite	ch02220
+favorite	ch02222
+favorite	ch02224
+favorite	ch02226
+favorite	ch02228
+favorite	ch02230
+favorite	ch02232
+favorite	ch02234
+favorite	ch02236
+favorite	ch02238
+favorite	ch02240
+favorite	ch02242
+favorite	ch02244
+favorite	ch02246
+favorite	ch02248
+favorite	ch02250
+favorite	ch02252
+favorite	ch02254
+favorite	ch02256
+favorite	ch02258
+favorite	ch02260
+favorite	ch02262
+favorite	ch02264
+favorite	ch02266
+favorite	ch02268
+favorite	ch02270
+favorite	ch02272
+favorite	ch02274
+favorite	ch02276
+favorite	ch02278
+favorite	ch02280
+favorite	ch02282
+favorite	ch02284
+favorite	ch02286
+favorite	ch02288
+favorite	ch02290
+favorite	ch02292
+favorite	ch02294
+favorite	ch02296
+favorite	ch02298
+favorite	ch02300
+favorite	ch02302
+favorite	ch02304
+favorite	ch02306
+favorite	ch02308
+favorite	ch02310
+favorite	ch02312
+favorite	ch02314
+favorite	ch02316
+favorite	ch02318
+favorite	ch02320
+favorite	ch02322
+favorite	ch02324
+favorite	ch02326
+favorite	ch02328
+favorite	ch02330
+favorite	ch02332
+favorite	ch02334
+favorite	ch02336
+favorite	ch02338
+favorite	ch02340
+favorite	ch02342
+favorite	ch02344
+favorite	ch02346
+favorite	ch02348
+favorite	ch02350
+favorite	ch02352
+favorite	ch02354
+favorite	ch02356
+favorite	ch02358
+favorite	ch02360
+favorite	ch02362
+favorite	ch02364
+favorite	ch02366
+favorite	ch02368
+favorite	ch02370
+favorite	ch02372
+favorite	ch02374
+favorite	ch02376
+favorite	ch02378
+favorite	ch02380
+favorite	ch02382
+favorite	ch02384
+favorite	ch02386
+favorite	ch02388
+favorite	ch02390
+favorite	ch02392
+favorite	ch02394
+favorite	ch02396
+favorite	ch02398
+favorite	ch02400
+favorite	ch02402
+favorite	ch02404
+favorite	ch02406
+favorite	ch02408
+favorite	ch02410
+favorite	ch02412
+favorite	ch02414
+favorite	ch02416
+favorite	ch02418
+favorite	ch02420
+favorite	ch02422
+favorite	ch02424
+favorite	ch02426
+favorite	ch02428
+favorite	ch02430
+favorite	ch02432
+favorite	ch02434
+favorite	ch02436
+favorite	ch02438
+favorite	ch02440
+favorite	ch02442
+favorite	ch02444
+favorite	ch02446
+favorite	ch02448
+favorite	ch02450
+favorite	ch02452
+favorite	ch02454
+favorite	ch02456
+favorite	ch02458
+favorite	ch02460
+favorite	ch02462
+favorite	ch02464
+favorite	ch02466
+favorite	ch02468
+favorite	ch02470
+favorite	ch02472
+favorite	ch02474
+favorite	ch02476
+favorite	ch02478
+favorite	ch02480
+favorite	ch02482
+favorite	ch02484
+favorite	ch02486
+favorite	ch02488
+favorite	ch02490
+favorite	ch02492
+favorite	ch02494
+favorite	ch02496
+favorite	ch02498
+favorite	ch02500
+favorite	ch02502
+favorite	ch02504
+favorite	ch02506
+favorite	ch02508
+favorite	ch02510
+favorite	ch02512
+favorite	ch02514
+favorite	ch02516
+favorite	ch02518
+favorite	ch02520
+favorite	ch02522
+favorite	ch02524
+favorite	ch02526
+favorite	ch02528
+favorite	ch02530
+favorite	ch02532
+favorite	ch02534
+favorite	ch02536
+favorite	ch02538
+favorite	ch02540
+favorite	ch02542
+favorite	ch02544
+favorite	ch02546
+favorite	ch02548
+favorite	ch02550
+favorite	ch02552
+favorite	ch02554
+favorite	ch02556
+favorite	ch02558
+favorite	ch02560
+favorite	ch02562
+favorite	ch02564
+favorite	ch02566
+favorite	ch02568
+favorite	ch02570
+favorite	ch02572
+favorite	ch02574
+favorite	ch02576
+favorite	ch02578
+favorite	ch02580
+favorite	ch02582
+favorite	ch02584
+favorite	ch02586
+favorite	ch02588
+favorite	ch02590
+favorite	ch02592
+favorite	ch02594
+favorite	ch02596
+favorite	ch02598
+favorite	ch02600
+favorite	ch02602
+favorite	ch02604
+favorite	ch02606
+favorite	ch02608
+favorite	ch02610
+favorite	ch02612
+favorite	ch02614
+favorite	ch02616
+favorite	ch02618
+favorite	ch02620
+favorite	ch02622
+favorite	ch02624
+favorite	ch02626
+favorite	ch02628
+favorite	ch02630
+favorite	ch02632
+favorite	ch02634
+favorite	ch02636
+favorite	ch02638
+favorite	ch02640
+favorite	ch02642
+favorite	ch02644
+favorite	ch02646
+favorite	ch02648
+favorite	ch02650
+favorite	ch02652
+favorite	ch02654
+favorite	ch02656
+favorite	ch02658
+favorite	ch02660
+favorite	ch02662
+favorite	ch02664
+favorite	ch02666
+favorite	ch02668
+favorite	ch02670
+favorite	ch02672
+favorite	ch02674
+favorite	ch02676
+favorite	ch02678
+favorite	ch02680
+favorite	ch02682
+favorite	ch02684
+favorite	ch02686
+favorite	ch02688
+favorite	ch02690
+favorite	ch02692
+favorite	ch02694
+favorite	ch02696
+favorite	ch02698
+favorite	ch02700
+favorite	ch02702
+favorite	ch02704
+favorite	ch02706
+favorite	ch02708
+favorite	ch02710
+favorite	ch02712
+favorite	ch02714
+favorite	ch02716
+favorite	ch02718
+favorite	ch02720
+favorite	ch02722
+favorite	ch02724
+favorite	ch02726
+favorite	ch02728
+favorite	ch02730
+favorite	ch02732
+favorite	ch02734
+favorite	ch02736
+favorite	ch02738
+favorite	ch02740
+favorite	ch02742
+favorite	ch02744
+favorite	ch02746
+favorite	ch02748
+favorite	ch02750
+favorite	ch02752
+favorite	ch02754
+favorite	ch02756
+favorite	ch02758
+favorite	ch02760
+favorite	ch02762
+favorite	ch02764
+favorite	ch02766
+favorite	ch02768
+favorite	ch02770
+favorite	ch02772
+favorite	ch02774
+favorite	ch02776
+favorite	ch02778
+favorite	ch02780
+favorite	ch02782
+favorite	ch02784
+favorite	ch02786
+favorite	ch02788
+favorite	ch02790
+favorite	ch02792
+favorite	ch02794
+favorite	ch02796
+favorite	ch02798
+favorite	ch02800
+favorite	ch02802
+favorite	ch02804
+favorite	ch02806
+favorite	ch02808
+favorite	ch02810
+favorite	ch02812
+favorite	ch02814
+favorite	ch02816
+favorite	ch02818
+favorite	ch02820
+favorite	ch02822
+favorite	ch02824
+favorite	ch02826
+favorite	ch02828
+favorite	ch02830
+favorite	ch02832
+favorite	ch02834
+favorite	ch02836
+favorite	ch02838
+favorite	ch02840
+favorite	ch02842
+favorite	ch02844
+favorite	ch02846
+favorite	ch02848
+favorite	ch02850
+favorite	ch02852
+favorite	ch02854
+favorite	ch02856
+favorite	ch02858
+favorite	ch02860
+favorite	ch02862
+favorite	ch02864
+favorite	ch02866
+favorite	ch02868
+favorite	ch02870
+favorite	ch02872
+favorite	ch02874
+favorite	ch02876
+favorite	ch02878
+favorite	ch02880
+favorite	ch02882
+favorite	ch02884
+favorite	ch02886
+favorite	ch02888
+favorite	ch02890
+favorite	ch02892
+favorite	ch02894
+favorite	ch02896
+favorite	ch02898
+favorite	ch02900
+favorite	ch02902
+favorite	ch02904
+favorite	ch02906
+favorite	ch02908
+favorite	ch02910
+favorite	ch02912
+favorite	ch02914
+favorite	ch02916
+favorite	ch02918
+favorite	ch02920
+favorite	ch02922
+favorite	ch02924
+favorite	ch02926
+favorite	ch02928
+favorite	ch02930
+favorite	ch02932
+favorite	ch02934
+favorite	ch02936
+favorite	ch02938
+favorite	ch02940
+favorite	ch02942
+favorite	ch02944
+favorite	ch02946
+favorite	ch02948
+favorite	ch02950
+favorite	ch02952
+favorite	ch02954
+favorite	ch02956
+favorite	ch02958
+favorite	ch02960
+favorite	ch02962
+favorite	ch02964
+favorite	ch02966
+favorite	ch02968
+favorite	ch02970
+favorite	ch02972
+favorite	ch02974
+favorite	ch02976
+favorite	ch02978
+favorite	ch02980
+favorite	ch02982
+favorite	ch02984
+favorite	ch02986
+favorite	ch02988
+favorite	ch02990
+favorite	ch02992
+favorite	ch02994
+favorite	ch02996
+favorite	ch02998
+favorite	ch03000
+favorite	ch03002
+favorite	ch03004
+favorite	ch03006
+favorite	ch03008
+favorite	ch03010
+favorite	ch03012
+favorite	ch03014
+favorite	ch03016
+favorite	ch03018
+favorite	ch03020
+favorite	ch03022
+favorite	ch03024
+favorite	ch03026
+favorite	ch03028
+favorite	ch03030
+favorite	ch03032
+favorite	ch03034
+favorite	ch03036
+favorite	ch03038
+favorite	ch03040
+favorite	ch03042
+favorite	ch03044
+favorite	ch03046
+favorite	ch03048
+favorite	ch03050
+favorite	ch03052
+favorite	ch03054
+favorite	ch03056
+favorite	ch03058
+favorite	ch03060
+favorite	ch03062
+favorite	ch03064
+favorite	ch03066
+favorite	ch03068
+favorite	ch03070
+favorite	ch03072
+favorite	ch03074
+favorite	ch03076
+favorite	ch03078
+favorite	ch03080
+favorite	ch03082
+favorite	ch03084
+favorite	ch03086
+favorite	ch03088
+favorite	ch03090
+favorite	ch03092
+favorite	ch03094
+favorite	ch03096
+favorite	ch03098
+favorite	ch03100
+favorite	ch03102
+favorite	ch03104
+favorite	ch03106
+favorite	ch03108
+favorite	ch03110
+favorite	ch03112
+favorite	ch03114
+favorite	ch03116
+favorite	ch03118
+favorite	ch03120
+favorite	ch03122
+favorite	ch03124
+favorite	ch03126
+favorite	ch03128
+favorite	ch03130
+favorite	ch03132
+favorite	ch03134
+favorite	ch03136
+favorite	ch03138
+favorite	ch03140
+favorite	ch03142
+favorite	ch03144
+favorite	ch03146
+favorite	ch03148
+favorite	ch03150
+favorite	ch03152
+favorite	ch03154
+favorite	ch03156
+favorite	ch03158
+favorite	ch03160
+favorite	ch03162
+favorite	ch03164
+favorite	ch03166
+favorite	ch03168
+favorite	ch03170
+favorite	ch03172
+favorite	ch03174
+favorite	ch03176
+favorite	ch03178
+favorite	ch03180
+favorite	ch03182
+favorite	ch03184
+favorite	ch03186
+favorite	ch03188
+favorite	ch03190
+favorite	ch03192
+favorite	ch03194
+favorite	ch03196
+favorite	ch03198
+favorite	ch03200
+favorite	ch03202
+favorite	ch03204
+favorite	ch03206
+favorite	ch03208
+favorite	ch03210
+favorite	ch03212
+favorite	ch03214
+favorite	ch03216
+favorite	ch03218
+favorite	ch03220
+favorite	ch03222
+favorite	ch03224
+favorite	ch03226
+favorite	ch03228
+favorite	ch03230
+favorite	ch03232
+favorite	ch03234
+favorite	ch03236
+favorite	ch03238
+favorite	ch03240
+favorite	ch03242
+favorite	ch03244
+favorite	ch03246
+favorite	ch03248
+favorite	ch03250
+favorite	ch03252
+favorite	ch03254
+favorite	ch03256
+favorite	ch03258
+favorite	ch03260
+favorite	ch03262
+favorite	ch03264
+favorite	ch03266
+favorite	ch03268
+favorite	ch03270
+favorite	ch03272
+favorite	ch03274
+favorite	ch03276
+favorite	ch03278
+favorite	ch03280
+favorite	ch03282
+favorite	ch03284
+favorite	ch03286
+favorite	ch03288
+favorite	ch03290
+favorite	ch03292
+favorite	ch03294
+favorite	ch03296
+favorite	ch03298
+favorite	ch03300
+favorite	ch03302
+favorite	ch03304
+favorite	ch03306
+favorite	ch03308
+favorite	ch03310
+favorite	ch03312
+favorite	ch03314
+favorite	ch03316
+favorite	ch03318
+favorite	ch03320
+favorite	ch03322
+favorite	ch03324
+favorite	ch03326
+favorite	ch03328
+favorite	ch03330
+favorite	ch03332
+favorite	ch03334
+favorite	ch03336
+favorite	ch03338
+favorite	ch03340
+favorite	ch03342
+favorite	ch03344
+favorite	ch03346
+favorite	ch03348
+favorite	ch03350
+favorite	ch03352
+favorite	ch03354
+favorite	ch03356
+favorite	ch03358
+favorite	ch03360
+favorite	ch03362
+favorite	ch03364
+favorite	ch03366
+favorite	ch03368
+favorite	ch03370
+favorite	ch03372
+favorite	ch03374
+favorite	ch03376
+favorite	ch03378
+favorite	ch03380
+favorite	ch03382
+favorite	ch03384
+favorite	ch03386
+favorite	ch03388
+favorite	ch03390
+favorite	ch03392
+favorite	ch03394
+favorite	ch03396
+favorite	ch03398
+favorite	ch03400
+favorite	ch03402
+favorite	ch03404
+favorite	ch03406
+favorite	ch03408
+favorite	ch03410
+favorite	ch03412
+favorite	ch03414
+favorite	ch03416
+favorite	ch03418
+favorite	ch03420
+favorite	ch03422
+favorite	ch03424
+favorite	ch03426
+favorite	ch03428
+favorite	ch03430
+favorite	ch03432
+favorite	ch03434
+favorite	ch03436
+favorite	ch03438
+favorite	ch03440
+favorite	ch03442
+favorite	ch03444
+favorite	ch03446
+favorite	ch03448
+favorite	ch03450
+favorite	ch03452
+favorite	ch03454
+favorite	ch03456
+favorite	ch03458
+favorite	ch03460
+favorite	ch03462
+favorite	ch03464
+favorite	ch03466
+favorite	ch03468
+favorite	ch03470
+favorite	ch03472
+favorite	ch03474
+favorite	ch03476
+favorite	ch03478
+favorite	ch03480
+favorite	ch03482
+favorite	ch03484
+favorite	ch03486
+favorite	ch03488
+favorite	ch03490
+favorite	ch03492
+favorite	ch03494
+favorite	ch03496
+favorite	ch03498
+favorite	ch03500
+favorite	ch03502
+favorite	ch03504
+favorite	ch03506
+favorite	ch03508
+favorite	ch03510
+favorite	ch03512
+favorite	ch03514
+favorite	ch03516
+favorite	ch03518
+favorite	ch03520
+favorite	ch03522
+favorite	ch03524
+favorite	ch03526
+favorite	ch03528
+favorite	ch03530
+favorite	ch03532
+favorite	ch03534
+favorite	ch03536
+favorite	ch03538
+favorite	ch03540
+favorite	ch03542
+favorite	ch03544
+favorite	ch03546
+favorite	ch03548
+favorite	ch03550
+favorite	ch03552
+favorite	ch03554
+favorite	ch03556
+favorite	ch03558
+favorite	ch03560
+favorite	ch03562
+favorite	ch03564
+favorite	ch03566
+favorite	ch03568
+favorite	ch03570
+favorite	ch03572
+favorite	ch03574
+favorite	ch03576
+favorite	ch03578
+favorite	ch03580
+favorite	ch03582
+favorite	ch03584
+favorite	ch03586
+favorite	ch03588
+favorite	ch03590
+favorite	ch03592
+favorite	ch03594
+favorite	ch03596
+favorite	ch03598
+favorite	ch03600
+favorite	ch03602
+favorite	ch03604
+favorite	ch03606
+favorite	ch03608
+favorite	ch03610
+favorite	ch03612
+favorite	ch03614
+favorite	ch03616
+favorite	ch03618
+favorite	ch03620
+favorite	ch03622
+favorite	ch03624
+favorite	ch03626
+favorite	ch03628
+favorite	ch03630
+favorite	ch03632
+favorite	ch03634
+favorite	ch03636
+favorite	ch03638
+favorite	ch03640
+favorite	ch03642
+favorite	ch03644
+favorite	ch03646
+favorite	ch03648
+favorite	ch03650
+favorite	ch03652
+favorite	ch03654
+favorite	ch03656
+favorite	ch03658
+favorite	ch03660
+favorite	ch03662
+favorite	ch03664
+favorite	ch03666
+favorite	ch03668
+favorite	ch03670
+favorite	ch03672
+favorite	ch03674
+favorite	ch03676
+favorite	ch03678
+favorite	ch03680
+favorite	ch03682
+favorite	ch03684
+favorite	ch03686
+favorite	ch03688
+favorite	ch03690
+favorite	ch03692
+favorite	ch03694
+favorite	ch03696
+favorite	ch03698
+favorite	ch03700
+favorite	ch03702
+favorite	ch03704
+favorite	ch03706
+favorite	ch03708
+favorite	ch03710
+favorite	ch03712
+favorite	ch03714
+favorite	ch03716
+favorite	ch03718
+favorite	ch03720
+favorite	ch03722
+favorite	ch03724
+favorite	ch03726
+favorite	ch03728
+favorite	ch03730
+favorite	ch03732
+favorite	ch03734
+favorite	ch03736
+favorite	ch03738
+favorite	ch03740
+favorite	ch03742
+favorite	ch03744
+favorite	ch03746
+favorite	ch03748
+favorite	ch03750
+favorite	ch03752
+favorite	ch03754
+favorite	ch03756
+favorite	ch03758
+favorite	ch03760
+favorite	ch03762
+favorite	ch03764
+favorite	ch03766
+favorite	ch03768
+favorite	ch03770
+favorite	ch03772
+favorite	ch03774
+favorite	ch03776
+favorite	ch03778
+favorite	ch03780
+favorite	ch03782
+favorite	ch03784
+favorite	ch03786
+favorite	ch03788
+favorite	ch03790
+favorite	ch03792
+favorite	ch03794
+favorite	ch03796
+favorite	ch03798
+favorite	ch03800
+favorite	ch03802
+favorite	ch03804
+favorite	ch03806
+favorite	ch03808
+favorite	ch03810
+favorite	ch03812
+favorite	ch03814
+favorite	ch03816
+favorite	ch03818
+favorite	ch03820
+favorite	ch03822
+favorite	ch03824
+favorite	ch03826
+favorite	ch03828
+favorite	ch03830
+favorite	ch03832
+favorite	ch03834
+favorite	ch03836
+favorite	ch03838
+favorite	ch03840
+favorite	ch03842
+favorite	ch03844
+favorite	ch03846
+favorite	ch03848
+favorite	ch03850
+favorite	ch03852
+favorite	ch03854
+favorite	ch03856
+favorite	ch03858
+favorite	ch03860
+favorite	ch03862
+favorite	ch03864
+favorite	ch03866
+favorite	ch03868
+favorite	ch03870
+favorite	ch03872
+favorite	ch03874
+favorite	ch03876
+favorite	ch03878
+favorite	ch03880
+favorite	ch03882
+favorite	ch03884
+favorite	ch03886
+favorite	ch03888
+favorite	ch03890
+favorite	ch03892
+favorite	ch03894
+favorite	ch03896
+favorite	ch03898
+favorite	ch03900
+favorite	ch03902
+favorite	ch03904
+favorite	ch03906
+favorite	ch03908
+favorite	ch03910
+favorite	ch03912
+favorite	ch03914
+favorite	ch03916
+favorite	ch03918
+favorite	ch03920
+favorite	ch03922
+favorite	ch03924
+favorite	ch03926
+favorite	ch03928
+favorite	ch03930
+favorite	ch03932
+favorite	ch03934
+favorite	ch03936
+favorite	ch03938
+favorite	ch03940
+favorite	ch03942
+favorite	ch03944
+favorite	ch03946
+favorite	ch03948
+favorite	ch03950
+favorite	ch03952
+favorite	ch03954
+favorite	ch03956
+favorite	ch03958
+favorite	ch03960
+favorite	ch03962
+favorite	ch03964
+favorite	ch03966
+favorite	ch03968
+favorite	ch03970
+favorite	ch03972
+favorite	ch03974
+favorite	ch03976
+favorite	ch03978
+favorite	ch03980
+favorite	ch03982
+favorite	ch03984
+favorite	ch03986
+favorite	ch03988
+favorite	ch03990
+favorite	ch03992
+favorite	ch03994
+favorite	ch03996
+favorite	ch03998
+favorite	ch04000
+favorite	ch04002
+favorite	ch04004
+favorite	ch04006
+favorite	ch04008
+favorite	ch04010
+favorite	ch04012
+favorite	ch04014
+favorite	ch04016
+favorite	ch04018
+favorite	ch04020
+favorite	ch04022
+favorite	ch04024
+favorite	ch04026
+favorite	ch04028
+favorite	ch04030
+favorite	ch04032
+favorite	ch04034
+favorite	ch04036
+favorite	ch04038
+favorite	ch04040
+favorite	ch04042
+favorite	ch04044
+favorite	ch04046
+favorite	ch04048
+favorite	ch04050
+favorite	ch04052
+favorite	ch04054
+favorite	ch04056
+favorite	ch04058
+favorite	ch04060
+favorite	ch04062
+favorite	ch04064
+favorite	ch04066
+favorite	ch04068
+favorite	ch04070
+favorite	ch04072
+favorite	ch04074
+favorite	ch04076
+favorite	ch04078
+favorite	ch04080
+favorite	ch04082
+favorite	ch04084
+favorite	ch04086
+favorite	ch04088
+favorite	ch04090
+favorite	ch04092
+favorite	ch04094
+favorite	ch04096
+favorite	ch04098
+favorite	ch04100
+favorite	ch04102
+favorite	ch04104
+favorite	ch04106
+favorite	ch04108
+favorite	ch04110
+favorite	ch04112
+favorite	ch04114
+favorite	ch04116
+favorite	ch04118
+favorite	ch04120
+favorite	ch04122
+favorite	ch04124
+favorite	ch04126
+favorite	ch04128
+favorite	ch04130
+favorite	ch04132
+favorite	ch04134
+favorite	ch04136
+favorite	ch04138
+favorite	ch04140
+favorite	ch04142
+favorite	ch04144
+favorite	ch04146
+favorite	ch04148
+favorite	ch04150
+favorite	ch04152
+favorite	ch04154
+favorite	ch04156
+favorite	ch04158
+favorite	ch04160
+favorite	ch04162
+favorite	ch04164
+favorite	ch04166
+favorite	ch04168
+favorite	ch04170
+favorite	ch04172
+favorite	ch04174
+favorite	ch04176
+favorite	ch04178
+favorite	ch04180
+favorite	ch04182
+favorite	ch04184
+favorite	ch04186
+favorite	ch04188
+favorite	ch04190
+favorite	ch04192
+favorite	ch04194
+favorite	ch04196
+favorite	ch04198
+favorite	ch04200
+favorite	ch04202
+favorite	ch04204
+favorite	ch04206
+favorite	ch04208
+favorite	ch04210
+favorite	ch04212
+favorite	ch04214
+favorite	ch04216
+favorite	ch04218
+favorite	ch04220
+favorite	ch04222
+favorite	ch04224
+favorite	ch04226
+favorite	ch04228
+favorite	ch04230
+favorite	ch04232
+favorite	ch04234
+favorite	ch04236
+favorite	ch04238
+favorite	ch04240
+favorite	ch04242
+favorite	ch04244
+favorite	ch04246
+favorite	ch04248
+favorite	ch04250
+favorite	ch04252
+favorite	ch04254
+favorite	ch04256
+favorite	ch04258
+favorite	ch04260
+favorite	ch04262
+favorite	ch04264
+favorite	ch04266
+favorite	ch04268
+favorite	ch04270
+favorite	ch04272
+favorite	ch04274
+favorite	ch04276
+favorite	ch04278
+favorite	ch04280
+favorite	ch04282
+favorite	ch04284
+favorite	ch04286
+favorite	ch04288
+favorite	ch04290
+favorite	ch04292
+favorite	ch04294
+favorite	ch04296
+favorite	ch04298
+favorite	ch04300
+favorite	ch04302
+favorite	ch04304
+favorite	ch04306
+favorite	ch04308
+favorite	ch04310
+favorite	ch04312
+favorite	ch04314
+favorite	ch04316
+favorite	ch04318
+favorite	ch04320
+favorite	ch04322
+favorite	ch04324
+favorite	ch04326
+favorite	ch04328
+favorite	ch04330
+favorite	ch04332
+favorite	ch04334
+favorite	ch04336
+favorite	ch04338
+favorite	ch04340
+favorite	ch04342
+favorite	ch04344
+favorite	ch04346
+favorite	ch04348
+favorite	ch04350
+favorite	ch04352
+favorite	ch04354
+favorite	ch04356
+favorite	ch04358
+favorite	ch04360
+favorite	ch04362
+favorite	ch04364
+favorite	ch04366
+favorite	ch04368
+favorite	ch04370
+favorite	ch04372
+favorite	ch04374
+favorite	ch04376
+favorite	ch04378
+favorite	ch04380
+favorite	ch04382
+favorite	ch04384
+favorite	ch04386
+favorite	ch04388
+favorite	ch04390
+favorite	ch04392
+favorite	ch04394
+favorite	ch04396
+favorite	ch04398
+favorite	ch04400
+favorite	ch04402
+favorite	ch04404
+favorite	ch04406
+favorite	ch04408
+favorite	ch04410
+favorite	ch04412
+favorite	ch04414
+favorite	ch04416
+favorite	ch04418
+favorite	ch04420
+favorite	ch04422
+favorite	ch04424
+favorite	ch04426
+favorite	ch04428
+favorite	ch04430
+favorite	ch04432
+favorite	ch04434
+favorite	ch04436
+favorite	ch04438
+favorite	ch04440
+favorite	ch04442
+favorite	ch04444
+favorite	ch04446
+favorite	ch04448
+favorite	ch04450
+favorite	ch04452
+favorite	ch04454
+favorite	ch04456
+favorite	ch04458
+favorite	ch04460
+favorite	ch04462
+favorite	ch04464
+favorite	ch04466
+favorite	ch04468
+favorite	ch04470
+favorite	ch04472
+favorite	ch04474
+favorite	ch04476
+favorite	ch04478
+favorite	ch04480
+favorite	ch04482
+favorite	ch04484
+favorite	ch04486
+favorite	ch04488
+favorite	ch04490
+favorite	ch04492
+favorite	ch04494
+favorite	ch04496
+favorite	ch04498
+favorite	ch04500
+favorite	ch04502
+favorite	ch04504
+favorite	ch04506
+favorite	ch04508
+favorite	ch04510
+favorite	ch04512
+favorite	ch04514
+favorite	ch04516
+favorite	ch04518
+favorite	ch04520
+favorite	ch04522
+favorite	ch04524
+favorite	ch04526
+favorite	ch04528
+favorite	ch04530
+favorite	ch04532
+favorite	ch04534
+favorite	ch04536
+favorite	ch04538
+favorite	ch04540
+favorite	ch04542
+favorite	ch04544
+favorite	ch04546
+favorite	ch04548
+favorite	ch04550
+favorite	ch04552
+favorite	ch04554
+favorite	ch04556
+favorite	ch04558
+favorite	ch04560
+favorite	ch04562
+favorite	ch04564
+favorite	ch04566
+favorite	ch04568
+favorite	ch04570
+favorite	ch04572
+favorite	ch04574
+favorite	ch04576
+favorite	ch04578
+favorite	ch04580
+favorite	ch04582
+favorite	ch04584
+favorite	ch04586
+favorite	ch04588
+favorite	ch04590
+favorite	ch04592
+favorite	ch04594
+favorite	ch04596
+favorite	ch04598
+favorite	ch04600
+favorite	ch04602
+favorite	ch04604
+favorite	ch04606
+favorite	ch04608
+favorite	ch04610
+favorite	ch04612
+favorite	ch04614
+favorite	ch04616
+favorite	ch04618
+favorite	ch04620
+favorite	ch04622
+favorite	ch04624
+favorite	ch04626
+favorite	ch04628
+favorite	ch04630
+favorite	ch04632
+favorite	ch04634
+favorite	ch04636
+favorite	ch04638
+favorite	ch04640
+favorite	ch04642
+favorite	ch04644
+favorite	ch04646
+favorite	ch04648
+favorite	ch04650
+favorite	ch04652
+favorite	ch04654
+favorite	ch04656
+favorite	ch04658
+favorite	ch04660
+favorite	ch04662
+favorite	ch04664
+favorite	ch04666
+favorite	ch04668
+favorite	ch04670
+favorite	ch04672
+favorite	ch04674
+favorite	ch04676
+favorite	ch04678
+favorite	ch04680
+favorite	ch04682
+favorite	ch04684
+favorite	ch04686
+favorite	ch04688
+favorite	ch04690
+favorite	ch04692
+favorite	ch04694
+favorite	ch04696
+favorite	ch04698
+favorite	ch04700
+favorite	ch04702
+favorite	ch04704
+favorite	ch04706
+favorite	ch04708
+favorite	ch04710
+favorite	ch04712
+favorite	ch04714
+favorite	ch04716
+favorite	ch04718
+favorite	ch04720
+favorite	ch04722
+favorite	ch04724
+favorite	ch04726
+favorite	ch04728
+favorite	ch04730
+favorite	ch04732
+favorite	ch04734
+favorite	ch04736
+favorite	ch04738
+favorite	ch04740
+favorite	ch04742
+favorite	ch04744
+favorite	ch04746
+favorite	ch04748
+favorite	ch04750
+favorite	ch04752
+favorite	ch04754
+favorite	ch04756
+favorite	ch04758
+favorite	ch04760
+favorite	ch04762
+favorite	ch04764
+favorite	ch04766
+favorite	ch04768
+favorite	ch04770
+favorite	ch04772
+favorite	ch04774
+favorite	ch04776
+favorite	ch04778
+favorite	ch04780
+favorite	ch04782
+favorite	ch04784
+favorite	ch04786
+favorite	ch04788
+favorite	ch04790
+favorite	ch04792
+favorite	ch04794
+favorite	ch04796
+favorite	ch04798
+mapping	ch00000	gd00000
+mapping	ch00007	gd20001
+mapping	ch00014	gd20002
+mapping	ch00021	gd00003
+mapping	ch00028	gd20004
+mapping	ch00035	gd20005
+mapping	ch00042	gd00006
+mapping	ch00049	gd20007
+mapping	ch00056	gd20008
+mapping	ch00063	gd00009
+mapping	ch00070	gd20010
+mapping	ch00077	gd20011
+mapping	ch00084	gd00012
+mapping	ch00091	gd20013
+mapping	ch00098	gd20014
+mapping	ch00105	gd00015
+mapping	ch00112	gd20016
+mapping	ch00119	gd20017
+mapping	ch00126	gd00018
+mapping	ch00133	gd20019
+mapping	ch00140	gd20020
+mapping	ch00147	gd00021
+mapping	ch00154	gd20022
+mapping	ch00161	gd20023
+mapping	ch00168	gd00024
+mapping	ch00175	gd20025
+mapping	ch00182	gd20026
+mapping	ch00189	gd00027
+mapping	ch00196	gd20028
+mapping	ch00203	gd20029
+mapping	ch00210	gd00030
+mapping	ch00217	gd20031
+mapping	ch00224	gd20032
+mapping	ch00231	gd00033
+mapping	ch00238	gd20034
+mapping	ch00245	gd20035
+mapping	ch00252	gd00036
+mapping	ch00259	gd20037
+mapping	ch00266	gd20038
+mapping	ch00273	gd00039
+mapping	ch00280	gd20040
+mapping	ch00287	gd20041
+mapping	ch00294	gd00042
+mapping	ch00301	gd20043
+mapping	ch00308	gd20044
+mapping	ch00315	gd00045
+mapping	ch00322	gd20046
+mapping	ch00329	gd20047
+mapping	ch00336	gd00048
+mapping	ch00343	gd20049
+mapping	ch00350	gd20050
+mapping	ch00357	gd00051
+mapping	ch00364	gd20052
+mapping	ch00371	gd20053
+mapping	ch00378	gd00054
+mapping	ch00385	gd20055
+mapping	ch00392	gd20056
+mapping	ch00399	gd00057
+mapping	ch00406	gd20058
+mapping	ch00413	gd20059
+mapping	ch00420	gd00060
+mapping	ch00427	gd20061
+mapping	ch00434	gd20062
+mapping	ch00441	gd00063
+mapping	ch00448	gd20064
+mapping	ch00455	gd20065
+mapping	ch00462	gd00066
+mapping	ch00469	gd20067
+mapping	ch00476	gd20068
+mapping	ch00483	gd00069
+mapping	ch00490	gd20070
+mapping	ch00497	gd20071
+mapping	ch00504	gd00072
+mapping	ch00511	gd20073
+mapping	ch00518	gd20074
+mapping	ch00525	gd00075
+mapping	ch00532	gd20076
+mapping	ch00539	gd20077
+mapping	ch00546	gd00078
+mapping	ch00553	gd20079
+mapping	ch00560	gd20080
+mapping	ch00567	gd00081
+mapping	ch00574	gd20082
+mapping	ch00581	gd20083
+mapping	ch00588	gd00084
+mapping	ch00595	gd20085
+mapping	ch00602	gd20086
+mapping	ch00609	gd00087
+mapping	ch00616	gd20088
+mapping	ch00623	gd20089
+mapping	ch00630	gd00090
+mapping	ch00637	gd20091
+mapping	ch00644	gd20092
+mapping	ch00651	gd00093
+mapping	ch00658	gd20094
+mapping	ch00665	gd20095
+mapping	ch00672	gd00096
+mapping	ch00679	gd20097
+mapping	ch00686	gd20098
+mapping	ch00693	gd00099
+mapping	ch00700	gd20100
+mapping	ch00707	gd20101
+mapping	ch00714	gd00102
+mapping	ch00721	gd20103
+mapping	ch00728	gd20104
+mapping	ch00735	gd00105
+mapping	ch00742	gd20106
+mapping	ch00749	gd20107
+mapping	ch00756	gd00108
+mapping	ch00763	gd20109
+mapping	ch00770	gd20110
+mapping	ch00777	gd00111
+mapping	ch00784	gd20112
+mapping	ch00791	gd20113
+mapping	ch00798	gd00114
+mapping	ch00805	gd20115
+mapping	ch00812	gd20116
+mapping	ch00819	gd00117
+mapping	ch00826	gd20118
+mapping	ch00833	gd20119
+mapping	ch00840	gd00120
+mapping	ch00847	gd20121
+mapping	ch00854	gd20122
+mapping	ch00861	gd00123
+mapping	ch00868	gd20124
+mapping	ch00875	gd20125
+mapping	ch00882	gd00126
+mapping	ch00889	gd20127
+mapping	ch00896	gd20128
+mapping	ch00903	gd00129
+mapping	ch00910	gd20130
+mapping	ch00917	gd20131
+mapping	ch00924	gd00132
+mapping	ch00931	gd20133
+mapping	ch00938	gd20134
+mapping	ch00945	gd00135
+mapping	ch00952	gd20136
+mapping	ch00959	gd20137
+mapping	ch00966	gd00138
+mapping	ch00973	gd20139
+mapping	ch00980	gd20140
+mapping	ch00987	gd00141
+mapping	ch00994	gd20142
+mapping	ch01001	gd20143
+mapping	ch01008	gd00144
+mapping	ch01015	gd20145
+mapping	ch01022	gd20146
+mapping	ch01029	gd00147
+mapping	ch01036	gd20148
+mapping	ch01043	gd20149
+mapping	ch01050	gd00150
+mapping	ch01057	gd20151
+mapping	ch01064	gd20152
+mapping	ch01071	gd00153
+mapping	ch01078	gd20154
+mapping	ch01085	gd20155
+mapping	ch01092	gd00156
+mapping	ch01099	gd20157
+mapping	ch01106	gd20158
+mapping	ch01113	gd00159
+mapping	ch01120	gd20160
+mapping	ch01127	gd20161
+mapping	ch01134	gd00162
+mapping	ch01141	gd20163
+mapping	ch01148	gd20164
+mapping	ch01155	gd00165
+mapping	ch01162	gd20166
+mapping	ch01169	gd20167
+mapping	ch01176	gd00168
+mapping	ch01183	gd20169
+mapping	ch01190	gd20170
+mapping	ch01197	gd00171
+mapping	ch01204	gd20172
+mapping	ch01211	gd20173
+mapping	ch01218	gd00174
+mapping	ch01225	gd20175
+mapping	ch01232	gd20176
+mapping	ch01239	gd00177
+mapping	ch01246	gd20178
+mapping	ch01253	gd20179
+mapping	ch01260	gd00180
+mapping	ch01267	gd20181
+mapping	ch01274	gd20182
+mapping	ch01281	gd00183
+mapping	ch01288	gd20184
+mapping	ch01295	gd20185
+mapping	ch01302	gd00186
+mapping	ch01309	gd20187
+mapping	ch01316	gd20188
+mapping	ch01323	gd00189
+mapping	ch01330	gd20190
+mapping	ch01337	gd20191
+mapping	ch01344	gd00192
+mapping	ch01351	gd20193
+mapping	ch01358	gd20194
+mapping	ch01365	gd00195
+mapping	ch01372	gd20196
+mapping	ch01379	gd20197
+mapping	ch01386	gd00198
+mapping	ch01393	gd20199
+mapping	ch01400	gd20200
+mapping	ch01407	gd00201
+mapping	ch01414	gd20202
+mapping	ch01421	gd20203
+mapping	ch01428	gd00204
+mapping	ch01435	gd20205
+mapping	ch01442	gd20206
+mapping	ch01449	gd00207
+mapping	ch01456	gd20208
+mapping	ch01463	gd20209
+mapping	ch01470	gd00210
+mapping	ch01477	gd20211
+mapping	ch01484	gd20212
+mapping	ch01491	gd00213
+mapping	ch01498	gd20214
+mapping	ch01505	gd20215
+mapping	ch01512	gd00216
+mapping	ch01519	gd20217
+mapping	ch01526	gd20218
+mapping	ch01533	gd00219
+mapping	ch01540	gd20220
+mapping	ch01547	gd20221
+mapping	ch01554	gd00222
+mapping	ch01561	gd20223
+mapping	ch01568	gd20224
+mapping	ch01575	gd00225
+mapping	ch01582	gd20226
+mapping	ch01589	gd20227
+mapping	ch01596	gd00228
+mapping	ch01603	gd20229
+mapping	ch01610	gd20230
+mapping	ch01617	gd00231
+mapping	ch01624	gd20232
+mapping	ch01631	gd20233
+mapping	ch01638	gd00234
+mapping	ch01645	gd20235
+mapping	ch01652	gd20236
+mapping	ch01659	gd00237
+mapping	ch01666	gd20238
+mapping	ch01673	gd20239
+mapping	ch01680	gd00240
+mapping	ch01687	gd20241
+mapping	ch01694	gd20242
+mapping	ch01701	gd00243
+mapping	ch01708	gd20244
+mapping	ch01715	gd20245
+mapping	ch01722	gd00246
+mapping	ch01729	gd20247
+mapping	ch01736	gd20248
+mapping	ch01743	gd00249
+mapping	ch01750	gd20250
+mapping	ch01757	gd20251
+mapping	ch01764	gd00252
+mapping	ch01771	gd20253
+mapping	ch01778	gd20254
+mapping	ch01785	gd00255
+mapping	ch01792	gd20256
+mapping	ch01799	gd20257
+mapping	ch01806	gd00258
+mapping	ch01813	gd20259
+mapping	ch01820	gd20260
+mapping	ch01827	gd00261
+mapping	ch01834	gd20262
+mapping	ch01841	gd20263
+mapping	ch01848	gd00264
+mapping	ch01855	gd20265
+mapping	ch01862	gd20266
+mapping	ch01869	gd00267
+mapping	ch01876	gd20268
+mapping	ch01883	gd20269
+mapping	ch01890	gd00270
+mapping	ch01897	gd20271
+mapping	ch01904	gd20272
+mapping	ch01911	gd00273
+mapping	ch01918	gd20274
+mapping	ch01925	gd20275
+mapping	ch01932	gd00276
+mapping	ch01939	gd20277
+mapping	ch01946	gd20278
+mapping	ch01953	gd00279
+mapping	ch01960	gd20280
+mapping	ch01967	gd20281
+mapping	ch01974	gd00282
+mapping	ch01981	gd20283
+mapping	ch01988	gd20284
+mapping	ch01995	gd00285
+mapping	ch02002	gd20286
+mapping	ch02009	gd20287
+mapping	ch02016	gd00288
+mapping	ch02023	gd20289
+mapping	ch02030	gd20290
+mapping	ch02037	gd00291
+mapping	ch02044	gd20292
+mapping	ch02051	gd20293
+mapping	ch02058	gd00294
+mapping	ch02065	gd20295
+mapping	ch02072	gd20296
+mapping	ch02079	gd00297
+mapping	ch02086	gd20298
+mapping	ch02093	gd20299
+mapping	ch02100	gd00300
+mapping	ch02107	gd20301
+mapping	ch02114	gd20302
+mapping	ch02121	gd00303
+mapping	ch02128	gd20304
+mapping	ch02135	gd20305
+mapping	ch02142	gd00306
+mapping	ch02149	gd20307
+mapping	ch02156	gd20308
+mapping	ch02163	gd00309
+mapping	ch02170	gd20310
+mapping	ch02177	gd20311
+mapping	ch02184	gd00312
+mapping	ch02191	gd20313
+mapping	ch02198	gd20314
+mapping	ch02205	gd00315
+mapping	ch02212	gd20316
+mapping	ch02219	gd20317
+mapping	ch02226	gd00318
+mapping	ch02233	gd20319
+mapping	ch02240	gd20320
+mapping	ch02247	gd00321
+mapping	ch02254	gd20322
+mapping	ch02261	gd20323
+mapping	ch02268	gd00324
+mapping	ch02275	gd20325
+mapping	ch02282	gd20326
+mapping	ch02289	gd00327
+mapping	ch02296	gd20328
+mapping	ch02303	gd20329
+mapping	ch02310	gd00330
+mapping	ch02317	gd20331
+mapping	ch02324	gd20332
+mapping	ch02331	gd00333
+mapping	ch02338	gd20334
+mapping	ch02345	gd20335
+mapping	ch02352	gd00336
+mapping	ch02359	gd20337
+mapping	ch02366	gd20338
+mapping	ch02373	gd00339
+mapping	ch02380	gd20340
+mapping	ch02387	gd20341
+mapping	ch02394	gd00342
+mapping	ch02401	gd20343
+mapping	ch02408	gd20344
+mapping	ch02415	gd00345
+mapping	ch02422	gd20346
+mapping	ch02429	gd20347
+mapping	ch02436	gd00348
+mapping	ch02443	gd20349
+mapping	ch02450	gd20350
+mapping	ch02457	gd00351
+mapping	ch02464	gd20352
+mapping	ch02471	gd20353
+mapping	ch02478	gd00354
+mapping	ch02485	gd20355
+mapping	ch02492	gd20356
+mapping	ch02499	gd00357
+mapping	ch02506	gd20358
+mapping	ch02513	gd20359
+mapping	ch02520	gd00360
+mapping	ch02527	gd20361
+mapping	ch02534	gd20362
+mapping	ch02541	gd00363
+mapping	ch02548	gd20364
+mapping	ch02555	gd20365
+mapping	ch02562	gd00366
+mapping	ch02569	gd20367
+mapping	ch02576	gd20368
+mapping	ch02583	gd00369
+mapping	ch02590	gd20370
+mapping	ch02597	gd20371
+mapping	ch02604	gd00372
+mapping	ch02611	gd20373
+mapping	ch02618	gd20374
+mapping	ch02625	gd00375
+mapping	ch02632	gd20376
+mapping	ch02639	gd20377
+mapping	ch02646	gd00378
+mapping	ch02653	gd20379
+mapping	ch02660	gd20380
+mapping	ch02667	gd00381
+mapping	ch02674	gd20382
+mapping	ch02681	gd20383
+mapping	ch02688	gd00384
+mapping	ch02695	gd20385
+mapping	ch02702	gd20386
+mapping	ch02709	gd00387
+mapping	ch02716	gd20388
+mapping	ch02723	gd20389
+mapping	ch02730	gd00390
+mapping	ch02737	gd20391
+mapping	ch02744	gd20392
+mapping	ch02751	gd00393
+mapping	ch02758	gd20394
+mapping	ch02765	gd20395
+mapping	ch02772	gd00396
+mapping	ch02779	gd20397
+mapping	ch02786	gd20398
+mapping	ch02793	gd00399
+mapping	ch02800	gd20400
+mapping	ch02807	gd20401
+mapping	ch02814	gd00402
+mapping	ch02821	gd20403
+mapping	ch02828	gd20404
+mapping	ch02835	gd00405
+mapping	ch02842	gd20406
+mapping	ch02849	gd20407
+mapping	ch02856	gd00408
+mapping	ch02863	gd20409
+mapping	ch02870	gd20410
+mapping	ch02877	gd00411
+mapping	ch02884	gd20412
+mapping	ch02891	gd20413
+mapping	ch02898	gd00414
+mapping	ch02905	gd20415
+mapping	ch02912	gd20416
+mapping	ch02919	gd00417
+mapping	ch02926	gd20418
+mapping	ch02933	gd20419
+mapping	ch02940	gd00420
+mapping	ch02947	gd20421
+mapping	ch02954	gd20422
+mapping	ch02961	gd00423
+mapping	ch02968	gd20424
+mapping	ch02975	gd20425
+mapping	ch02982	gd00426
+mapping	ch02989	gd20427
+mapping	ch02996	gd20428
+mapping	ch03003	gd00429
+mapping	ch03010	gd20430
+mapping	ch03017	gd20431
+mapping	ch03024	gd00432
+mapping	ch03031	gd20433
+mapping	ch03038	gd20434
+mapping	ch03045	gd00435
+mapping	ch03052	gd20436
+mapping	ch03059	gd20437
+mapping	ch03066	gd00438
+mapping	ch03073	gd20439
+mapping	ch03080	gd20440
+mapping	ch03087	gd00441
+mapping	ch03094	gd20442
+mapping	ch03101	gd20443
+mapping	ch03108	gd00444
+mapping	ch03115	gd20445
+mapping	ch03122	gd20446
+mapping	ch03129	gd00447
+mapping	ch03136	gd20448
+mapping	ch03143	gd20449
+mapping	ch03150	gd00450
+mapping	ch03157	gd20451
+mapping	ch03164	gd20452
+mapping	ch03171	gd00453
+mapping	ch03178	gd20454
+mapping	ch03185	gd20455
+mapping	ch03192	gd00456
+mapping	ch03199	gd20457
+mapping	ch03206	gd20458
+mapping	ch03213	gd00459
+mapping	ch03220	gd20460
+mapping	ch03227	gd20461
+mapping	ch03234	gd00462
+mapping	ch03241	gd20463
+mapping	ch03248	gd20464
+mapping	ch03255	gd00465
+mapping	ch03262	gd20466
+mapping	ch03269	gd20467
+mapping	ch03276	gd00468
+mapping	ch03283	gd20469
+mapping	ch03290	gd20470
+mapping	ch03297	gd00471
+mapping	ch03304	gd20472
+mapping	ch03311	gd20473
+mapping	ch03318	gd00474
+mapping	ch03325	gd20475
+mapping	ch03332	gd20476
+mapping	ch03339	gd00477
+mapping	ch03346	gd20478
+mapping	ch03353	gd20479
+mapping	ch03360	gd00480
+mapping	ch03367	gd20481
+mapping	ch03374	gd20482
+mapping	ch03381	gd00483
+mapping	ch03388	gd20484
+mapping	ch03395	gd20485
+mapping	ch03402	gd00486
+mapping	ch03409	gd20487
+mapping	ch03416	gd20488
+mapping	ch03423	gd00489
+mapping	ch03430	gd20490
+mapping	ch03437	gd20491
+mapping	ch03444	gd00492
+mapping	ch03451	gd20493
+mapping	ch03458	gd20494
+mapping	ch03465	gd00495
+mapping	ch03472	gd20496
+mapping	ch03479	gd20497
+mapping	ch03486	gd00498
+mapping	ch03493	gd20499
+mapping	ch03500	gd20500
+mapping	ch03507	gd00501
+mapping	ch03514	gd20502
+mapping	ch03521	gd20503
+mapping	ch03528	gd00504
+mapping	ch03535	gd20505
+mapping	ch03542	gd20506
+mapping	ch03549	gd00507
+mapping	ch03556	gd20508
+mapping	ch03563	gd20509
+mapping	ch03570	gd00510
+mapping	ch03577	gd20511
+mapping	ch03584	gd20512
+mapping	ch03591	gd00513
+mapping	ch03598	gd20514
+mapping	ch03605	gd20515
+mapping	ch03612	gd00516
+mapping	ch03619	gd20517
+mapping	ch03626	gd20518
+mapping	ch03633	gd00519
+mapping	ch03640	gd20520
+mapping	ch03647	gd20521
+mapping	ch03654	gd00522
+mapping	ch03661	gd20523
+mapping	ch03668	gd20524
+mapping	ch03675	gd00525
+mapping	ch03682	gd20526
+mapping	ch03689	gd20527
+mapping	ch03696	gd00528
+mapping	ch03703	gd20529
+mapping	ch03710	gd20530
+mapping	ch03717	gd00531
+mapping	ch03724	gd20532
+mapping	ch03731	gd20533
+mapping	ch03738	gd00534
+mapping	ch03745	gd20535
+mapping	ch03752	gd20536
+mapping	ch03759	gd00537
+mapping	ch03766	gd20538
+mapping	ch03773	gd20539
+mapping	ch03780	gd00540
+mapping	ch03787	gd20541
+mapping	ch03794	gd20542
+mapping	ch03801	gd00543
+mapping	ch03808	gd20544
+mapping	ch03815	gd20545
+mapping	ch03822	gd00546
+mapping	ch03829	gd20547
+mapping	ch03836	gd20548
+mapping	ch03843	gd00549
+mapping	ch03850	gd20550
+mapping	ch03857	gd20551
+mapping	ch03864	gd00552
+mapping	ch03871	gd20553
+mapping	ch03878	gd20554
+mapping	ch03885	gd00555
+mapping	ch03892	gd20556
+mapping	ch03899	gd20557
+mapping	ch03906	gd00558
+mapping	ch03913	gd20559
+mapping	ch03920	gd20560
+mapping	ch03927	gd00561
+mapping	ch03934	gd20562
+mapping	ch03941	gd20563
+mapping	ch03948	gd00564
+mapping	ch03955	gd20565
+mapping	ch03962	gd20566
+mapping	ch03969	gd00567
+mapping	ch03976	gd20568
+mapping	ch03983	gd20569
+mapping	ch03990	gd00570
+mapping	ch03997	gd20571
+mapping	ch04004	gd20572
+mapping	ch04011	gd00573
+mapping	ch04018	gd20574
+mapping	ch04025	gd20575
+mapping	ch04032	gd00576
+mapping	ch04039	gd20577
+mapping	ch04046	gd20578
+mapping	ch04053	gd00579
+mapping	ch04060	gd20580
+mapping	ch04067	gd20581
+mapping	ch04074	gd00582
+mapping	ch04081	gd20583
+mapping	ch04088	gd20584
+mapping	ch04095	gd00585
+mapping	ch04102	gd20586
+mapping	ch04109	gd20587
+mapping	ch04116	gd00588
+mapping	ch04123	gd20589
+mapping	ch04130	gd20590
+mapping	ch04137	gd00591
+mapping	ch04144	gd20592
+mapping	ch04151	gd20593
+mapping	ch04158	gd00594
+mapping	ch04165	gd20595
+mapping	ch04172	gd20596
+mapping	ch04179	gd00597
+mapping	ch04186	gd20598
+mapping	ch04193	gd20599
+mapping	ch04200	gd00600
+mapping	ch04207	gd20601
+mapping	ch04214	gd20602
+mapping	ch04221	gd00603
+mapping	ch04228	gd20604
+mapping	ch04235	gd20605
+mapping	ch04242	gd00606
+mapping	ch04249	gd20607
+mapping	ch04256	gd20608
+mapping	ch04263	gd00609
+mapping	ch04270	gd20610
+mapping	ch04277	gd20611
+mapping	ch04284	gd00612
+mapping	ch04291	gd20613
+mapping	ch04298	gd20614
+mapping	ch04305	gd00615
+mapping	ch04312	gd20616
+mapping	ch04319	gd20617
+mapping	ch04326	gd00618
+mapping	ch04333	gd20619
+mapping	ch04340	gd20620
+mapping	ch04347	gd00621
+mapping	ch04354	gd20622
+mapping	ch04361	gd20623
+mapping	ch04368	gd00624
+mapping	ch04375	gd20625
+mapping	ch04382	gd20626
+mapping	ch04389	gd00627
+mapping	ch04396	gd20628
+mapping	ch04403	gd20629
+mapping	ch04410	gd00630
+mapping	ch04417	gd20631
+mapping	ch04424	gd20632
+mapping	ch04431	gd00633
+mapping	ch04438	gd20634
+mapping	ch04445	gd20635
+mapping	ch04452	gd00636
+mapping	ch04459	gd20637
+mapping	ch04466	gd20638
+mapping	ch04473	gd00639
+mapping	ch04480	gd20640
+mapping	ch04487	gd20641
+mapping	ch04494	gd00642
+mapping	ch04501	gd20643
+mapping	ch04508	gd20644
+mapping	ch04515	gd00645
+mapping	ch04522	gd20646
+mapping	ch04529	gd20647
+mapping	ch04536	gd00648
+mapping	ch04543	gd20649
+mapping	ch04550	gd20650
+mapping	ch04557	gd00651
+mapping	ch04564	gd20652
+mapping	ch04571	gd20653
+mapping	ch04578	gd00654
+mapping	ch04585	gd20655
+mapping	ch04592	gd20656
+mapping	ch04599	gd00657
+mapping	ch04606	gd20658
+mapping	ch04613	gd20659
+mapping	ch04620	gd00660
+mapping	ch04627	gd20661
+mapping	ch04634	gd20662
+mapping	ch04641	gd00663
+mapping	ch04648	gd20664
+mapping	ch04655	gd20665
+mapping	ch04662	gd00666
+mapping	ch04669	gd20667
+mapping	ch04676	gd20668
+mapping	ch04683	gd00669
+mapping	ch04690	gd20670
+mapping	ch04697	gd20671
+mapping	ch04704	gd00672
+mapping	ch04711	gd20673
+mapping	ch04718	gd20674
+mapping	ch04725	gd00675
+mapping	ch04732	gd20676
+mapping	ch04739	gd20677
+mapping	ch04746	gd00678
+mapping	ch04753	gd20679
+mapping	ch04760	gd20680
+mapping	ch04767	gd00681
+mapping	ch04774	gd20682
+mapping	ch04781	gd20683
+mapping	ch04788	gd00684
+mapping	ch04795	gd20685
+mapping	ch04802	gd20686
+mapping	ch04809	gd00687
+mapping	ch04816	gd20688
+mapping	ch04823	gd20689
+mapping	ch04830	gd00690
+mapping	ch04837	gd20691
+mapping	ch04844	gd20692
+mapping	ch04851	gd00693
+mapping	ch04858	gd20694
+mapping	ch04865	gd20695
+mapping	ch04872	gd00696
+mapping	ch04879	gd20697
+mapping	ch04886	gd20698
+mapping	ch04893	gd00699
+mapping	ch04900	gd20700
+mapping	ch04907	gd20701
+mapping	ch04914	gd00702
+mapping	ch04921	gd20703
+mapping	ch04928	gd20704
+mapping	ch04935	gd00705
+mapping	ch04942	gd20706
+mapping	ch04949	gd20707
+mapping	ch04956	gd00708
+mapping	ch04963	gd20709
+mapping	ch04970	gd20710
+mapping	ch04977	gd00711
+mapping	ch04984	gd20712
+mapping	ch04991	gd20713
+mapping	ch04998	gd00714
+mapping	ch05005	gd20715
+mapping	ch05012	gd20716
+mapping	ch05019	gd00717
+mapping	ch05026	gd20718
+mapping	ch05033	gd20719
+mapping	ch05040	gd00720
+mapping	ch05047	gd20721
+mapping	ch05054	gd20722
+mapping	ch05061	gd00723
+mapping	ch05068	gd20724
+mapping	ch05075	gd20725
+mapping	ch05082	gd00726
+mapping	ch05089	gd20727
+mapping	ch05096	gd20728
+mapping	ch05103	gd00729
+mapping	ch05110	gd20730
+mapping	ch05117	gd20731
+mapping	ch05124	gd00732
+mapping	ch05131	gd20733
+mapping	ch05138	gd20734
+mapping	ch05145	gd00735
+mapping	ch05152	gd20736
+mapping	ch05159	gd20737
+mapping	ch05166	gd00738
+mapping	ch05173	gd20739
+mapping	ch05180	gd20740
+mapping	ch05187	gd00741
+mapping	ch05194	gd20742
+mapping	ch05201	gd20743
+mapping	ch05208	gd00744
+mapping	ch05215	gd20745
+mapping	ch05222	gd20746
+mapping	ch05229	gd00747
+mapping	ch05236	gd20748
+mapping	ch05243	gd20749
+mapping	ch05250	gd00750
+mapping	ch05257	gd20751
+mapping	ch05264	gd20752
+mapping	ch05271	gd00753
+mapping	ch05278	gd20754
+mapping	ch05285	gd20755
+mapping	ch05292	gd00756
+mapping	ch05299	gd20757
+mapping	ch05306	gd20758
+mapping	ch05313	gd00759
+mapping	ch05320	gd20760
+mapping	ch05327	gd20761
+mapping	ch05334	gd00762
+mapping	ch05341	gd20763
+mapping	ch05348	gd20764
+mapping	ch05355	gd00765
+mapping	ch05362	gd20766
+mapping	ch05369	gd20767
+mapping	ch05376	gd00768
+mapping	ch05383	gd20769
+mapping	ch05390	gd20770
+mapping	ch05397	gd00771
+mapping	ch05404	gd20772
+mapping	ch05411	gd20773
+mapping	ch05418	gd00774
+mapping	ch05425	gd20775
+mapping	ch05432	gd20776
+mapping	ch05439	gd00777
+mapping	ch05446	gd20778
+mapping	ch05453	gd20779
+mapping	ch05460	gd00780
+mapping	ch05467	gd20781
+mapping	ch05474	gd20782
+mapping	ch05481	gd00783
+mapping	ch05488	gd20784
+mapping	ch05495	gd20785
+mapping	ch05502	gd00786
+mapping	ch05509	gd20787
+mapping	ch05516	gd20788
+mapping	ch05523	gd00789
+mapping	ch05530	gd20790
+mapping	ch05537	gd20791
+mapping	ch05544	gd00792
+mapping	ch05551	gd20793
+mapping	ch05558	gd20794
+mapping	ch05565	gd00795
+mapping	ch05572	gd20796
+mapping	ch05579	gd20797
+mapping	ch05586	gd00798
+mapping	ch05593	gd20799
+mapping	ch05600	gd20800
+mapping	ch05607	gd00801
+mapping	ch05614	gd20802
+mapping	ch05621	gd20803
+mapping	ch05628	gd00804
+mapping	ch05635	gd20805
+mapping	ch05642	gd20806
+mapping	ch05649	gd00807
+mapping	ch05656	gd20808
+mapping	ch05663	gd20809
+mapping	ch05670	gd00810
+mapping	ch05677	gd20811
+mapping	ch05684	gd20812
+mapping	ch05691	gd00813
+mapping	ch05698	gd20814
+mapping	ch05705	gd20815
+mapping	ch05712	gd00816
+mapping	ch05719	gd20817
+mapping	ch05726	gd20818
+mapping	ch05733	gd00819
+mapping	ch05740	gd20820
+mapping	ch05747	gd20821
+mapping	ch05754	gd00822
+mapping	ch05761	gd20823
+mapping	ch05768	gd20824
+mapping	ch05775	gd00825
+mapping	ch05782	gd20826
+mapping	ch05789	gd20827
+mapping	ch05796	gd00828
+mapping	ch05803	gd20829
+mapping	ch05810	gd20830
+mapping	ch05817	gd00831
+mapping	ch05824	gd20832
+mapping	ch05831	gd20833
+mapping	ch05838	gd00834
+mapping	ch05845	gd20835
+mapping	ch05852	gd20836
+mapping	ch05859	gd00837
+mapping	ch05866	gd20838
+mapping	ch05873	gd20839
+mapping	ch05880	gd00840
+mapping	ch05887	gd20841
+mapping	ch05894	gd20842
+mapping	ch05901	gd00843
+mapping	ch05908	gd20844
+mapping	ch05915	gd20845
+mapping	ch05922	gd00846
+mapping	ch05929	gd20847
+mapping	ch05936	gd20848
+mapping	ch05943	gd00849
+mapping	ch05950	gd20850
+mapping	ch05957	gd20851
+mapping	ch05964	gd00852
+mapping	ch05971	gd20853
+mapping	ch05978	gd20854
+mapping	ch05985	gd00855
+mapping	ch05992	gd20856
+mapping	ch05999	gd20857
+mapping	ch06006	gd00858
+mapping	ch06013	gd20859
+mapping	ch06020	gd20860
+mapping	ch06027	gd00861
+mapping	ch06034	gd20862
+mapping	ch06041	gd20863
+mapping	ch06048	gd00864
+mapping	ch06055	gd20865
+mapping	ch06062	gd20866
+mapping	ch06069	gd00867
+mapping	ch06076	gd20868
+mapping	ch06083	gd20869
+mapping	ch06090	gd00870
+mapping	ch06097	gd20871
+mapping	ch06104	gd20872
+mapping	ch06111	gd00873
+mapping	ch06118	gd20874
+mapping	ch06125	gd20875
+mapping	ch06132	gd00876
+mapping	ch06139	gd20877
+mapping	ch06146	gd20878
+mapping	ch06153	gd00879
+mapping	ch06160	gd20880
+mapping	ch06167	gd20881
+mapping	ch06174	gd00882
+mapping	ch06181	gd20883
+mapping	ch06188	gd20884
+mapping	ch06195	gd00885
+mapping	ch06202	gd20886
+mapping	ch06209	gd20887
+mapping	ch06216	gd00888
+mapping	ch06223	gd20889
+mapping	ch06230	gd20890
+mapping	ch06237	gd00891
+mapping	ch06244	gd20892
+mapping	ch06251	gd20893
+mapping	ch06258	gd00894
+mapping	ch06265	gd20895
+mapping	ch06272	gd20896
+mapping	ch06279	gd00897
+mapping	ch06286	gd20898
+mapping	ch06293	gd20899
+mapping	ch06300	gd00900
+mapping	ch06307	gd20901
+mapping	ch06314	gd20902
+mapping	ch06321	gd00903
+mapping	ch06328	gd20904
+mapping	ch06335	gd20905
+mapping	ch06342	gd00906
+mapping	ch06349	gd20907
+mapping	ch06356	gd20908
+mapping	ch06363	gd00909
+mapping	ch06370	gd20910
+mapping	ch06377	gd20911
+mapping	ch06384	gd00912
+mapping	ch06391	gd20913
+mapping	ch06398	gd20914
+mapping	ch06405	gd00915
+mapping	ch06412	gd20916
+mapping	ch06419	gd20917
+mapping	ch06426	gd00918
+mapping	ch06433	gd20919
+mapping	ch06440	gd20920
+mapping	ch06447	gd00921
+mapping	ch06454	gd20922
+mapping	ch06461	gd20923
+mapping	ch06468	gd00924
+mapping	ch06475	gd20925
+mapping	ch06482	gd20926
+mapping	ch06489	gd00927
+mapping	ch06496	gd20928
+mapping	ch06503	gd20929
+mapping	ch06510	gd00930
+mapping	ch06517	gd20931
+mapping	ch06524	gd20932
+mapping	ch06531	gd00933
+mapping	ch06538	gd20934
+mapping	ch06545	gd20935
+mapping	ch06552	gd00936
+mapping	ch06559	gd20937
+mapping	ch06566	gd20938
+mapping	ch06573	gd00939
+mapping	ch06580	gd20940
+mapping	ch06587	gd20941
+mapping	ch06594	gd00942
+mapping	ch06601	gd20943
+mapping	ch06608	gd20944
+mapping	ch06615	gd00945
+mapping	ch06622	gd20946
+mapping	ch06629	gd20947
+mapping	ch06636	gd00948
+mapping	ch06643	gd20949
+mapping	ch06650	gd20950
+mapping	ch06657	gd00951
+mapping	ch06664	gd20952
+mapping	ch06671	gd20953
+mapping	ch06678	gd00954
+mapping	ch06685	gd20955
+mapping	ch06692	gd20956
+mapping	ch06699	gd00957
+mapping	ch06706	gd20958
+mapping	ch06713	gd20959
+mapping	ch06720	gd00960
+mapping	ch06727	gd20961
+mapping	ch06734	gd20962
+mapping	ch06741	gd00963
+mapping	ch06748	gd20964
+mapping	ch06755	gd20965
+mapping	ch06762	gd00966
+mapping	ch06769	gd20967
+mapping	ch06776	gd20968
+mapping	ch06783	gd00969
+mapping	ch06790	gd20970
+mapping	ch06797	gd20971
+mapping	ch06804	gd00972
+mapping	ch06811	gd20973
+mapping	ch06818	gd20974
+mapping	ch06825	gd00975
+mapping	ch06832	gd20976
+mapping	ch06839	gd20977
+mapping	ch06846	gd00978
+mapping	ch06853	gd20979
+mapping	ch06860	gd20980
+mapping	ch06867	gd00981
+mapping	ch06874	gd20982
+mapping	ch06881	gd20983
+mapping	ch06888	gd00984
+mapping	ch06895	gd20985
+mapping	ch06902	gd20986
+mapping	ch06909	gd00987
+mapping	ch06916	gd20988
+mapping	ch06923	gd20989
+mapping	ch06930	gd00990
+mapping	ch06937	gd20991
+mapping	ch06944	gd20992
+mapping	ch06951	gd00993
+mapping	ch06958	gd20994
+mapping	ch06965	gd20995
+mapping	ch06972	gd00996
+mapping	ch06979	gd20997
+mapping	ch06986	gd20998
+mapping	ch06993	gd00999
+mapping	ch07000	gd21000
+mapping	ch07007	gd21001
+mapping	ch07014	gd01002
+mapping	ch07021	gd21003
+mapping	ch07028	gd21004
+mapping	ch07035	gd01005
+mapping	ch07042	gd21006
+mapping	ch07049	gd21007
+mapping	ch07056	gd01008
+mapping	ch07063	gd21009
+mapping	ch07070	gd21010
+mapping	ch07077	gd01011
+mapping	ch07084	gd21012
+mapping	ch07091	gd21013
+mapping	ch07098	gd01014
+mapping	ch07105	gd21015
+mapping	ch07112	gd21016
+mapping	ch07119	gd01017
+mapping	ch07126	gd21018
+mapping	ch07133	gd21019
+mapping	ch07140	gd01020
+mapping	ch07147	gd21021
+mapping	ch07154	gd21022
+mapping	ch07161	gd01023
+mapping	ch07168	gd21024
+mapping	ch07175	gd21025
+mapping	ch07182	gd01026
+mapping	ch07189	gd21027
+mapping	ch07196	gd21028
+mapping	ch07203	gd01029
+mapping	ch07210	gd21030
+mapping	ch07217	gd21031
+mapping	ch07224	gd01032
+mapping	ch07231	gd21033
+mapping	ch07238	gd21034
+mapping	ch07245	gd01035
+mapping	ch07252	gd21036
+mapping	ch07259	gd21037
+mapping	ch07266	gd01038
+mapping	ch07273	gd21039
+mapping	ch07280	gd21040
+mapping	ch07287	gd01041
+mapping	ch07294	gd21042
+mapping	ch07301	gd21043
+mapping	ch07308	gd01044
+mapping	ch07315	gd21045
+mapping	ch07322	gd21046
+mapping	ch07329	gd01047
+mapping	ch07336	gd21048
+mapping	ch07343	gd21049
+mapping	ch07350	gd01050
+mapping	ch07357	gd21051
+mapping	ch07364	gd21052
+mapping	ch07371	gd01053
+mapping	ch07378	gd21054
+mapping	ch07385	gd21055
+mapping	ch07392	gd01056
+mapping	ch07399	gd21057
+mapping	ch07406	gd21058
+mapping	ch07413	gd01059
+mapping	ch07420	gd21060
+mapping	ch07427	gd21061
+mapping	ch07434	gd01062
+mapping	ch07441	gd21063
+mapping	ch07448	gd21064
+mapping	ch07455	gd01065
+mapping	ch07462	gd21066
+mapping	ch07469	gd21067
+mapping	ch07476	gd01068
+mapping	ch07483	gd21069
+mapping	ch07490	gd21070
+mapping	ch07497	gd01071
+mapping	ch07504	gd21072
+mapping	ch07511	gd21073
+mapping	ch07518	gd01074
+mapping	ch07525	gd21075
+mapping	ch07532	gd21076
+mapping	ch07539	gd01077
+mapping	ch07546	gd21078
+mapping	ch07553	gd21079
+mapping	ch07560	gd01080
+mapping	ch07567	gd21081
+mapping	ch07574	gd21082
+mapping	ch07581	gd01083
+mapping	ch07588	gd21084
+mapping	ch07595	gd21085
+mapping	ch07602	gd01086
+mapping	ch07609	gd21087
+mapping	ch07616	gd21088
+mapping	ch07623	gd01089
+mapping	ch07630	gd21090
+mapping	ch07637	gd21091
+mapping	ch07644	gd01092
+mapping	ch07651	gd21093
+mapping	ch07658	gd21094
+mapping	ch07665	gd01095
+mapping	ch07672	gd21096
+mapping	ch07679	gd21097
+mapping	ch07686	gd01098
+mapping	ch07693	gd21099
+mapping	ch07700	gd21100
+mapping	ch07707	gd01101
+mapping	ch07714	gd21102
+mapping	ch07721	gd21103
+mapping	ch07728	gd01104
+mapping	ch07735	gd21105
+mapping	ch07742	gd21106
+mapping	ch07749	gd01107
+mapping	ch07756	gd21108
+mapping	ch07763	gd21109
+mapping	ch07770	gd01110
+mapping	ch07777	gd21111
+mapping	ch07784	gd21112
+mapping	ch07791	gd01113
+mapping	ch07798	gd21114
+mapping	ch07805	gd21115
+mapping	ch07812	gd01116
+mapping	ch07819	gd21117
+mapping	ch07826	gd21118
+mapping	ch07833	gd01119
+mapping	ch07840	gd21120
+mapping	ch07847	gd21121
+mapping	ch07854	gd01122
+mapping	ch07861	gd21123
+mapping	ch07868	gd21124
+mapping	ch07875	gd01125
+mapping	ch07882	gd21126
+mapping	ch07889	gd21127
+mapping	ch07896	gd01128
+mapping	ch07903	gd21129
+mapping	ch07910	gd21130
+mapping	ch07917	gd01131
+mapping	ch07924	gd21132
+mapping	ch07931	gd21133
+mapping	ch07938	gd01134
+mapping	ch07945	gd21135
+mapping	ch07952	gd21136
+mapping	ch07959	gd01137
+mapping	ch07966	gd21138
+mapping	ch07973	gd21139
+mapping	ch07980	gd01140
+mapping	ch07987	gd21141
+mapping	ch07994	gd21142
+mapping	ch08001	gd01143
+mapping	ch08008	gd21144
+mapping	ch08015	gd21145
+mapping	ch08022	gd01146
+mapping	ch08029	gd21147
+mapping	ch08036	gd21148
+mapping	ch08043	gd01149
+mapping	ch08050	gd21150
+mapping	ch08057	gd21151
+mapping	ch08064	gd01152
+mapping	ch08071	gd21153
+mapping	ch08078	gd21154
+mapping	ch08085	gd01155
+mapping	ch08092	gd21156
+mapping	ch08099	gd21157
+mapping	ch08106	gd01158
+mapping	ch08113	gd21159
+mapping	ch08120	gd21160
+mapping	ch08127	gd01161
+mapping	ch08134	gd21162
+mapping	ch08141	gd21163
+mapping	ch08148	gd01164
+mapping	ch08155	gd21165
+mapping	ch08162	gd21166
+mapping	ch08169	gd01167
+mapping	ch08176	gd21168
+mapping	ch08183	gd21169
+mapping	ch08190	gd01170
+mapping	ch08197	gd21171
+mapping	ch08204	gd21172
+mapping	ch08211	gd01173
+mapping	ch08218	gd21174
+mapping	ch08225	gd21175
+mapping	ch08232	gd01176
+mapping	ch08239	gd21177
+mapping	ch08246	gd21178
+mapping	ch08253	gd01179
+mapping	ch08260	gd21180
+mapping	ch08267	gd21181
+mapping	ch08274	gd01182
+mapping	ch08281	gd21183
+mapping	ch08288	gd21184
+mapping	ch08295	gd01185
+mapping	ch08302	gd21186
+mapping	ch08309	gd21187
+mapping	ch08316	gd01188
+mapping	ch08323	gd21189
+mapping	ch08330	gd21190
+mapping	ch08337	gd01191
+mapping	ch08344	gd21192
+mapping	ch08351	gd21193
+mapping	ch08358	gd01194
+mapping	ch08365	gd21195
+mapping	ch08372	gd21196
+mapping	ch08379	gd01197
+mapping	ch08386	gd21198
+mapping	ch08393	gd21199
+mapping	ch08400	gd01200
+mapping	ch08407	gd21201
+mapping	ch08414	gd21202
+mapping	ch08421	gd01203
+mapping	ch08428	gd21204
+mapping	ch08435	gd21205
+mapping	ch08442	gd01206
+mapping	ch08449	gd21207
+mapping	ch08456	gd21208
+mapping	ch08463	gd01209
+mapping	ch08470	gd21210
+mapping	ch08477	gd21211
+mapping	ch08484	gd01212
+mapping	ch08491	gd21213
+mapping	ch08498	gd21214
+mapping	ch08505	gd01215
+mapping	ch08512	gd21216
+mapping	ch08519	gd21217
+mapping	ch08526	gd01218
+mapping	ch08533	gd21219
+mapping	ch08540	gd21220
+mapping	ch08547	gd01221
+mapping	ch08554	gd21222
+mapping	ch08561	gd21223
+mapping	ch08568	gd01224
+mapping	ch08575	gd21225
+mapping	ch08582	gd21226
+mapping	ch08589	gd01227
+mapping	ch08596	gd21228
+mapping	ch08603	gd21229
+mapping	ch08610	gd01230
+mapping	ch08617	gd21231
+mapping	ch08624	gd21232
+mapping	ch08631	gd01233
+mapping	ch08638	gd21234
+mapping	ch08645	gd21235
+mapping	ch08652	gd01236
+mapping	ch08659	gd21237
+mapping	ch08666	gd21238
+mapping	ch08673	gd01239
+mapping	ch08680	gd21240
+mapping	ch08687	gd21241
+mapping	ch08694	gd01242
+mapping	ch08701	gd21243
+mapping	ch08708	gd21244
+mapping	ch08715	gd01245
+mapping	ch08722	gd21246
+mapping	ch08729	gd21247
+mapping	ch08736	gd01248
+mapping	ch08743	gd21249
+mapping	ch08750	gd21250
+mapping	ch08757	gd01251
+mapping	ch08764	gd21252
+mapping	ch08771	gd21253
+mapping	ch08778	gd01254
+mapping	ch08785	gd21255
+mapping	ch08792	gd21256
+mapping	ch08799	gd01257
+mapping	ch08806	gd21258
+mapping	ch08813	gd21259
+mapping	ch08820	gd01260
+mapping	ch08827	gd21261
+mapping	ch08834	gd21262
+mapping	ch08841	gd01263
+mapping	ch08848	gd21264
+mapping	ch08855	gd21265
+mapping	ch08862	gd01266
+mapping	ch08869	gd21267
+mapping	ch08876	gd21268
+mapping	ch08883	gd01269
+mapping	ch08890	gd21270
+mapping	ch08897	gd21271
+mapping	ch08904	gd01272
+mapping	ch08911	gd21273
+mapping	ch08918	gd21274
+mapping	ch08925	gd01275
+mapping	ch08932	gd21276
+mapping	ch08939	gd21277
+mapping	ch08946	gd01278
+mapping	ch08953	gd21279
+mapping	ch08960	gd21280
+mapping	ch08967	gd01281
+mapping	ch08974	gd21282
+mapping	ch08981	gd21283
+mapping	ch08988	gd01284
+mapping	ch08995	gd21285
+mapping	ch09002	gd21286
+mapping	ch09009	gd01287
+mapping	ch09016	gd21288
+mapping	ch09023	gd21289
+mapping	ch09030	gd01290
+mapping	ch09037	gd21291
+mapping	ch09044	gd21292
+mapping	ch09051	gd01293
+mapping	ch09058	gd21294
+mapping	ch09065	gd21295
+mapping	ch09072	gd01296
+mapping	ch09079	gd21297
+mapping	ch09086	gd21298
+mapping	ch09093	gd01299
+mapping	ch09100	gd21300
+mapping	ch09107	gd21301
+mapping	ch09114	gd01302
+mapping	ch09121	gd21303
+mapping	ch09128	gd21304
+mapping	ch09135	gd01305
+mapping	ch09142	gd21306
+mapping	ch09149	gd21307
+mapping	ch09156	gd01308
+mapping	ch09163	gd21309
+mapping	ch09170	gd21310
+mapping	ch09177	gd01311
+mapping	ch09184	gd21312
+mapping	ch09191	gd21313
+mapping	ch09198	gd01314
+mapping	ch09205	gd21315
+mapping	ch09212	gd21316
+mapping	ch09219	gd01317
+mapping	ch09226	gd21318
+mapping	ch09233	gd21319
+mapping	ch09240	gd01320
+mapping	ch09247	gd21321
+mapping	ch09254	gd21322
+mapping	ch09261	gd01323
+mapping	ch09268	gd21324
+mapping	ch09275	gd21325
+mapping	ch09282	gd01326
+mapping	ch09289	gd21327
+mapping	ch09296	gd21328
+mapping	ch09303	gd01329
+mapping	ch09310	gd21330
+mapping	ch09317	gd21331
+mapping	ch09324	gd01332
+mapping	ch09331	gd21333
+mapping	ch09338	gd21334
+mapping	ch09345	gd01335
+mapping	ch09352	gd21336
+mapping	ch09359	gd21337
+mapping	ch09366	gd01338
+mapping	ch09373	gd21339
+mapping	ch09380	gd21340
+mapping	ch09387	gd01341
+mapping	ch09394	gd21342
+mapping	ch09401	gd21343
+mapping	ch09408	gd01344
+mapping	ch09415	gd21345
+mapping	ch09422	gd21346
+mapping	ch09429	gd01347
+mapping	ch09436	gd21348
+mapping	ch09443	gd21349
+mapping	ch09450	gd01350
+mapping	ch09457	gd21351
+mapping	ch09464	gd21352
+mapping	ch09471	gd01353
+mapping	ch09478	gd21354
+mapping	ch09485	gd21355
+mapping	ch09492	gd01356
+mapping	ch09499	gd21357
+mapping	ch09506	gd21358
+mapping	ch09513	gd01359
+mapping	ch09520	gd21360
+mapping	ch09527	gd21361
+mapping	ch09534	gd01362
+mapping	ch09541	gd21363
+mapping	ch09548	gd21364
+mapping	ch09555	gd01365
+mapping	ch09562	gd21366
+mapping	ch09569	gd21367
+mapping	ch09576	gd01368
+mapping	ch09583	gd21369
+mapping	ch09590	gd21370
+mapping	ch09597	gd01371
+mapping	ch09604	gd21372
+mapping	ch09611	gd21373
+mapping	ch09618	gd01374
+mapping	ch09625	gd21375
+mapping	ch09632	gd21376
+mapping	ch09639	gd01377
+mapping	ch09646	gd21378
+mapping	ch09653	gd21379
+mapping	ch09660	gd01380
+mapping	ch09667	gd21381
+mapping	ch09674	gd21382
+mapping	ch09681	gd01383
+mapping	ch09688	gd21384
+mapping	ch09695	gd21385
+mapping	ch09702	gd01386
+mapping	ch09709	gd21387
+mapping	ch09716	gd21388
+mapping	ch09723	gd01389
+mapping	ch09730	gd21390
+mapping	ch09737	gd21391
+mapping	ch09744	gd01392
+mapping	ch09751	gd21393
+mapping	ch09758	gd21394
+mapping	ch09765	gd01395
+mapping	ch09772	gd21396
+mapping	ch09779	gd21397
+mapping	ch09786	gd01398
+mapping	ch09793	gd21399
+mapping	ch09800	gd21400
+mapping	ch09807	gd01401
+mapping	ch09814	gd21402
+mapping	ch09821	gd21403
+mapping	ch09828	gd01404
+mapping	ch09835	gd21405
+mapping	ch09842	gd21406
+mapping	ch09849	gd01407
+mapping	ch09856	gd21408
+mapping	ch09863	gd21409
+mapping	ch09870	gd01410
+mapping	ch09877	gd21411
+mapping	ch09884	gd21412
+mapping	ch09891	gd01413
+mapping	ch09898	gd21414
+mapping	ch09905	gd21415
+mapping	ch09912	gd01416
+mapping	ch09919	gd21417
+mapping	ch09926	gd21418
+mapping	ch09933	gd01419
+mapping	ch09940	gd21420
+mapping	ch09947	gd21421
+mapping	ch09954	gd01422
+mapping	ch09961	gd21423
+mapping	ch09968	gd21424
+mapping	ch09975	gd01425
+mapping	ch09982	gd21426
+mapping	ch09989	gd21427
+mapping	ch09996	gd01428
+mapping	ch10003	gd21429
+mapping	ch10010	gd21430
+mapping	ch10017	gd01431
+mapping	ch10024	gd21432
+mapping	ch10031	gd21433
+mapping	ch10038	gd01434
+mapping	ch10045	gd21435
+mapping	ch10052	gd21436
+mapping	ch10059	gd01437
+mapping	ch10066	gd21438
+mapping	ch10073	gd21439
+mapping	ch10080	gd01440
+mapping	ch10087	gd21441
+mapping	ch10094	gd21442
+mapping	ch10101	gd01443
+mapping	ch10108	gd21444
+mapping	ch10115	gd21445
+mapping	ch10122	gd01446
+mapping	ch10129	gd21447
+mapping	ch10136	gd21448
+mapping	ch10143	gd01449
+mapping	ch10150	gd21450
+mapping	ch10157	gd21451
+mapping	ch10164	gd01452
+mapping	ch10171	gd21453
+mapping	ch10178	gd21454
+mapping	ch10185	gd01455
+mapping	ch10192	gd21456
+mapping	ch10199	gd21457
+mapping	ch10206	gd01458
+mapping	ch10213	gd21459
+mapping	ch10220	gd21460
+mapping	ch10227	gd01461
+mapping	ch10234	gd21462
+mapping	ch10241	gd21463
+mapping	ch10248	gd01464
+mapping	ch10255	gd21465
+mapping	ch10262	gd21466
+mapping	ch10269	gd01467
+mapping	ch10276	gd21468
+mapping	ch10283	gd21469
+mapping	ch10290	gd01470
+mapping	ch10297	gd21471
+mapping	ch10304	gd21472
+mapping	ch10311	gd01473
+mapping	ch10318	gd21474
+mapping	ch10325	gd21475
+mapping	ch10332	gd01476
+mapping	ch10339	gd21477
+mapping	ch10346	gd21478
+mapping	ch10353	gd01479
+mapping	ch10360	gd21480
+mapping	ch10367	gd21481
+mapping	ch10374	gd01482
+mapping	ch10381	gd21483
+mapping	ch10388	gd21484
+mapping	ch10395	gd01485
+mapping	ch10402	gd21486
+mapping	ch10409	gd21487
+mapping	ch10416	gd01488
+mapping	ch10423	gd21489
+mapping	ch10430	gd21490
+mapping	ch10437	gd01491
+mapping	ch10444	gd21492
+mapping	ch10451	gd21493
+mapping	ch10458	gd01494
+mapping	ch10465	gd21495
+mapping	ch10472	gd21496
+mapping	ch10479	gd01497
+mapping	ch10486	gd21498
+mapping	ch10493	gd21499
+mapping	ch10500	gd01500
+mapping	ch10507	gd21501
+mapping	ch10514	gd21502
+mapping	ch10521	gd01503
+mapping	ch10528	gd21504
+mapping	ch10535	gd21505
+mapping	ch10542	gd01506
+mapping	ch10549	gd21507
+mapping	ch10556	gd21508
+mapping	ch10563	gd01509
+mapping	ch10570	gd21510
+mapping	ch10577	gd21511
+mapping	ch10584	gd01512
+mapping	ch10591	gd21513
+mapping	ch10598	gd21514
+mapping	ch10605	gd01515
+mapping	ch10612	gd21516
+mapping	ch10619	gd21517
+mapping	ch10626	gd01518
+mapping	ch10633	gd21519
+mapping	ch10640	gd21520
+mapping	ch10647	gd01521
+mapping	ch10654	gd21522
+mapping	ch10661	gd21523
+mapping	ch10668	gd01524
+mapping	ch10675	gd21525
+mapping	ch10682	gd21526
+mapping	ch10689	gd01527
+mapping	ch10696	gd21528
+mapping	ch10703	gd21529
+mapping	ch10710	gd01530
+mapping	ch10717	gd21531
+mapping	ch10724	gd21532
+mapping	ch10731	gd01533
+mapping	ch10738	gd21534
+mapping	ch10745	gd21535
+mapping	ch10752	gd01536
+mapping	ch10759	gd21537
+mapping	ch10766	gd21538
+mapping	ch10773	gd01539
+mapping	ch10780	gd21540
+mapping	ch10787	gd21541
+mapping	ch10794	gd01542
+mapping	ch10801	gd21543
+mapping	ch10808	gd21544
+mapping	ch10815	gd01545
+mapping	ch10822	gd21546
+mapping	ch10829	gd21547
+mapping	ch10836	gd01548
+mapping	ch10843	gd21549
+mapping	ch10850	gd21550
+mapping	ch10857	gd01551
+mapping	ch10864	gd21552
+mapping	ch10871	gd21553
+mapping	ch10878	gd01554
+mapping	ch10885	gd21555
+mapping	ch10892	gd21556
+mapping	ch10899	gd01557
+mapping	ch10906	gd21558
+mapping	ch10913	gd21559
+mapping	ch10920	gd01560
+mapping	ch10927	gd21561
+mapping	ch10934	gd21562
+mapping	ch10941	gd01563
+mapping	ch10948	gd21564
+mapping	ch10955	gd21565
+mapping	ch10962	gd01566
+mapping	ch10969	gd21567
+mapping	ch10976	gd21568
+mapping	ch10983	gd01569
+mapping	ch10990	gd21570
+mapping	ch10997	gd21571
+mapping	ch11004	gd01572
+mapping	ch11011	gd21573
+mapping	ch11018	gd21574
+mapping	ch11025	gd01575
+mapping	ch11032	gd21576
+mapping	ch11039	gd21577
+mapping	ch11046	gd01578
+mapping	ch11053	gd21579
+mapping	ch11060	gd21580
+mapping	ch11067	gd01581
+mapping	ch11074	gd21582
+mapping	ch11081	gd21583
+mapping	ch11088	gd01584
+mapping	ch11095	gd21585
+mapping	ch11102	gd21586
+mapping	ch11109	gd01587
+mapping	ch11116	gd21588
+mapping	ch11123	gd21589
+mapping	ch11130	gd01590
+mapping	ch11137	gd21591
+mapping	ch11144	gd21592
+mapping	ch11151	gd01593
+mapping	ch11158	gd21594
+mapping	ch11165	gd21595
+mapping	ch11172	gd01596
+mapping	ch11179	gd21597
+mapping	ch11186	gd21598
+mapping	ch11193	gd01599
+series	Show 0000	ch00000
+series	Show 0001	
+series	Show 0002	ch00022
+series	Show 0003	
+series	Show 0004	ch00044
+series	Show 0005	
+series	Show 0006	ch00066
+series	Show 0007	
+series	Show 0008	ch00088
+series	Show 0009	
+series	Show 0010	ch00110
+series	Show 0011	
+series	Show 0012	ch00132
+series	Show 0013	
+series	Show 0014	ch00154
+series	Show 0015	
+series	Show 0016	ch00176
+series	Show 0017	
+series	Show 0018	ch00198
+series	Show 0019	
+series	Show 0020	ch00220
+series	Show 0021	
+series	Show 0022	ch00242
+series	Show 0023	
+series	Show 0024	ch00264
+series	Show 0025	
+series	Show 0026	ch00286
+series	Show 0027	
+series	Show 0028	ch00308
+series	Show 0029	
+series	Show 0030	ch00330
+series	Show 0031	
+series	Show 0032	ch00352
+series	Show 0033	
+series	Show 0034	ch00374
+series	Show 0035	
+series	Show 0036	ch00396
+series	Show 0037	
+series	Show 0038	ch00418
+series	Show 0039	
+series	Show 0040	ch00440
+series	Show 0041	
+series	Show 0042	ch00462
+series	Show 0043	
+series	Show 0044	ch00484
+series	Show 0045	
+series	Show 0046	ch00506
+series	Show 0047	
+series	Show 0048	ch00528
+series	Show 0049	
+series	Show 0050	ch00550
+series	Show 0051	
+series	Show 0052	ch00572
+series	Show 0053	
+series	Show 0054	ch00594
+series	Show 0055	
+series	Show 0056	ch00616
+series	Show 0057	
+series	Show 0058	ch00638
+series	Show 0059	
+series	Show 0060	ch00660
+series	Show 0061	
+series	Show 0062	ch00682
+series	Show 0063	
+series	Show 0064	ch00704
+series	Show 0065	
+series	Show 0066	ch00726
+series	Show 0067	
+series	Show 0068	ch00748
+series	Show 0069	
+series	Show 0070	ch00770
+series	Show 0071	
+series	Show 0072	ch00792
+series	Show 0073	
+series	Show 0074	ch00814
+series	Show 0075	
+series	Show 0076	ch00836
+series	Show 0077	
+series	Show 0078	ch00858
+series	Show 0079	
+series	Show 0080	ch00880
+series	Show 0081	
+series	Show 0082	ch00902
+series	Show 0083	
+series	Show 0084	ch00924
+series	Show 0085	
+series	Show 0086	ch00946
+series	Show 0087	
+series	Show 0088	ch00968
+series	Show 0089	
+series	Show 0090	ch00990
+series	Show 0091	
+series	Show 0092	ch01012
+series	Show 0093	
+series	Show 0094	ch01034
+series	Show 0095	
+series	Show 0096	ch01056
+series	Show 0097	
+series	Show 0098	ch01078
+series	Show 0099	
+series	Show 0100	ch01100
+series	Show 0101	
+series	Show 0102	ch01122
+series	Show 0103	
+series	Show 0104	ch01144
+series	Show 0105	
+series	Show 0106	ch01166
+series	Show 0107	
+series	Show 0108	ch01188
+series	Show 0109	
+series	Show 0110	ch01210
+series	Show 0111	
+series	Show 0112	ch01232
+series	Show 0113	
+series	Show 0114	ch01254
+series	Show 0115	
+series	Show 0116	ch01276
+series	Show 0117	
+series	Show 0118	ch01298
+series	Show 0119	
+series	Show 0120	ch01320
+series	Show 0121	
+series	Show 0122	ch01342
+series	Show 0123	
+series	Show 0124	ch01364
+series	Show 0125	
+series	Show 0126	ch01386
+series	Show 0127	
+series	Show 0128	ch01408
+series	Show 0129	
+series	Show 0130	ch01430
+series	Show 0131	
+series	Show 0132	ch01452
+series	Show 0133	
+series	Show 0134	ch01474
+series	Show 0135	
+series	Show 0136	ch01496
+series	Show 0137	
+series	Show 0138	ch01518
+series	Show 0139	
+series	Show 0140	ch01540
+series	Show 0141	
+series	Show 0142	ch01562
+series	Show 0143	
+series	Show 0144	ch01584
+series	Show 0145	
+series	Show 0146	ch01606
+series	Show 0147	
+series	Show 0148	ch01628
+series	Show 0149	
+series	Show 0150	ch01650
+series	Show 0151	
+series	Show 0152	ch01672
+series	Show 0153	
+series	Show 0154	ch01694
+series	Show 0155	
+series	Show 0156	ch01716
+series	Show 0157	
+series	Show 0158	ch01738
+series	Show 0159	
+series	Show 0160	ch01760
+series	Show 0161	
+series	Show 0162	ch01782
+series	Show 0163	
+series	Show 0164	ch01804
+series	Show 0165	
+series	Show 0166	ch01826
+series	Show 0167	
+series	Show 0168	ch01848
+series	Show 0169	
+series	Show 0170	ch01870
+series	Show 0171	
+series	Show 0172	ch01892
+series	Show 0173	
+series	Show 0174	ch01914
+series	Show 0175	
+series	Show 0176	ch01936
+series	Show 0177	
+series	Show 0178	ch01958
+series	Show 0179	
+series	Show 0180	ch01980
+series	Show 0181	
+series	Show 0182	ch02002
+series	Show 0183	
+series	Show 0184	ch02024
+series	Show 0185	
+series	Show 0186	ch02046
+series	Show 0187	
+series	Show 0188	ch02068
+series	Show 0189	
+series	Show 0190	ch02090
+series	Show 0191	
+series	Show 0192	ch02112
+series	Show 0193	
+series	Show 0194	ch02134
+series	Show 0195	
+series	Show 0196	ch02156
+series	Show 0197	
+series	Show 0198	ch02178
+series	Show 0199	
+series	Show 0200	ch02200
+series	Show 0201	
+series	Show 0202	ch02222
+series	Show 0203	
+series	Show 0204	ch02244
+series	Show 0205	
+series	Show 0206	ch02266
+series	Show 0207	
+series	Show 0208	ch02288
+series	Show 0209	
+series	Show 0210	ch02310
+series	Show 0211	
+series	Show 0212	ch02332
+series	Show 0213	
+series	Show 0214	ch02354
+series	Show 0215	
+series	Show 0216	ch02376
+series	Show 0217	
+series	Show 0218	ch02398
+series	Show 0219	
+series	Show 0220	ch02420
+series	Show 0221	
+series	Show 0222	ch02442
+series	Show 0223	
+series	Show 0224	ch02464
+series	Show 0225	
+series	Show 0226	ch02486
+series	Show 0227	
+series	Show 0228	ch02508
+series	Show 0229	
+series	Show 0230	ch02530
+series	Show 0231	
+series	Show 0232	ch02552
+series	Show 0233	
+series	Show 0234	ch02574
+series	Show 0235	
+series	Show 0236	ch02596
+series	Show 0237	
+series	Show 0238	ch02618
+series	Show 0239	
+series	Show 0240	ch02640
+series	Show 0241	
+series	Show 0242	ch02662
+series	Show 0243	
+series	Show 0244	ch02684
+series	Show 0245	
+series	Show 0246	ch02706
+series	Show 0247	
+series	Show 0248	ch02728
+series	Show 0249	
+series	Show 0250	ch02750
+series	Show 0251	
+series	Show 0252	ch02772
+series	Show 0253	
+series	Show 0254	ch02794
+series	Show 0255	
+series	Show 0256	ch02816
+series	Show 0257	
+series	Show 0258	ch02838
+series	Show 0259	
+series	Show 0260	ch02860
+series	Show 0261	
+series	Show 0262	ch02882
+series	Show 0263	
+series	Show 0264	ch02904
+series	Show 0265	
+series	Show 0266	ch02926
+series	Show 0267	
+series	Show 0268	ch02948
+series	Show 0269	
+series	Show 0270	ch02970
+series	Show 0271	
+series	Show 0272	ch02992
+series	Show 0273	
+series	Show 0274	ch03014
+series	Show 0275	
+series	Show 0276	ch03036
+series	Show 0277	
+series	Show 0278	ch03058
+series	Show 0279	
+series	Show 0280	ch03080
+series	Show 0281	
+series	Show 0282	ch03102
+series	Show 0283	
+series	Show 0284	ch03124
+series	Show 0285	
+series	Show 0286	ch03146
+series	Show 0287	
+series	Show 0288	ch03168
+series	Show 0289	
+series	Show 0290	ch03190
+series	Show 0291	
+series	Show 0292	ch03212
+series	Show 0293	
+series	Show 0294	ch03234
+series	Show 0295	
+series	Show 0296	ch03256
+series	Show 0297	
+series	Show 0298	ch03278
+series	Show 0299	
+series	Show 0300	ch03300
+series	Show 0301	
+series	Show 0302	ch03322
+series	Show 0303	
+series	Show 0304	ch03344
+series	Show 0305	
+series	Show 0306	ch03366
+series	Show 0307	
+series	Show 0308	ch03388
+series	Show 0309	
+series	Show 0310	ch03410
+series	Show 0311	
+series	Show 0312	ch03432
+series	Show 0313	
+series	Show 0314	ch03454
+series	Show 0315	
+series	Show 0316	ch03476
+series	Show 0317	
+series	Show 0318	ch03498
+series	Show 0319	
+series	Show 0320	ch03520
+series	Show 0321	
+series	Show 0322	ch03542
+series	Show 0323	
+series	Show 0324	ch03564
+series	Show 0325	
+series	Show 0326	ch03586
+series	Show 0327	
+series	Show 0328	ch03608
+series	Show 0329	
+series	Show 0330	ch03630
+series	Show 0331	
+series	Show 0332	ch03652
+series	Show 0333	
+series	Show 0334	ch03674
+series	Show 0335	
+series	Show 0336	ch03696
+series	Show 0337	
+series	Show 0338	ch03718
+series	Show 0339	
+series	Show 0340	ch03740
+series	Show 0341	
+series	Show 0342	ch03762
+series	Show 0343	
+series	Show 0344	ch03784
+series	Show 0345	
+series	Show 0346	ch03806
+series	Show 0347	
+series	Show 0348	ch03828
+series	Show 0349	
+series	Show 0350	ch03850
+series	Show 0351	
+series	Show 0352	ch03872
+series	Show 0353	
+series	Show 0354	ch03894
+series	Show 0355	
+series	Show 0356	ch03916
+series	Show 0357	
+series	Show 0358	ch03938
+series	Show 0359	
+series	Show 0360	ch03960
+series	Show 0361	
+series	Show 0362	ch03982
+series	Show 0363	
+series	Show 0364	ch04004
+series	Show 0365	
+series	Show 0366	ch04026
+series	Show 0367	
+series	Show 0368	ch04048
+series	Show 0369	
+series	Show 0370	ch04070
+series	Show 0371	
+series	Show 0372	ch04092
+series	Show 0373	
+series	Show 0374	ch04114
+series	Show 0375	
+series	Show 0376	ch04136
+series	Show 0377	
+series	Show 0378	ch04158
+series	Show 0379	
+series	Show 0380	ch04180
+series	Show 0381	
+series	Show 0382	ch04202
+series	Show 0383	
+series	Show 0384	ch04224
+series	Show 0385	
+series	Show 0386	ch04246
+series	Show 0387	
+series	Show 0388	ch04268
+series	Show 0389	
+series	Show 0390	ch04290
+series	Show 0391	
+series	Show 0392	ch04312
+series	Show 0393	
+series	Show 0394	ch04334
+series	Show 0395	
+series	Show 0396	ch04356
+series	Show 0397	
+series	Show 0398	ch04378
+series	Show 0399	
+series	Show 0400	ch04400
+series	Show 0401	
+series	Show 0402	ch04422
+series	Show 0403	
+series	Show 0404	ch04444
+series	Show 0405	
+series	Show 0406	ch04466
+series	Show 0407	
+series	Show 0408	ch04488
+series	Show 0409	
+series	Show 0410	ch04510
+series	Show 0411	
+series	Show 0412	ch04532
+series	Show 0413	
+series	Show 0414	ch04554
+series	Show 0415	
+series	Show 0416	ch04576
+series	Show 0417	
+series	Show 0418	ch04598
+series	Show 0419	
+series	Show 0420	ch04620
+series	Show 0421	
+series	Show 0422	ch04642
+series	Show 0423	
+series	Show 0424	ch04664
+series	Show 0425	
+series	Show 0426	ch04686
+series	Show 0427	
+series	Show 0428	ch04708
+series	Show 0429	
+series	Show 0430	ch04730
+series	Show 0431	
+series	Show 0432	ch04752
+series	Show 0433	
+series	Show 0434	ch04774
+series	Show 0435	
+series	Show 0436	ch04796
+series	Show 0437	
+series	Show 0438	ch04818
+series	Show 0439	
+series	Show 0440	ch04840
+series	Show 0441	
+series	Show 0442	ch04862
+series	Show 0443	
+series	Show 0444	ch04884
+series	Show 0445	
+series	Show 0446	ch04906
+series	Show 0447	
+series	Show 0448	ch04928
+series	Show 0449	
+series	Show 0450	ch04950
+series	Show 0451	
+series	Show 0452	ch04972
+series	Show 0453	
+series	Show 0454	ch04994
+series	Show 0455	
+series	Show 0456	ch05016
+series	Show 0457	
+series	Show 0458	ch05038
+series	Show 0459	
+series	Show 0460	ch05060
+series	Show 0461	
+series	Show 0462	ch05082
+series	Show 0463	
+series	Show 0464	ch05104
+series	Show 0465	
+series	Show 0466	ch05126
+series	Show 0467	
+series	Show 0468	ch05148
+series	Show 0469	
+series	Show 0470	ch05170
+series	Show 0471	
+series	Show 0472	ch05192
+series	Show 0473	
+series	Show 0474	ch05214
+series	Show 0475	
+series	Show 0476	ch05236
+series	Show 0477	
+series	Show 0478	ch05258
+series	Show 0479	
+series	Show 0480	ch05280
+series	Show 0481	
+series	Show 0482	ch05302
+series	Show 0483	
+series	Show 0484	ch05324
+series	Show 0485	
+series	Show 0486	ch05346
+series	Show 0487	
+series	Show 0488	ch05368
+series	Show 0489	
+series	Show 0490	ch05390
+series	Show 0491	
+series	Show 0492	ch05412
+series	Show 0493	
+series	Show 0494	ch05434
+series	Show 0495	
+series	Show 0496	ch05456
+series	Show 0497	
+series	Show 0498	ch05478
+series	Show 0499	
+series	Show 0500	ch05500
+series	Show 0501	
+series	Show 0502	ch05522
+series	Show 0503	
+series	Show 0504	ch05544
+series	Show 0505	
+series	Show 0506	ch05566
+series	Show 0507	
+series	Show 0508	ch05588
+series	Show 0509	
+series	Show 0510	ch05610
+series	Show 0511	
+series	Show 0512	ch05632
+series	Show 0513	
+series	Show 0514	ch05654
+series	Show 0515	
+series	Show 0516	ch05676
+series	Show 0517	
+series	Show 0518	ch05698
+series	Show 0519	
+series	Show 0520	ch05720
+series	Show 0521	
+series	Show 0522	ch05742
+series	Show 0523	
+series	Show 0524	ch05764
+series	Show 0525	
+series	Show 0526	ch05786
+series	Show 0527	
+series	Show 0528	ch05808
+series	Show 0529	
+series	Show 0530	ch05830
+series	Show 0531	
+series	Show 0532	ch05852
+series	Show 0533	
+series	Show 0534	ch05874
+series	Show 0535	
+series	Show 0536	ch05896
+series	Show 0537	
+series	Show 0538	ch05918
+series	Show 0539	
+series	Show 0540	ch05940
+series	Show 0541	
+series	Show 0542	ch05962
+series	Show 0543	
+series	Show 0544	ch05984
+series	Show 0545	
+series	Show 0546	ch06006
+series	Show 0547	
+series	Show 0548	ch06028
+series	Show 0549	
+series	Show 0550	ch06050
+series	Show 0551	
+series	Show 0552	ch06072
+series	Show 0553	
+series	Show 0554	ch06094
+series	Show 0555	
+series	Show 0556	ch06116
+series	Show 0557	
+series	Show 0558	ch06138
+series	Show 0559	
+series	Show 0560	ch06160
+series	Show 0561	
+series	Show 0562	ch06182
+series	Show 0563	
+series	Show 0564	ch06204
+series	Show 0565	
+series	Show 0566	ch06226
+series	Show 0567	
+series	Show 0568	ch06248
+series	Show 0569	
+series	Show 0570	ch06270
+series	Show 0571	
+series	Show 0572	ch06292
+series	Show 0573	
+series	Show 0574	ch06314
+series	Show 0575	
+series	Show 0576	ch06336
+series	Show 0577	
+series	Show 0578	ch06358
+series	Show 0579	
+series	Show 0580	ch06380
+series	Show 0581	
+series	Show 0582	ch06402
+series	Show 0583	
+series	Show 0584	ch06424
+series	Show 0585	
+series	Show 0586	ch06446
+series	Show 0587	
+series	Show 0588	ch06468
+series	Show 0589	
+series	Show 0590	ch06490
+series	Show 0591	
+series	Show 0592	ch06512
+series	Show 0593	
+series	Show 0594	ch06534
+series	Show 0595	
+series	Show 0596	ch06556
+series	Show 0597	
+series	Show 0598	ch06578
+series	Show 0599	
+restricted	  GRP000 
+restricted	  GRP002 
+restricted	  GRP004 
+restricted	  GRP006 
+restricted	  GRP008 
+restricted	  GRP010 
+restricted	  GRP012 
+restricted	  GRP014 
+restricted	  GRP016 
+restricted	  GRP018 
+restricted	  GRP020 
+restricted	  GRP022 
+restricted	  GRP024 
+restricted	  GRP026 
+restricted	  GRP028 
+restricted	  GRP030 
+restricted	  GRP032 
+restricted	  GRP034 
+restricted	  GRP036 
+restricted	  GRP038 
+restricted	  GRP040 
+restricted	  GRP042 
+restricted	  GRP044 
+restricted	  GRP046 
+restricted	  GRP048 
+restricted	  GRP050 
+restricted	  GRP052 
+restricted	  GRP054 
+restricted	  GRP056 
+restricted	  GRP058 
+restricted	  GRP060 
+restricted	  GRP062 
+restricted	  GRP064 
+restricted	  GRP066 
+restricted	  GRP068 
+restricted	  GRP070 
+restricted	  GRP072 
+restricted	  GRP074 
+restricted	  GRP076 
+restricted	  GRP078 
+restricted	  GRP080 
+restricted	  GRP082 
+restricted	  GRP084 
+restricted	  GRP086 
+restricted	  GRP088 
+restricted	  GRP090 
+restricted	  GRP092 
+restricted	  GRP094 
+restricted	  GRP096 
+restricted	  GRP098 
+restricted	grp001
+restricted	grp003
+restricted	grp005
+restricted	grp007
+restricted	grp009
+restricted	grp011
+restricted	grp013
+restricted	grp015
+restricted	grp017
+restricted	grp019
+restricted	grp021
+restricted	grp023
+restricted	grp025
+restricted	grp027
+restricted	grp029
+restricted	grp031
+restricted	grp033
+restricted	grp035
+restricted	grp037
+restricted	grp039
+restricted	grp041
+restricted	grp043
+restricted	grp045
+restricted	grp047
+restricted	grp049
+restricted	grp051
+restricted	grp053
+restricted	grp055
+restricted	grp057
+restricted	grp059
+restricted	grp061
+restricted	grp063
+restricted	grp065
+restricted	grp067
+restricted	grp069
+restricted	grp071
+restricted	grp073
+restricted	grp075
+restricted	grp077
+restricted	grp079
+restricted	grp081
+restricted	grp083
+restricted	grp085
+restricted	grp087
+restricted	grp089
+restricted	grp091
+restricted	grp093
+restricted	grp095
+restricted	grp097
+restricted	grp099
+restricted-channel	  QA CHANNEL 00000 
+restricted-channel	  QA CHANNEL 00074 
+restricted-channel	  QA CHANNEL 00148 
+restricted-channel	  QA CHANNEL 00222 
+restricted-channel	  QA CHANNEL 00296 
+restricted-channel	  QA CHANNEL 00370 
+restricted-channel	  QA CHANNEL 00444 
+restricted-channel	  QA CHANNEL 00518 
+restricted-channel	  QA CHANNEL 00592 
+restricted-channel	  QA CHANNEL 00666 
+restricted-channel	  QA CHANNEL 00740 
+restricted-channel	  QA CHANNEL 00814 
+restricted-channel	  QA CHANNEL 00888 
+restricted-channel	  QA CHANNEL 00962 
+restricted-channel	  QA CHANNEL 01036 
+restricted-channel	  QA CHANNEL 01110 
+restricted-channel	  QA CHANNEL 01184 
+restricted-channel	  QA CHANNEL 01258 
+restricted-channel	  QA CHANNEL 01332 
+restricted-channel	  QA CHANNEL 01406 
+restricted-channel	  QA CHANNEL 01480 
+restricted-channel	  QA CHANNEL 01554 
+restricted-channel	  QA CHANNEL 01628 
+restricted-channel	  QA CHANNEL 01702 
+restricted-channel	  QA CHANNEL 01776 
+restricted-channel	  QA CHANNEL 01850 
+restricted-channel	  QA CHANNEL 01924 
+restricted-channel	  QA CHANNEL 01998 
+restricted-channel	  QA CHANNEL 02072 
+restricted-channel	  QA CHANNEL 02146 
+restricted-channel	  QA CHANNEL 02220 
+restricted-channel	  QA CHANNEL 02294 
+restricted-channel	  QA CHANNEL 02368 
+restricted-channel	  QA CHANNEL 02442 
+restricted-channel	  QA CHANNEL 02516 
+restricted-channel	  QA CHANNEL 02590 
+restricted-channel	  QA CHANNEL 02664 
+restricted-channel	  QA CHANNEL 02738 
+restricted-channel	  QA CHANNEL 02812 
+restricted-channel	  QA CHANNEL 02886 
+restricted-channel	  QA CHANNEL 02960 
+restricted-channel	  QA CHANNEL 03034 
+restricted-channel	  QA CHANNEL 03108 
+restricted-channel	  QA CHANNEL 03182 
+restricted-channel	  QA CHANNEL 03256 
+restricted-channel	  QA CHANNEL 03330 
+restricted-channel	  QA CHANNEL 03404 
+restricted-channel	  QA CHANNEL 03478 
+restricted-channel	  QA CHANNEL 03552 
+restricted-channel	  QA CHANNEL 03626 
+restricted-channel	  QA CHANNEL 03700 
+restricted-channel	  QA CHANNEL 03774 
+restricted-channel	  QA CHANNEL 03848 
+restricted-channel	  QA CHANNEL 03922 
+restricted-channel	  QA CHANNEL 03996 
+restricted-channel	  QA CHANNEL 04070 
+restricted-channel	  QA CHANNEL 04144 
+restricted-channel	  QA CHANNEL 04218 
+restricted-channel	  QA CHANNEL 04292 
+restricted-channel	  QA CHANNEL 04366 
+restricted-channel	  QA CHANNEL 04440 
+restricted-channel	  QA CHANNEL 04514 
+restricted-channel	  QA CHANNEL 04588 
+restricted-channel	  QA CHANNEL 04662 
+restricted-channel	  QA CHANNEL 04736 
+restricted-channel	  QA CHANNEL 04810 
+restricted-channel	  QA CHANNEL 04884 
+restricted-channel	  QA CHANNEL 04958 
+restricted-channel	  QA CHANNEL 05032 
+restricted-channel	  QA CHANNEL 05106 
+restricted-channel	  QA CHANNEL 05180 
+restricted-channel	  QA CHANNEL 05254 
+restricted-channel	  QA CHANNEL 05328 
+restricted-channel	  QA CHANNEL 05402 
+restricted-channel	  QA CHANNEL 05476 
+restricted-channel	  QA CHANNEL 05550 
+restricted-channel	  QA CHANNEL 05624 
+restricted-channel	  QA CHANNEL 05698 
+restricted-channel	  QA CHANNEL 05772 
+restricted-channel	  QA CHANNEL 05846 
+restricted-channel	  QA CHANNEL 05920 
+restricted-channel	  QA CHANNEL 05994 
+restricted-channel	  QA CHANNEL 06068 
+restricted-channel	  QA CHANNEL 06142 
+restricted-channel	  QA CHANNEL 06216 
+restricted-channel	  QA CHANNEL 06290 
+restricted-channel	  QA CHANNEL 06364 
+restricted-channel	  QA CHANNEL 06438 
+restricted-channel	  QA CHANNEL 06512 
+restricted-channel	  QA CHANNEL 06586 
+restricted-channel	  QA CHANNEL 06660 
+restricted-channel	  QA CHANNEL 06734 
+restricted-channel	  QA CHANNEL 06808 
+restricted-channel	  QA CHANNEL 06882 
+restricted-channel	  QA CHANNEL 06956 
+restricted-channel	  QA CHANNEL 07030 
+restricted-channel	  QA CHANNEL 07104 
+restricted-channel	  QA CHANNEL 07178 
+restricted-channel	  QA CHANNEL 07252 
+restricted-channel	  QA CHANNEL 07326 
+restricted-channel	  QA CHANNEL 07400 
+restricted-channel	  QA CHANNEL 07474 
+restricted-channel	  QA CHANNEL 07548 
+restricted-channel	  QA CHANNEL 07622 
+restricted-channel	  QA CHANNEL 07696 
+restricted-channel	  QA CHANNEL 07770 
+restricted-channel	  QA CHANNEL 07844 
+restricted-channel	  QA CHANNEL 07918 
+restricted-channel	  QA CHANNEL 07992 
+restricted-channel	  QA CHANNEL 08066 
+restricted-channel	  QA CHANNEL 08140 
+restricted-channel	  QA CHANNEL 08214 
+restricted-channel	  QA CHANNEL 08288 
+restricted-channel	  QA CHANNEL 08362 
+restricted-channel	  QA CHANNEL 08436 
+restricted-channel	  QA CHANNEL 08510 
+restricted-channel	  QA CHANNEL 08584 
+restricted-channel	  QA CHANNEL 08658 
+restricted-channel	  QA CHANNEL 08732 
+restricted-channel	  QA CHANNEL 08806 
+restricted-channel	  QA CHANNEL 08880 
+restricted-channel	  QA CHANNEL 08954 
+restricted-channel	  QA CHANNEL 09028 
+restricted-channel	  QA CHANNEL 09102 
+restricted-channel	  QA CHANNEL 09176 
+restricted-channel	  QA CHANNEL 09250 
+restricted-channel	  QA CHANNEL 09324 
+restricted-channel	  QA CHANNEL 09398 
+restricted-channel	  QA CHANNEL 09472 
+restricted-channel	  QA CHANNEL 09546 
+restricted-channel	  QA CHANNEL 09620 
+restricted-channel	  QA CHANNEL 09694 
+restricted-channel	  QA CHANNEL 09768 
+restricted-channel	  QA CHANNEL 09842 
+restricted-channel	  QA CHANNEL 09916 
+restricted-channel	  QA CHANNEL 09990 
+restricted-channel	  QA CHANNEL 10064 
+restricted-channel	  QA CHANNEL 10138 
+restricted-channel	  QA CHANNEL 10212 
+restricted-channel	  QA CHANNEL 10286 
+restricted-channel	  QA CHANNEL 10360 
+restricted-channel	  QA CHANNEL 10434 
+restricted-channel	  QA CHANNEL 10508 
+restricted-channel	  QA CHANNEL 10582 
+restricted-channel	  QA CHANNEL 10656 
+restricted-channel	  QA CHANNEL 10730 
+restricted-channel	  QA CHANNEL 10804 
+restricted-channel	  QA CHANNEL 10878 
+restricted-channel	  QA CHANNEL 10952 
+restricted-channel	  QA CHANNEL 11026 
+restricted-channel	QA Channel 00037
+restricted-channel	QA Channel 00111
+restricted-channel	QA Channel 00185
+restricted-channel	QA Channel 00259
+restricted-channel	QA Channel 00333
+restricted-channel	QA Channel 00407
+restricted-channel	QA Channel 00481
+restricted-channel	QA Channel 00555
+restricted-channel	QA Channel 00629
+restricted-channel	QA Channel 00703
+restricted-channel	QA Channel 00777
+restricted-channel	QA Channel 00851
+restricted-channel	QA Channel 00925
+restricted-channel	QA Channel 00999
+restricted-channel	QA Channel 01073
+restricted-channel	QA Channel 01147
+restricted-channel	QA Channel 01221
+restricted-channel	QA Channel 01295
+restricted-channel	QA Channel 01369
+restricted-channel	QA Channel 01443
+restricted-channel	QA Channel 01517
+restricted-channel	QA Channel 01591
+restricted-channel	QA Channel 01665
+restricted-channel	QA Channel 01739
+restricted-channel	QA Channel 01813
+restricted-channel	QA Channel 01887
+restricted-channel	QA Channel 01961
+restricted-channel	QA Channel 02035
+restricted-channel	QA Channel 02109
+restricted-channel	QA Channel 02183
+restricted-channel	QA Channel 02257
+restricted-channel	QA Channel 02331
+restricted-channel	QA Channel 02405
+restricted-channel	QA Channel 02479
+restricted-channel	QA Channel 02553
+restricted-channel	QA Channel 02627
+restricted-channel	QA Channel 02701
+restricted-channel	QA Channel 02775
+restricted-channel	QA Channel 02849
+restricted-channel	QA Channel 02923
+restricted-channel	QA Channel 02997
+restricted-channel	QA Channel 03071
+restricted-channel	QA Channel 03145
+restricted-channel	QA Channel 03219
+restricted-channel	QA Channel 03293
+restricted-channel	QA Channel 03367
+restricted-channel	QA Channel 03441
+restricted-channel	QA Channel 03515
+restricted-channel	QA Channel 03589
+restricted-channel	QA Channel 03663
+restricted-channel	QA Channel 03737
+restricted-channel	QA Channel 03811
+restricted-channel	QA Channel 03885
+restricted-channel	QA Channel 03959
+restricted-channel	QA Channel 04033
+restricted-channel	QA Channel 04107
+restricted-channel	QA Channel 04181
+restricted-channel	QA Channel 04255
+restricted-channel	QA Channel 04329
+restricted-channel	QA Channel 04403
+restricted-channel	QA Channel 04477
+restricted-channel	QA Channel 04551
+restricted-channel	QA Channel 04625
+restricted-channel	QA Channel 04699
+restricted-channel	QA Channel 04773
+restricted-channel	QA Channel 04847
+restricted-channel	QA Channel 04921
+restricted-channel	QA Channel 04995
+restricted-channel	QA Channel 05069
+restricted-channel	QA Channel 05143
+restricted-channel	QA Channel 05217
+restricted-channel	QA Channel 05291
+restricted-channel	QA Channel 05365
+restricted-channel	QA Channel 05439
+restricted-channel	QA Channel 05513
+restricted-channel	QA Channel 05587
+restricted-channel	QA Channel 05661
+restricted-channel	QA Channel 05735
+restricted-channel	QA Channel 05809
+restricted-channel	QA Channel 05883
+restricted-channel	QA Channel 05957
+restricted-channel	QA Channel 06031
+restricted-channel	QA Channel 06105
+restricted-channel	QA Channel 06179
+restricted-channel	QA Channel 06253
+restricted-channel	QA Channel 06327
+restricted-channel	QA Channel 06401
+restricted-channel	QA Channel 06475
+restricted-channel	QA Channel 06549
+restricted-channel	QA Channel 06623
+restricted-channel	QA Channel 06697
+restricted-channel	QA Channel 06771
+restricted-channel	QA Channel 06845
+restricted-channel	QA Channel 06919
+restricted-channel	QA Channel 06993
+restricted-channel	QA Channel 07067
+restricted-channel	QA Channel 07141
+restricted-channel	QA Channel 07215
+restricted-channel	QA Channel 07289
+restricted-channel	QA Channel 07363
+restricted-channel	QA Channel 07437
+restricted-channel	QA Channel 07511
+restricted-channel	QA Channel 07585
+restricted-channel	QA Channel 07659
+restricted-channel	QA Channel 07733
+restricted-channel	QA Channel 07807
+restricted-channel	QA Channel 07881
+restricted-channel	QA Channel 07955
+restricted-channel	QA Channel 08029
+restricted-channel	QA Channel 08103
+restricted-channel	QA Channel 08177
+restricted-channel	QA Channel 08251
+restricted-channel	QA Channel 08325
+restricted-channel	QA Channel 08399
+restricted-channel	QA Channel 08473
+restricted-channel	QA Channel 08547
+restricted-channel	QA Channel 08621
+restricted-channel	QA Channel 08695
+restricted-channel	QA Channel 08769
+restricted-channel	QA Channel 08843
+restricted-channel	QA Channel 08917
+restricted-channel	QA Channel 08991
+restricted-channel	QA Channel 09065
+restricted-channel	QA Channel 09139
+restricted-channel	QA Channel 09213
+restricted-channel	QA Channel 09287
+restricted-channel	QA Channel 09361
+restricted-channel	QA Channel 09435
+restricted-channel	QA Channel 09509
+restricted-channel	QA Channel 09583
+restricted-channel	QA Channel 09657
+restricted-channel	QA Channel 09731
+restricted-channel	QA Channel 09805
+restricted-channel	QA Channel 09879
+restricted-channel	QA Channel 09953
+restricted-channel	QA Channel 10027
+restricted-channel	QA Channel 10101
+restricted-channel	QA Channel 10175
+restricted-channel	QA Channel 10249
+restricted-channel	QA Channel 10323
+restricted-channel	QA Channel 10397
+restricted-channel	QA Channel 10471
+restricted-channel	QA Channel 10545
+restricted-channel	QA Channel 10619
+restricted-channel	QA Channel 10693
+restricted-channel	QA Channel 10767
+restricted-channel	QA Channel 10841
+restricted-channel	QA Channel 10915
+restricted-channel	QA Channel 10989
+restricted-channel	QA Channel 11063
