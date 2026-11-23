@@ -13,6 +13,7 @@ import com.devtunasoft.tuneros.core.Channel
 import com.devtunasoft.tuneros.core.GuideProgram
 import com.devtunasoft.tuneros.core.TimelineEntry
 import com.devtunasoft.tuneros.core.TimelineFocusPolicy
+import com.devtunasoft.tuneros.guide.GuideCellLabelPolicy
 
 /**
  * One low-allocation timeline surface for a guide row.
@@ -50,6 +51,9 @@ internal class ProgramTimelineView(
         val metrics = textPaint.fontMetrics
         -(metrics.ascent + metrics.descent) / 2f
     }
+    // One measured glyph is the smallest region that can carry a readable title. Measured from the
+    // approved Paint so it follows the active font scale without changing colour, family or weight.
+    private val minTitleGlyphWidthPx = textPaint.measureText("M").coerceAtLeast(1f)
 
     private var channel: Channel? = null
     private var entries: List<TimelineEntry> = emptyList()
@@ -150,7 +154,7 @@ internal class ProgramTimelineView(
 
             val program = entry.program ?: continue
             val textLeft = left + horizontalPadding
-            if (right - textLeft <= horizontalPadding) continue
+            if (!GuideCellLabelPolicy.drawsTitle(right - left, horizontalPadding, minTitleGlyphWidthPx)) continue
             val save = canvas.save()
             canvas.clipRect(textLeft, 0f, right - horizontalPadding, contentHeight)
             canvas.drawText(
