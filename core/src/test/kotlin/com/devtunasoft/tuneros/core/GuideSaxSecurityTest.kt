@@ -47,4 +47,12 @@ class GuideSaxSecurityTest {
                     stop="20261111110000 +0000"><title>&c;</title></programme></tv>""")
         }
     }
+
+    @Test fun xincludeIsNeverResolved() {
+        // If XInclude processing were on, the missing local fixture would fail the parse.
+        val guide = import("""<tv xmlns:xi="http://www.w3.org/2001/XInclude">
+            <xi:include href="file:///definitely-not-present-tuneros-xinclude-fixture" parse="text"/>
+            <channel id="news"><display-name>News</display-name></channel></tv>""")
+        assertEquals("News", guide.channelNames["news"])
+    }
 }

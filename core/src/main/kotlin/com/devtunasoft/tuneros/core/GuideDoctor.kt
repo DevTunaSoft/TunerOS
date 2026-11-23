@@ -35,6 +35,9 @@ object GuideDoctor {
 
     private val separator = Regex("[^\\p{L}\\p{N}]+")
     private val qualityWords = setOf("hd", "sd", "fhd", "uhd", "4k", "tv", "channel", "the", "and")
+    // Same credential test as a backup value: a shareable warning must not carry a token or password even when it
+    // has no URL for the URL filter to catch. Requiring '=' or ':' keeps ordinary warning text shareable.
+    private val credentialLike = Regex("(?i)(pass(word|wd)?|token|secret|api[_-]?key|authorization)\\s*[=:]")
 
     /**
      * Channels with no guide ID, or whose guide ID has no schedule. Every channel is listed when no guide is loaded.
@@ -146,7 +149,8 @@ object GuideDoctor {
     /**
      * A plain-text summary of [diagnosis] that the user can share on request. It holds counts, the guide's end time in
      * UTC, the check time and the guide's own warnings. It never holds channel names, guide IDs, playlist or guide URLs,
-     * or credentials. A warning that contains a URL is left out, and each warning is cut to 200 characters.
+     * or credentials. A warning that contains a URL or a credential assignment is left out, and each warning is cut to
+     * 200 characters.
      */
     fun summaryText(diagnosis: Diagnosis, guideWarnings: List<String>, nowEpochSeconds: Long): String = buildString {
         appendLine("TunerOS Guide Doctor summary")
@@ -164,7 +168,9 @@ object GuideDoctor {
         )
         val endsAt = diagnosis.guideEndsAtEpochSeconds
         appendLine("guide ends: " + (endsAt?.let { Instant.ofEpochSecond(it).toString() } ?: "no programmes"))
-        val shareable = guideWarnings.filterNot { it.contains("http", ignoreCase = true) || it.contains("://") }
+        val shareable = guideWarnings.filterNot {
+            it.contains("http", ignoreCase = true) || it.contains("://") || credentialLike.containsMatchIn(it)
+        }
         if (shareable.isNotEmpty()) {
             appendLine("guide warnings:")
             for (warning in shareable) appendLine("- ${warning.take(200)}")
