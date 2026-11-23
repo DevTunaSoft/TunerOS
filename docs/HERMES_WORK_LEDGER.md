@@ -33,9 +33,9 @@ Hermes must fill in completion status, actual Git blob/SHA or content hash, line
 | `docs/AUDIT_FINDINGS_2026-11-10.md`; `docs/THIRD_PARTY_PROVENANCE.md` | NOT RUN | NOT RUN | NOT RUN |
 | Relevant source, tests, Gradle, Android and TV workflows | NOT RUN | NOT RUN | NOT RUN |
 
-## C. Worker ownership reservation (pending Hermes confirmation)
+## C. Worker ownership reservation — at least two active (pending Hermes confirmation)
 
-No actual Hermes worker has been launched by this documentation update. All task reservations below are **PROPOSED / NOT STARTED**, contingent on fresh source and PR audit.
+No actual Hermes worker has been launched by this documentation update. All task reservations below are **PROPOSED / NOT STARTED**, contingent on fresh source and PR audit. **Two active workers are the minimum, not a maximum.** Any third or later worker must receive its own disjoint task, worktree and file ownership. Hermes coordinator does not count. Follow the native cron specification in `docs/HERMES_INTERNAL_CRON.md`.
 
 | Slot | Candidate objective | File ownership **once reserved** | Forbidden overlap | Status |
 |---|---|---|---|---|
@@ -85,8 +85,21 @@ No Hermes worker attempts have occurred as part of the handoff creation. Do not 
 1. Re-open `AGENTS.md` and `docs/HERMES_AUTONOMOUS_TAKEOVER.md`; finish all mandatory full-document reading.
 2. Detect local checkout / preserve `git status`; enumerate worktrees and agents, `git fetch --all --prune`, then re-audit remote `main`, PRs, issues and latest Actions results.
 3. Reconcile every ledger line with exact remote commits; never repeat already merged work.
-4. Restore two distinct worktrees/branches only if necessary; reserve disjoint file paths and select measurable, unblocked tasks.
+4. Restore at least two distinct active worker sessions/worktrees/branches if supported and necessary; reserve disjoint file paths and select measurable, unblocked tasks.
 5. Use PC or GitHub to build/test. Confirm every claimed PASS with exact-SHA command/results. Commit/push validated work and open/merge PRs under existing repository protections.
 6. Serialize this ledger and related release/QA document updates. Continue autonomously during the active session. If blocked, record exact failure, recoverable artifact/worktree and next executable step.
 
 **Important:** Do not equate a new handoff PR, a proposed worker, or a passed synthetic test with a finished product or real Android hardware acceptance.
+
+## H. Internal cron and liveness ledger
+
+- **Required platform:** Hermes-native recurring scheduler only; `*/5 * * * *` (every five minutes). **External system cron/Windows Task Scheduler is not authorized as a substitute** for this requirement.
+- **Cron job ID:** NOT RUN / not yet installed by Hermes.
+- **Real native cron invocation evidence:** NOT RUN.
+- **Observed real active worker count:** NOT RUN (target >= 2, Hermes coordinator excluded).
+- **Auto-recovery test:** NOT RUN.
+- **Durability across session/runtime restart:** UNVERIFIED.
+- **Configuration/acceptance instructions:** `docs/HERMES_INTERNAL_CRON.md`.
+- **Actionable priority roadmap:** `docs/HERMES_EXECUTION_ROADMAP.md`.
+
+When Hermes installs cron, replace these lines with the real job ID, native command/API used, verified firing timestamps and results, active worker task IDs/worktrees, and genuine remaining blockers. Avoid a commit every five minutes just to report a heartbeat; durable ledger writes should correspond to meaningful work or changes in blocker state. Never assert agents or cron are active from the mere presence of these documentation files.
