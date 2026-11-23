@@ -1,0 +1,11 @@
+key	value
+seed	20261123
+case_count	89
+corrupt_count	23
+family_count	13
+list_cap	64
+listed_cap	1000
+cycle_count	6
+cases_sha	47915149ed5d582621903bdb7bb200eb37d3dc1b03a03a1cf6eb2af864609203
+manifest_sha	5a8fdb6ef0a74c0e4841ab2a090c75b582a5b17440063f8e9075b2fd0a9f44c6
+marker_len	11
