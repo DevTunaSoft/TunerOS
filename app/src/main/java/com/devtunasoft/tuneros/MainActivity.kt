@@ -1259,6 +1259,15 @@ class MainActivity : Activity() {
                 if (epoch != playlistEpoch.get() || isFinishing || isDestroyed) return@runOnUiThread
                 result.onSuccess {
                     channels = it.channels
+                    // MAP-05: a confirmed, non-empty playlist is the only point where stale mapping keys can
+                    // be identified. Failed/empty imports never reach this branch, so they fail closed.
+                    if (guideMappings.isNotEmpty()) {
+                        val liveKeys = channels.mapTo(HashSet(channels.size)) { channel -> channel.storageKey }
+                        val pruned = GuideMappingStore.retain(guideMappings, liveKeys)
+                        if (pruned !== guideMappings && guideMappingStore.save(pruned)) {
+                            guideMappings = pruned
+                        }
+                    }
                     val warnings = it.warnings + if (saved) emptyList() else listOf("URL not saved securely")
                     showStatus("Loaded ${it.channels.size} channels" + if (warnings.isEmpty()) "" else "; WARNING: " + warnings.joinToString("; "))
                     renderChannels()
