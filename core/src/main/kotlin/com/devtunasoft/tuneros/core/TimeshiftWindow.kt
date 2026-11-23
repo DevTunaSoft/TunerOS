@@ -106,7 +106,7 @@ class TimeshiftWindow(val maxSegments: Int, val maxBytes: Long) {
 }
 
 private val PROGRAM_DATE: DateTimeFormatter =
-    DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'").withZone(ZoneOffset.UTC)
+    DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ss.SSS'Z'").withZone(ZoneOffset.UTC)
 
 /**
  * The time HLS writes in EXT-X-PROGRAM-DATE-TIME: ISO 8601 in UTC with milliseconds. A live player needs these tags to
