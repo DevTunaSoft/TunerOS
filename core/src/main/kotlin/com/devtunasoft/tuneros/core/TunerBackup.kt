@@ -51,7 +51,9 @@ object TunerBackup {
 
     fun decode(text: String): BackupContents {
         require(text.toByteArray(Charsets.UTF_8).size <= MAX_BYTES) { "the backup is too large" }
-        val lines = text.split('\n')
+        // A backup that travelled through a text editor can use CRLF. Values carry their own CR as "\\r",
+        // so a raw trailing CR is only ever a line terminator.
+        val lines = text.split('\n').map { it.removeSuffix("\r") }
         require(lines.firstOrNull() == HEADER) { "the file is not a TunerOS backup of this version" }
         val favorites = LinkedHashSet<String>()
         val mappings = LinkedHashMap<String, String>()
