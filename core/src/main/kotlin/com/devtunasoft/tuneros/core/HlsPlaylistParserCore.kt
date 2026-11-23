@@ -152,7 +152,11 @@ object HlsPlaylistParserCore {
                     require(!mediaSequenceSeen && !sawSegmentUri) {
                         "HLS media sequence must appear once, before the first segment"
                     }
-                    mediaSequence = line.substringAfter(':').trim().toLong()
+                    val sequenceToken = line.substringAfter(':').trim()
+                    require(!sequenceToken.startsWith('-') && !sequenceToken.startsWith('+')) {
+                        "HLS media sequence must be an unsigned decimal-integer"
+                    }
+                    mediaSequence = sequenceToken.toLong()
                     nextSequence = mediaSequence
                     mediaSequenceSeen = true
                     sawMediaTag = true
