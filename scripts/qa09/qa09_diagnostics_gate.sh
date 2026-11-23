@@ -119,24 +119,52 @@ else
   STUB_STATUS=0
 fi
 
-# Offline AGP assembly is attempted only when an SDK is actually configured.
+# Offline AGP assembly: use the configured SDK, or a local scratch SDK when the environment is unset.
+# The SDK path is discovered, never written into repository configuration.
+if [ -n "${ANDROID_HOME:-}" ] && [ -f "$ANDROID_HOME/platforms/android-35/android.jar" ]; then
+  SDK_JAR="$ANDROID_HOME/platforms/android-35/android.jar"
+else
+  SDK_JAR=$(find "$HOME/AppData/Local/hermes/cache/scratch" "$HOME/AppData/Local/Temp" \
+    -maxdepth 5 -path '*/platforms/android-35/android.jar' 2>/dev/null | head -1)
+  if [ -n "$SDK_JAR" ]; then
+    SDK_DIR=$(native "$(dirname "$(dirname "$(dirname "$SDK_JAR")")")")
+    export ANDROID_HOME="$SDK_DIR"
+    export ANDROID_SDK_ROOT="$SDK_DIR"
+    echo 'SDK\tDETECTED\tlocal scratch SDK used for offline AGP'
+  fi
+fi
+
+AGP_STATUS=0
 if [ -n "${ANDROID_HOME:-}" ] && [ -d "${ANDROID_HOME}/platforms" ]; then
   echo 'AGP\tSTART\toffline assembleDebugAndroidTest'
   run_bounded 600 ./gradlew --offline --no-daemon :app:compileDebugAndroidTestKotlin :app:assembleDebugAndroidTest \
     > "$BUILD/agp.log" 2>&1
   AGP_STATUS=$?
   echo "AGP\texit=$AGP_STATUS\t$( [ "$AGP_STATUS" -eq 0 ] && echo PASS || echo FAIL )"
+  if [ "$AGP_STATUS" -eq 0 ]; then
+    APK=$(find "$ROOT/app/build/outputs/apk/androidTest" -name '*.apk' 2>/dev/null | head -1)
+    if [ -n "$APK" ]; then echo "AGP\tAPK_BYTES\t$(wc -c < "$APK" | tr -d ' ')"; fi
+  fi
 else
-  echo 'AGP\tBLOCKED\tno configured Android SDK; offline APK assembly NOT RUN'
+  echo 'AGP\tBLOCKED\tno configured or local Android SDK; offline APK assembly NOT RUN'
 fi
 
-if command -v adb >/dev/null 2>&1 && [ -n "${ANDROID_HOME:-}" ]; then
-  echo 'DEVICE\tNOT RUN\tno authorized emulator/device was configured for this host gate'
+ADB_BIN=$(command -v adb || true)
+if [ -z "$ADB_BIN" ] && [ -n "${ANDROID_HOME:-}" ] && [ -x "$ANDROID_HOME/platform-tools/adb.exe" ]; then
+  ADB_BIN="$ANDROID_HOME/platform-tools/adb.exe"
+fi
+if [ -n "$ADB_BIN" ]; then
+  DEVICES=$(run_bounded 15 "$ADB_BIN" devices 2>/dev/null | awk 'NR > 1 && $2 == "device" { n++ } END { print n + 0 }')
+  if [ "${DEVICES:-0}" -gt 0 ]; then
+    echo 'DEVICE\tNOT RUN\tdevice execution is outside this host gate; no device PASS claimed'
+  else
+    echo 'DEVICE\tBLOCKED\tno authorized device attached; execution UNVERIFIED'
+  fi
 else
-  echo 'DEVICE\tBLOCKED\tno adb and no SDK; device execution UNVERIFIED'
+  echo 'DEVICE\tBLOCKED\tno adb available; device execution UNVERIFIED'
 fi
 
-if [ "$RED_FAILURES" -ne 0 ] || [ "$GREEN_STATUS" -ne 0 ] || [ "$STUB_STATUS" -ne 0 ]; then
+if [ "$RED_FAILURES" -ne 0 ] || [ "$GREEN_STATUS" -ne 0 ] || [ "$STUB_STATUS" -ne 0 ] || [ "$AGP_STATUS" -ne 0 ]; then
   echo 'GATE\tFAIL'
   exit 1
 fi
