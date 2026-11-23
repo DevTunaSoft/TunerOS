@@ -11,10 +11,10 @@ QA37_REFS = "qa/fixtures/qa37/refs.tsv"
 QA37_EXP = "qa/fixtures/qa37/expectations.tsv"
 
 MUTANTS = {
-    "qa37_dup_coverage": {
-        "key": "QA37_expectations.tsv",
-        "old": b"!ids.add(rule.id)",
-        "new": b"!ids.add(rule.unusedId)",
+    "c13_refusal_guard": {
+        "key": "C13_BackupRestore.kt",
+        "old": b"if (refusal != null) throw IllegalStateException(refusal)",
+        "new": b"if (1 == 0) throw IllegalStateException(refusal)",
     },
 }
 
@@ -43,10 +43,10 @@ def main():
     args = parser.parse_args()
 
     sources = {
-        "QA37_expectations.tsv": (args.qa37, QA37_EXP),
-        "QA37_refs.tsv": (args.qa37, QA37_REFS),
-        "BASE_BackupRestore.kt": (args.base, BACKUP),
         "C13_BackupRestore.kt": (args.c13, BACKUP),
+        "BASE_BackupRestore.kt": (args.base, BACKUP),
+        "QA37_refs.tsv": (args.qa37, QA37_REFS),
+        "QA37_expectations.tsv": (args.qa37, QA37_EXP),
     }
     root = pathlib.Path(args.dir)
     overlay = root / "overlay"

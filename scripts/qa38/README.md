@@ -2,8 +2,6 @@
 
 Deterministic, bounded, host-only **static** gate over pinned git objects. No emulator,
 no network, no product edit, no Gradle, no PR and no merge. One synthetic marker only.
-At the audited pin the gate reports a truthful **FAIL**: C13 has not yet pushed the
-RESTORE-02 production change or its regressions.
 
 ## Owned paths
 
@@ -18,14 +16,17 @@ androidTest, sibling QA directory, workflow, Gradle file, shared document or
 |---|---|---|
 | `BASE` | `a523c2e43d198ee752f7c4f03f9f7853356ffb30` | reconciled main base |
 | `C10` | `f57ab44ce83c9b281e43010c3e5b8dc968a189b6` | FAV-06 bounded atomic series-rule replacement |
-| `C13` | `c1d6f62bdba4f47edc069c437022131dc45d1da6` | **observed** `hermes/worker-c13-restore02` HEAD at audit; local == origin |
+| `C13` | `fc8986725c8fa3cda4acc429266526b9a237d90d` | RESTORE-02 final commit; local == origin |
 | `QA37` | `9df525ad5c1b11f8625949888474b24f86967b81` | B44 QA-37 FAV-06 host gate |
 
-`C13` is pinned to the branch head actually observed at audit time. Its only delta
-from `BASE` is `app/build.gradle.kts` (a JUnit 4 test dependency). It is **not** a
-RESTORE-02 final commit. `git ls-remote origin refs/heads/hermes/worker-c13-restore02`
-returned the same SHA. No ref in the repository contains a `BackupRestore.kt` with
-`replaceAll`, and no ref contains a `restore02` test path.
+Pin history, stated exactly: at the first audit the observed C13 branch head was
+`c1d6f62bdba4f47edc069c437022131dc45d1da6`, whose only delta from `BASE` was
+`app/build.gradle.kts` (JUnit 4 dependency); the RESTORE-02 change was absent and the
+gate truthfully reported FAIL at that SHA. C13 subsequently pushed
+`fc8986725c8fa3cda4acc429266526b9a237d90d` (`RESTORE-02: bound series-rule restore
+and fail closed on refusal`). The pin was updated to that final SHA and the gate now
+reports PASS. Both SHAs are recorded here; nothing was fabricated. The pin-freshness
+check compares the pin to `origin/hermes/worker-c13-restore02` on every run.
 
 ## Audit boundary — QA-29..37 read first, nothing duplicated
 
@@ -37,51 +38,50 @@ returned the same SHA. No ref in the repository contains a `BackupRestore.kt` wi
 - **QA-34 (b42):** combined DVR/MAP dual-hazard gate; cross-pins QA-31 and QA-33.
 - **QA-35 (b43):** GUIDE-07 recycled-row D-pad window shift.
 - **QA-36 (c12):** HTTP-07 malformed-URL redaction and CORE-49 structural check.
-- **QA-37 (b44):** detailed FAV-06 policy proof at the same `C10` SHA — over-cap and
-  duplicate refusal before any write, failed-insert rollback, transaction boundary,
-  `replaceAll` signature and the FAV-06 regression file.
+- **QA-37 (b44):** detailed FAV-06 policy proof at the same `C10` SHA.
 
-QA-37 already owns the FAV-06 policy assertions. QA-38 therefore does **not**
-re-check those policy needles against `C10` source. Following QA-34's precedent, it
-cross-references QA-37: it pins QA-37 by full SHA, confirms QA-37's own fixture pins
-the identical `C10` object, confirms QA-37's runner exists, and confirms QA-37's
-fixture still names the three required properties (over-cap, duplicate, rollback).
-QA-38's distinct subject is the **integration seam**: whether `BackupRestore.apply`
-at the pinned C13 commit actually routes through that policy and drops the unchecked
-remove-all/add-each loop, and whether RESTORE-02 regressions exist.
+QA-37 already owns the FAV-06 policy assertions. QA-38 does **not** re-check them
+against `C10` source. Following QA-34's precedent it cross-pins QA-37 by full SHA,
+confirms QA-37's fixture pins the identical `C10` object, and confirms QA-37's runner
+exists. QA-38's distinct subject is C13's `BackupRestore.apply`: whether the unchecked
+remove-all/add-each loop is gone, whether the whole series-rule list is refused before
+any write, whether a failed insert restores the previous list, and whether RESTORE-02
+regressions exist. C13 implements its own caller-side policy rather than calling
+C10's `replaceAll`, so the gate checks the code that actually shipped.
 
-## What is verified (11 fixture rows + 11 structural checks = 22)
+## What is verified (16 fixture rows + 14 structural checks = 30)
 
-- QA-37 pin integrity: identical `C10` object, runner present, three coverage names
-  present; four pinned refs distinct, resolvable and sharing the common base.
-- Pin freshness: the observed `origin/hermes/worker-c13-restore02` head equals the
-  pinned C13 SHA. When C13 pushes a final commit this check FAILs until `refs.tsv`
-  is re-pinned, so no stale pin can be silently reused.
+- Pin integrity: four distinct resolvable refs, common base, observed C13 head equals
+  the pin, QA-37 cross-pin and runner present, fixture SHA-256.
 - Baseline control at `BASE`: the unchecked
   `for (rule in series.all()) series.remove(rule)` /
-  `for (rule in contents.seriesRules) series.add(rule, now)` loop exists and no
-  `series.replaceAll(` call exists.
-- RESTORE-02 integration at pinned `C13` (the four task questions):
-  1. `BackupRestore.apply` no longer uses the unchecked remove-all/add loop —
-     `C13_NO_LOOP_REMOVE`, `C13_NO_LOOP_ADD`, `C13_NO_UNGUARDED_ADD`.
-  2. Over-cap and duplicate refusal before any write — delegated to the pinned
-     QA-37 gate via `X_QA37_PINS_C10`, `X_QA37_COVERS_OVERCAP`,
-     `X_QA37_COVERS_DUP`, `X_QA37_COVERS_ROLLBACK`, `QA37_GATE_PRESENT`; the
-     integration path must route through it via `C13_USES_REPLACEALL`.
-  3. Failed insert leaves previous rules intact — same QA-37 delegation plus
-     `X_QA37_COVERS_ROLLBACK`; no partial restore is accepted by QA-38 itself.
-  4. RESTORE-02 regressions exist — `C13_RESTORE02_TEST_PRESENT` (tree scan).
-- `C13_BACKUP_CHANGED` proves the restore blob differs from the common base.
-- Fixture SHA-256, no production drift, no sensitive patterns in report or fixtures.
-- One bounded synthetic marker (`RESTORE-02-INTEGRATED`, 52 bytes) is emitted only
-  when every RESTORE-02 integration condition holds. At the audit pin the marker is
-  absent and `RESTORE02_MARKER_EMITTED` FAILs.
+  `for (rule in contents.seriesRules) series.add(rule, now)` loop exists and
+  `ruleRefusal(` does not.
+- **No unchecked loop in `apply`:** `C13_APPLY_BODY_NO_UNCHECKED_LOOP` scopes the
+  scan to the `fun apply` body (lines 37-55) and finds zero `series.remove(rule)` /
+  `series.add(rule, now)` calls; `apply` calls `ruleRefusal(...)` then
+  `replaceSeriesRules(...)`.
+- **Over-cap and duplicate refusal before any write:** `ruleRefusal` checks
+  `rules.size > SeriesRules.MAX_RULES` and duplicate ids via a `HashSet`;
+  `C13_REFUSAL_BEFORE_WRITE` proves the refusal (line 40) precedes the first store
+  write (line 45) and the replacement call (line 47). Fixed refusal reasons are
+  present; no rule value is interpolated into a diagnostic.
+- **Failed insert leaves previous rules intact:** `replaceSeriesRules` snapshots
+  `series.all()`, restores via `restoreSeriesRules(previous, now)` on a failed add
+  and on the final set mismatch, and throws a fixed reason.
+  `C13_RESTORE_AFTER_FAILED_INSERT` proves the failed-add guard (line 68) precedes
+  the restore (line 69).
+- **RESTORE-02 regressions exist:** six paths under
+  `app/src/test/java/com/devtunasoft/tuneros/restore02/`, including
+  `BackupRestoreSeriesTest.kt`.
+- No production drift, no sensitive patterns in report or fixtures. One bounded
+  synthetic marker (`RESTORE-02-INTEGRATED`, 52 bytes) is emitted only when all
+  RESTORE-02 conditions hold.
 
 ## Verdict and exit codes
 
-Exit 0 PASS (all 22 checks green and RESTORE-02 integrated), 1 FAIL, 2 SETUP error.
-At the pinned SHAs the truthful exit is **1 / FAIL**, with 15 PASS and 7 FAIL;
-`first=C13_NO_LOOP_REMOVE`, `marker=0`. A false PASS is not emitted.
+Exit 0 PASS, 1 FAIL, 2 SETUP error. At the pinned SHAs the observed result is
+**0 / PASS**: 30 checks, 30 PASS, 0 FAIL, `first=NONE`, `marker=1`.
 
 ## Commands and exact observed status
 
@@ -89,41 +89,39 @@ At the pinned SHAs the truthful exit is **1 / FAIL**, with 15 PASS and 7 FAIL;
 bash -n scripts/qa38/run.sh                                  PASS
 python AST parse + compile scripts/qa38/mutate.py            PASS
 sha256sum -c qa/fixtures/qa38/sha256.txt                     3/3 OK
-bash scripts/qa38/run.sh gate-only                           EXIT=1
-    SUMMARY checks=22 pass=15 fail=7 first=C13_NO_LOOP_REMOVE
-            verdict=FAIL expected-total=22 pinned-c13=c1d6f62b marker=0
-    FAIL ids: C13_NO_LOOP_REMOVE, C13_NO_LOOP_ADD, C13_USES_REPLACEALL,
-             C13_NO_UNGUARDED_ADD, C13_RESTORE02_TEST_PRESENT,
-             C13_BACKUP_CHANGED, RESTORE02_MARKER_EMITTED
+bash scripts/qa38/run.sh gate-only                           EXIT=0
+    SUMMARY checks=30 pass=30 fail=0 first=NONE verdict=PASS
+            expected-total=30 pinned-c13=fc898672 marker=1
+    RESTORE02 RESTORE-02-INTEGRATED sha=fc898672 tests=6
 bash scripts/qa38/run.sh verify                              EXIT=0
-    RED:      rc=1 fail=8 first=X_QA37_COVERS_DUP marker=0
+    RED:      rc=1 fail=2 first=C13_REFUSAL_THROW marker=0
     RESTORE:  4/4 scratch files BYTE_IDENTICAL (vs pinned git blobs)
-    GREEN:    rc=1 fail=7 first=C13_NO_LOOP_REMOVE verdict=FAIL marker=0
+    GREEN:    rc=0 fail=0 first=NONE verdict=PASS marker=1
     MUTATION PASS: single-scratch-mutation-detected-and-restored-byte-identically
 ```
 
 The single mutation removes one byte-needle from a scratch overlay of
-`QA37:qa/fixtures/qa37/expectations.tsv`
-(`!ids.add(rule.id)` -> `!ids.add(rule.unusedId)`). It is scoped to exactly one
+`C13:app/src/main/java/com/devtunasoft/tuneros/BackupRestore.kt`
+(`if (refusal != null) throw IllegalStateException(refusal)` ->
+`if (1 == 0) throw IllegalStateException(refusal)`). It is scoped to exactly one
 declared `(ref, path)` pair; a missing declared substitution fails closed. No
-repository or production file is written by the mutator. Because the baseline is
-already FAIL for absent C13 work, sensitivity is demonstrated by a named positive
-check flipping PASS -> RED at a pinned FIRST code, then restoring byte-identically
-and returning to the identical baseline verdict.
+repository or production file is written by the mutator. RED fires the named refusal
+check at a pinned FIRST code, then restoration returns all four scratch files to
+byte-identical copies of the pinned git blobs and the gate returns to its PASS verdict.
 
 ## Bounds and privacy
 
 Only four pinned commits and their fixed paths are read, capped at 65,536 bytes /
 2,000 lines each. No network, emulator, device, unbounded walk or fixture-content
-echo. The report carries check ids, counts, short SHAs and hashes only. Report and
-fixtures are scanned for URL, credential and secret patterns. All markers and names
-are synthetic; no provider data, real media or credentials are used. LF is pinned
-with `.gitattributes` in both owned directories; a native-prefix checkout simulation
-produced 8 files with zero CR bytes. Device execution is **NOT RUN** and no device
-PASS is claimed. JDK 17 is installed at the assigned path but this static gate uses
-only bash, python and git.
+echo. The report carries check ids, counts, line numbers, short SHAs and hashes only.
+Report and fixtures are scanned for URL, credential and secret patterns. All markers
+and names are synthetic; no provider data, real media or credentials are used. LF is
+pinned with `.gitattributes` in both owned directories. Device execution is **NOT RUN**
+and no device PASS is claimed. JDK 17 is installed at the assigned path but this
+static gate uses only bash, python and git. This is a static evidence gate, not a
+Kotlin/JUnit run, an APK build or an on-device acceptance result.
 
-## Reading record and blockers
+## Reading record and next task
 
 Read for this task: `AGENTS.md`, `CLAUDE.md`, `docs/ROADMAP.md`, the scratch copies
 `docs_HERMES_EXECUTION_ROADMAP.md`, `docs_HERMES_INTERNAL_CRON.md` and
@@ -131,9 +129,7 @@ Read for this task: `AGENTS.md`, `CLAUDE.md`, `docs/ROADMAP.md`, the scratch cop
 `byte-exact-fixtures` reference, and the read-only diffs of C10 FAV-06 and C13
 RESTORE-02. Full engineering-book compliance is **NOT** claimed.
 
-Blocker: C13 RESTORE-02 is incomplete at the observed pin — `BackupRestore.apply`
-still uses the unchecked loop and no restore02 regression file exists. This gate
-reports that honestly as FAIL. Next task: when C13 pushes its final RESTORE-02
-commit, re-pin `C13` in `qa/fixtures/qa38/refs.tsv`, refresh `sha256.txt`, and re-run
-`gate-only` and `verify`; the expected result is EXIT=0 / verdict=PASS with one
-bounded marker. No PR or merge is opened by this worker.
+No blocker for the host gate. Next task: integrate the verified branch, then run the
+real JVM unit tests and exact-commit CI/emulator acceptance for C13's six RESTORE-02
+test files; this host gate does not substitute for those runs. No PR or merge is
+opened by this worker.

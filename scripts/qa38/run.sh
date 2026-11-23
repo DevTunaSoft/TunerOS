@@ -1,9 +1,7 @@
 #!/usr/bin/env bash
 # QA-38: deterministic host-only RESTORE-02 integration gate over pinned git objects.
 # Reads immutable commit objects only. No emulator, network, product edit, PR or merge.
-# Exit codes: 0 PASS (all checks green and RESTORE-02 integrated), 1 FAIL, 2 SETUP error.
-# At the audited pin C13=c1d6f62b the truthful verdict is FAIL: the RESTORE-02
-# production change and its regressions are not present at that commit.
+# Exit codes: 0 PASS, 1 FAIL, 2 SETUP error.
 set -uo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && { pwd -W 2>/dev/null || pwd; })"
@@ -26,7 +24,7 @@ c13_branch='hermes/worker-c13-restore02'
 
 max_bytes=65536
 max_lines=2000
-extra_checks=11
+extra_checks=14
 
 for required in "$refs_file" "$expect_file" "$markers_file" "$sha_file"; do
   if [[ ! -f "$required" ]]; then
@@ -46,6 +44,10 @@ ref_sha() {
 
 count_fixed() {
   LC_ALL=C grep -o -F -- "$2" "$1" 2>/dev/null | wc -l | tr -d '[:space:]'
+}
+
+line_of() {
+  LC_ALL=C grep -n -F -m1 -- "$2" "$1" 2>/dev/null | cut -d: -f1
 }
 
 declare -A QA38_SRC_CACHE=()
@@ -89,10 +91,11 @@ gate() {
   mkdir -p "$qa38_cache_dir"
   local report="$dir/report.tsv"
   : > "$report"
-  local checks=0 passes=0 fails=0 first=NONE
+  local checks=0 passes=0 fails=0 first=NONE c13_fail_n=0
   local refs_ok=1 base c10 c13 qa37
   local qa37_runner_n=0 restore02_files=-1 backup_changed=0 marker_hits=0 marker_bytes=0
-  local integration_ok=0 c13_no_remove=0 c13_no_add=0 c13_uses=0 c13_no_unguarded=0
+  local integration_ok=0 apply_unchecked=0
+  local refusal_line first_write_line replace_line add_guard_line restore_line
   local marker_text=''
 
   pass() {
@@ -101,6 +104,9 @@ gate() {
   }
   fail() {
     checks=$((checks + 1)); fails=$((fails + 1))
+    case "$1" in
+      C13_*|X_QA37_*) c13_fail_n=$((c13_fail_n + 1)) ;;
+    esac
     if [[ "$first" == NONE ]]; then first="$1"; fi
     printf 'CHECK\tFAIL\t%s\t%s\n' "$1" "$2" >> "$report"
   }
@@ -141,7 +147,6 @@ gate() {
   fi
 
   # Pin freshness: the observed remote-tracking head must equal the pinned C13 SHA.
-  # When C13 pushes a new final commit this check FAILs until refs.tsv is re-pinned.
   local live_c13
   live_c13="$(git -C "$repo" rev-parse "origin/$c13_branch" 2>/dev/null)"
   if [[ -n "$live_c13" && "$live_c13" == "$c13" ]]; then
@@ -184,12 +189,6 @@ gate() {
       continue
     fi
     n="$(count_fixed "$src" "$needle")"
-    case "$id" in
-      C13_NO_LOOP_REMOVE) [[ "$n" == 0 ]] && c13_no_remove=1 ;;
-      C13_NO_LOOP_ADD) [[ "$n" == 0 ]] && c13_no_add=1 ;;
-      C13_USES_REPLACEALL) [[ "$n" == 1 ]] && c13_uses=1 ;;
-      C13_NO_UNGUARDED_ADD) [[ "$n" == 0 ]] && c13_no_unguarded=1 ;;
-    esac
     case "$kind" in
       count)
         if [[ "$n" == "$expected" ]]; then pass "$id" "count=$n expected=$expected"
@@ -203,13 +202,42 @@ gate() {
     esac
   done < "$expect_file"
 
-  # QA-37 owns the detailed FAV-06 policy proof; QA-38 only confirms it is present
-  # and pinned to the same C10 object. The policy needles are not re-verified here.
+  # QA-37 owns the FAV-06 policy proof; QA-38 only cross-pins it and checks its runner.
   qa37_runner_n="$(git -C "$repo" ls-tree -r --name-only "$qa37" 2>/dev/null | grep -c -F -- "$qa37_runner")"
   if [[ "$qa37_runner_n" == 1 ]]; then
     pass QA37_GATE_PRESENT 'qa37-runner=1'
   else
     fail QA37_GATE_PRESENT "qa37-runner=${qa37_runner_n:-0}"
+  fi
+
+  # The unchecked remove/add loop must be absent from the apply body itself, not
+  # merely moved into a helper that restores the previous list on failure.
+  apply_unchecked="$(awk '/fun apply\(contents: BackupContents\) \{/ { on = 1 } /private fun ruleRefusal/ { on = 0 } on' \
+    "$dir/src.C13_APPLY_CALLS_REFUSAL" 2>/dev/null | grep -c -E 'series\.(remove|add)\(rule')"
+  if [[ "$apply_unchecked" == 0 ]]; then
+    pass C13_APPLY_BODY_NO_UNCHECKED_LOOP 'unchecked-loops=0'
+  else
+    fail C13_APPLY_BODY_NO_UNCHECKED_LOOP "unchecked-loops=$apply_unchecked"
+  fi
+
+  # Whole-list refusal must precede every store write.
+  refusal_line="$(line_of "$dir/src.C13_APPLY_CALLS_REFUSAL" 'val refusal = ruleRefusal(contents.seriesRules)')"
+  first_write_line="$(line_of "$dir/src.C13_APPLY_CALLS_REFUSAL" 'check(favorites.save(contents.favorites))')"
+  replace_line="$(line_of "$dir/src.C13_APPLY_CALLS_REPLACE" 'replaceSeriesRules(contents.seriesRules, nowEpochSeconds())')"
+  if [[ -n "$refusal_line" && -n "$first_write_line" && -n "$replace_line" ]] &&
+     (( refusal_line < first_write_line && refusal_line < replace_line )); then
+    pass C13_REFUSAL_BEFORE_WRITE "refusal=$refusal_line first-write=$first_write_line replace=$replace_line"
+  else
+    fail C13_REFUSAL_BEFORE_WRITE "refusal=${refusal_line:-none} first-write=${first_write_line:-none} replace=${replace_line:-none}"
+  fi
+
+  # A failed insert must restore the previous list before throwing.
+  add_guard_line="$(line_of "$dir/src.C13_ADD_GUARD" 'if (series.add(rule, now)) continue')"
+  restore_line="$(line_of "$dir/src.C13_FAILED_INSERT_RESTORE" 'restoreSeriesRules(previous, now)')"
+  if [[ -n "$add_guard_line" && -n "$restore_line" ]] && (( add_guard_line < restore_line )); then
+    pass C13_RESTORE_AFTER_FAILED_INSERT "add=$add_guard_line restore=$restore_line"
+  else
+    fail C13_RESTORE_AFTER_FAILED_INSERT "add=${add_guard_line:-none} restore=${restore_line:-none}"
   fi
 
   restore02_files="$(git -C "$repo" ls-tree -r --name-only "$c13" 2>/dev/null | grep -c -i 'restore02')"
@@ -219,8 +247,7 @@ gate() {
     fail C13_RESTORE02_TEST_PRESENT "restore02-files=${restore02_files:-0}"
   fi
 
-  # C13 must actually change the restore path relative to the common base.
-  if ! cmp -s "$dir/src.C13_NO_LOOP_REMOVE" "$dir/src.BASE_LOOP_REMOVE" 2>/dev/null; then
+  if ! cmp -s "$dir/src.C13_APPLY_CALLS_REFUSAL" "$dir/src.BASE_LOOP_REMOVE" 2>/dev/null; then
     pass C13_BACKUP_CHANGED 'backup-blob-changed'
     backup_changed=1
   else
@@ -228,10 +255,7 @@ gate() {
   fi
 
   # One bounded synthetic marker, emitted only when RESTORE-02 is fully integrated.
-  if [[ "$c13_no_remove" == 1 && "$c13_no_add" == 1 && "$c13_uses" == 1 &&
-        "$c13_no_unguarded" == 1 && "$restore02_files" -ge 1 && "$backup_changed" == 1 ]]; then
-    integration_ok=1
-  fi
+  if [[ "$c13_fail_n" == 0 ]]; then integration_ok=1; fi
   marker_text="$(awk -F '\t' '$1 == "RESTORE02_INTEGRATION" { print $2 }' "$markers_file")"
   local marker_line
   marker_line="$(printf 'RESTORE02\t%s\tsha=%s\ttests=%d' "$marker_text" "${c13:0:8}" "$restore02_files")"
@@ -285,10 +309,10 @@ mutation_probe() {
   local common=(--repo "$repo" --base "$base" --c10 "$c10" --c13 "$c13" --qa37 "$qa37" --dir "$d")
   python3 "$py" "${common[@]}" prepare || { printf 'MUTATION\tFAIL\tprepare\n'; return 1; }
 
-  local rc=0 overlay_ref='QA37' path="$qa37_exp" expect_id='X_QA37_COVERS_DUP'
+  local rc=0 overlay_ref='C13' path="$backup" expect_id='C13_REFUSAL_THROW'
   local restored_log="$d/restore.log" identical_n
-  printf '%s\n' '--- RED (scratch mutation: QA37 duplicate-id coverage needle removed) ---'
-  python3 "$py" "${common[@]}" mutate --target qa37_dup_coverage || { printf 'MUTATION\tFAIL\tmutate\n'; return 1; }
+  printf '%s\n' '--- RED (scratch mutation: C13 whole-list refusal guard removed) ---'
+  python3 "$py" "${common[@]}" mutate --target c13_refusal_guard || { printf 'MUTATION\tFAIL\tmutate\n'; return 1; }
   QA38_OVERLAY_DIR="$d/overlay" QA38_OVERLAY_REF="$overlay_ref" QA38_OVERLAY_PATH="$path" gate "red"
   local red_rc=$?
   local red_hits red_first red_checks red_pass red_fail
@@ -318,8 +342,8 @@ mutation_probe() {
     "$identical_n" "$green_rc" "${green_first:-none}" "$green_checks" "$green_pass" "$green_fail" \
     "${green_verdict:-none}" "$green_hits"
 
-  if (( red_rc != 1 || red_hits != 1 || identical_n != 4 || green_rc != 1 || green_hits != 0 )) || \
-     [[ "$red_first" != "first=$expect_id" || "$green_first" == "first=$expect_id" || "$green_verdict" != 'verdict=FAIL' ]]; then
+  if (( red_rc != 1 || red_hits != 1 || identical_n != 4 || green_rc != 0 || green_hits != 1 )) || \
+     [[ "$red_first" != "first=$expect_id" || "$green_first" != 'first=NONE' || "$green_verdict" != 'verdict=PASS' ]]; then
     printf 'MUTATION\tFAIL\tsensitivity-not-proven\n'
     rc=1
   fi
