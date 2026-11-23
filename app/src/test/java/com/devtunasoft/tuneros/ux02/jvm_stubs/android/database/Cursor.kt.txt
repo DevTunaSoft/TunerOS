@@ -1,0 +1,11 @@
+package android.database
+
+/** JVM-test-only stub. Never compiled into the app. */
+interface Cursor : AutoCloseable {
+    val count: Int
+    fun moveToFirst(): Boolean
+    fun moveToNext(): Boolean
+    fun isNull(columnIndex: Int): Boolean
+    fun getString(columnIndex: Int): String
+    override fun close()
+}

@@ -1,0 +1,10 @@
+package android.os
+
+/** JVM-test-only stub: runs a delayed step inline with a short bounded sleep so QA polling is deterministic. */
+class Handler {
+    fun postDelayed(task: Runnable, delayMillis: Long): Boolean {
+        Thread.sleep(minOf(delayMillis, 10L))
+        task.run()
+        return true
+    }
+}

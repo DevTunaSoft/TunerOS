@@ -1,0 +1,24 @@
+package android.database.sqlite
+
+import android.database.Cursor
+
+/** JVM-test-only stub. Never compiled into the app. */
+abstract class SQLiteOpenHelper(
+    context: android.content.Context?,
+    name: String?,
+    factory: Any?,
+    version: Int,
+) : AutoCloseable {
+    private val database = SQLiteDatabase()
+    val readableDatabase: SQLiteDatabase get() = database
+    val writableDatabase: SQLiteDatabase get() = database
+
+    abstract fun onCreate(db: SQLiteDatabase)
+    abstract fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int)
+
+    init {
+        onCreate(database)
+    }
+
+    override fun close() = Unit
+}

@@ -1,0 +1,12 @@
+package android.net
+
+import java.io.File
+
+/** JVM-test-only stub. Never compiled into the app. */
+class Uri private constructor(private val value: String) {
+    override fun toString(): String = value
+
+    companion object {
+        fun fromFile(file: File): Uri = Uri("file://" + file.absolutePath)
+    }
+}
