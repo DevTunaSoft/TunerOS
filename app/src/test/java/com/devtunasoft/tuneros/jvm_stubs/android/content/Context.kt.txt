@@ -1,0 +1,15 @@
+package android.content
+
+import java.io.File
+
+/** JVM-test-only stub. Never compiled into the app. */
+abstract class Context {
+    val applicationContext: Context get() = this
+    abstract val filesDir: File
+    abstract fun getExternalFilesDir(type: String?): File?
+    abstract val contentResolver: ContentResolver
+
+    companion object {
+        const val MODE_PRIVATE = 0
+    }
+}
