@@ -1,0 +1,8 @@
+SEC-02 synthetic fixtures. All hosts use RFC 2606 .invalid and all tokens start with SYNTH_.
+Nothing in this directory is a real provider URL, credential, DRM key or recording payload.
+The JVM verifier reads these files and generates corrupt/oversized adversarial inputs in memory.
+
+synthetic-sources.tsv   columns: id, url, userAgent, referer (tab separated)
+synthetic-metadata.tsv  columns: id, title, channelId, lastError (tab separated)
+secret-markers.txt      substrings that must never appear in diagnostics or shareable reports
+expected-shareable-report.txt  golden output; {urlLen} is substituted with the first source's URL length

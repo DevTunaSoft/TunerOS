@@ -1,0 +1,3 @@
+S1	https://provider.example.invalid/live/alpha.m3u8?token=SYNTH_TOKEN_ALPHA	QA-Agent/1.0 (SYNTH_UA_ALPHA)	https://referer.example.invalid/alpha?key=SYNTH_REF_ALPHA
+S2	https://provider.example.invalid/live/beta.m3u8?token=SYNTH_TOKEN_BETA	QA-Agent/2.0 (SYNTH_UA_BETA)	https://referer.example.invalid/beta?key=SYNTH_REF_BETA
+S3	https://provider.example.invalid/live/gamma.m3u8?token=SYNTH_TOKEN_GAMMA	QA-Agent/3.0 (SYNTH_UA_GAMMA)	https://referer.example.invalid/gamma?key=SYNTH_REF_GAMMA
