@@ -255,6 +255,11 @@ object DashManifest {
                 ).toLong()
                 if (count < 1) return refuse("DASH manifest has no media segments")
                 if (count > MAX_SEGMENTS) return refuse("DASH manifest has too many segments")
+                // The recorder fetches through startNumber + count - 1. A wrapped last number would silently
+                // truncate the recording instead of refusing an unrepresentable range.
+                if (runCatching { Math.addExact(startNumber, count - 1) }.getOrNull() == null) {
+                    return refuse("DASH segment numbers overflow")
+                }
                 count
             }
         }
