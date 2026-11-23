@@ -1,0 +1,65 @@
+id	raw	expected
+qa17pref-000	content://com.android.externalstorage.documents/tree/023219f97f44%3Ae74bd4a59c2b	ACCEPT
+qa17pref-001		BLANK
+qa17pref-002	content-x://com.android.externalstorage.documents/tree/023219f97f44%3Ae74bd4a59c2b	BAD_SCHEME
+qa17pref-003	content://scratch.invalid/tree/023219f97f44%3Ae74bd4a59c2b	BAD_AUTHORITY
+qa17pref-004	content://com.android.externalstorage.documents/tree/	TRUNCATED
+qa17pref-005	content://com.android.externalstorage.documents/tree/023219f97f44%3Ae74bd4a59c2b 	MALFORMED
+qa17pref-006	content://com.android.externalstorage.documents/tree/..	BAD_TREE_ID
+qa17pref-007	a45d8898f4b7	MALFORMED
+qa17pref-008	content://com.android.externalstorage.documents/tree/023219f97f44%3Ae74bd4a59c2b	ACCEPT
+qa17pref-009		BLANK
+qa17pref-010	content-x://com.android.externalstorage.documents/tree/023219f97f44%3Ae74bd4a59c2b	BAD_SCHEME
+qa17pref-011	content://scratch.invalid/tree/023219f97f44%3Ae74bd4a59c2b	BAD_AUTHORITY
+qa17pref-012	content://com.android.externalstorage.documents/tree/	TRUNCATED
+qa17pref-013	content://com.android.externalstorage.documents/tree/023219f97f44%3Ae74bd4a59c2b 	MALFORMED
+qa17pref-014	content://com.android.externalstorage.documents/tree/..	BAD_TREE_ID
+qa17pref-015	a45d8898f4b7	MALFORMED
+qa17pref-016	content://com.android.externalstorage.documents/tree/023219f97f44%3Ae74bd4a59c2b	ACCEPT
+qa17pref-017		BLANK
+qa17pref-018	content-x://com.android.externalstorage.documents/tree/023219f97f44%3Ae74bd4a59c2b	BAD_SCHEME
+qa17pref-019	content://scratch.invalid/tree/023219f97f44%3Ae74bd4a59c2b	BAD_AUTHORITY
+qa17pref-020	content://com.android.externalstorage.documents/tree/	TRUNCATED
+qa17pref-021	content://com.android.externalstorage.documents/tree/023219f97f44%3Ae74bd4a59c2b 	MALFORMED
+qa17pref-022	content://com.android.externalstorage.documents/tree/..	BAD_TREE_ID
+qa17pref-023	a45d8898f4b7	MALFORMED
+qa17pref-024	content://com.android.externalstorage.documents/tree/023219f97f44%3Ae74bd4a59c2b	ACCEPT
+qa17pref-025		BLANK
+qa17pref-026	content-x://com.android.externalstorage.documents/tree/023219f97f44%3Ae74bd4a59c2b	BAD_SCHEME
+qa17pref-027	content://scratch.invalid/tree/023219f97f44%3Ae74bd4a59c2b	BAD_AUTHORITY
+qa17pref-028	content://com.android.externalstorage.documents/tree/	TRUNCATED
+qa17pref-029	content://com.android.externalstorage.documents/tree/023219f97f44%3Ae74bd4a59c2b 	MALFORMED
+qa17pref-030	content://com.android.externalstorage.documents/tree/..	BAD_TREE_ID
+qa17pref-031	a45d8898f4b7	MALFORMED
+qa17pref-032	content://com.android.externalstorage.documents/tree/023219f97f44%3Ae74bd4a59c2b	ACCEPT
+qa17pref-033		BLANK
+qa17pref-034	content-x://com.android.externalstorage.documents/tree/023219f97f44%3Ae74bd4a59c2b	BAD_SCHEME
+qa17pref-035	content://scratch.invalid/tree/023219f97f44%3Ae74bd4a59c2b	BAD_AUTHORITY
+qa17pref-036	content://com.android.externalstorage.documents/tree/	TRUNCATED
+qa17pref-037	content://com.android.externalstorage.documents/tree/023219f97f44%3Ae74bd4a59c2b 	MALFORMED
+qa17pref-038	content://com.android.externalstorage.documents/tree/..	BAD_TREE_ID
+qa17pref-039	a45d8898f4b7	MALFORMED
+qa17pref-040	content://com.android.externalstorage.documents/tree/023219f97f44%3Ae74bd4a59c2b	ACCEPT
+qa17pref-041		BLANK
+qa17pref-042	content-x://com.android.externalstorage.documents/tree/023219f97f44%3Ae74bd4a59c2b	BAD_SCHEME
+qa17pref-043	content://scratch.invalid/tree/023219f97f44%3Ae74bd4a59c2b	BAD_AUTHORITY
+qa17pref-044	content://com.android.externalstorage.documents/tree/	TRUNCATED
+qa17pref-045	content://com.android.externalstorage.documents/tree/023219f97f44%3Ae74bd4a59c2b 	MALFORMED
+qa17pref-046	content://com.android.externalstorage.documents/tree/..	BAD_TREE_ID
+qa17pref-047	a45d8898f4b7	MALFORMED
+qa17pref-048	content://com.android.externalstorage.documents/tree/023219f97f44%3Ae74bd4a59c2b	ACCEPT
+qa17pref-049		BLANK
+qa17pref-050	content-x://com.android.externalstorage.documents/tree/023219f97f44%3Ae74bd4a59c2b	BAD_SCHEME
+qa17pref-051	content://scratch.invalid/tree/023219f97f44%3Ae74bd4a59c2b	BAD_AUTHORITY
+qa17pref-052	content://com.android.externalstorage.documents/tree/	TRUNCATED
+qa17pref-053	content://com.android.externalstorage.documents/tree/023219f97f44%3Ae74bd4a59c2b 	MALFORMED
+qa17pref-054	content://com.android.externalstorage.documents/tree/..	BAD_TREE_ID
+qa17pref-055	a45d8898f4b7	MALFORMED
+qa17pref-056	content://com.android.externalstorage.documents/tree/023219f97f44%3Ae74bd4a59c2b	ACCEPT
+qa17pref-057		BLANK
+qa17pref-058	content-x://com.android.externalstorage.documents/tree/023219f97f44%3Ae74bd4a59c2b	BAD_SCHEME
+qa17pref-059	content://scratch.invalid/tree/023219f97f44%3Ae74bd4a59c2b	BAD_AUTHORITY
+qa17pref-060	content://com.android.externalstorage.documents/tree/	TRUNCATED
+qa17pref-061	content://com.android.externalstorage.documents/tree/023219f97f44%3Ae74bd4a59c2b 	MALFORMED
+qa17pref-062	content://com.android.externalstorage.documents/tree/..	BAD_TREE_ID
+qa17pref-063	a45d8898f4b7	MALFORMED

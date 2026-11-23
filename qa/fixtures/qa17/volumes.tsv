@@ -1,0 +1,7 @@
+volumeId	usableBytes	mime	flags	state
+023219f97f44	10000000000	vnd.android.document/directory	1024	EXISTS
+fd32cea5ae9f	4000000000	vnd.android.document/directory	1024	EXISTS
+dc499ab9da38	-1	vnd.android.document/directory	1024	EXISTS
+80d633076cdc	0	vnd.android.document/directory	1024	EXISTS
+f5be538d7ac1	8000000000	application/octet-stream	1024	EXISTS
+6787cf324e51	6000000000	vnd.android.document/directory	0	EXISTS
