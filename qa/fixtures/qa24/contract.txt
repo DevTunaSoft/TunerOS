@@ -1,0 +1,10 @@
+qa24-contract-v1
+fields: id start_epoch title raw_season raw_episode
+title: trim collapse-space lowercase strip-controls
+numbers: optional S or E prefix ASCII digits only leading zeros removed
+numbers: empty means unknown minus one; width above nine is overflow
+numbers: above nine thousand nine hundred ninety nine clips to that cap
+order: start_epoch season episode title_key id
+unknown number sorts after every known number
+empty input is rejected; a single row is accepted as the minimal bound
+diagnostics: check ids counts and digests only
