@@ -224,6 +224,8 @@ No Hermes worker attempts have occurred as part of the handoff creation. Do not 
 
 - **QA-36 RESULT / FIVE-SLOT RESTORE (23:35Z)**: C12 `d8495e4` (PR 223) delivered a 35/35 host gate for HTTP-07, mutation RED 28/35 with pinned first H_FIXED_REFUSAL_BOTH_SITES, byte-identical restore, 8 LF-only tracked files, ownership hook PASS. A58 also completed, leaving four live. Registered A59 `sa-0-b29d7b99` (CORE-52, `core/src/**`) and B46 `sa-0-bea6000e` (QA-39 consolidated gate consistency, `scripts/qa39/**` + fixtures) BEFORE launch. Five RUNNING slots: B44, C13, B45, A59, B46; ownership `sync` PASS at 23:35:23Z. No merges.
 
+- **QA-37 RESULT / B47 SLOT REFILL (23:38Z)**: B44 `9df525a` (PR 224) delivered a 44/44 pinned-object gate for FAV-06 f57ab44: bounded-replace guards, duplicate rejection, rollback, conditional commit, 7 regressions, 5 fixed Rejected literals, zero sensitive tokens. Mutation RED single S_BOUND_GUARD failure, byte-identical restore, GREEN 44/44; static evidence only, no Kotlin/device claim. B47 `sa-0-07c9cb70` (`deleg_1ebeb81f`, `hermes/worker-b47-qa40`) registered before launch with `scripts/qa40/**` + fixtures, pinning the whole fix-chain head set and keeping both QA-34 hazard markers. Five RUNNING slots: C13, B45, A59, B46, B47; ownership `sync` PASS at 23:38:19Z. No merges.
+
 ## G. Session recovery (run automatically; do not ask owner to paste commands)
 
 1. Re-open `AGENTS.md` and `docs/HERMES_AUTONOMOUS_TAKEOVER.md`; finish all mandatory full-document reading.
