@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- MV-03 only: declares a bounded platform-Instrumentation runner for the two-tile
+     multiview acceptance checks. No test dependency and no application manifest edit. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <instrumentation
+        android:name="com.devtunasoft.tuneros.MultiviewUiAcceptanceInstrumentation"
+        android:targetPackage="com.devtunasoft.tuneros"
+        android:label="TunerOS two-tile multiview UI acceptance" />
+</manifest>
