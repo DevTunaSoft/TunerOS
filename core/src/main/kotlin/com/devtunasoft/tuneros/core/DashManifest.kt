@@ -309,6 +309,11 @@ object DashManifest {
         val entries = list.childElements("SegmentURL")
         if (entries.isEmpty()) return refuse("DASH SegmentList has no segments")
         if (entries.size > MAX_LIST_SEGMENTS) return refuse("DASH SegmentList has too many segments")
+        // Each listed segment's end identity is startNumber + position + 1. A wrapped end would break the
+        // recorder's "next starts where this one ended" chain, so refuse before any byte is written.
+        if (runCatching { Math.addExact(startNumber, entries.size.toLong()) }.getOrNull() == null) {
+            return refuse("DASH segment numbers overflow")
+        }
         val hasBase = topBaseUrls.isNotEmpty() || representationBaseUrl(representation) != null
         val segments = ArrayList<DashListedSegment>(entries.size)
         for ((index, entry) in entries.withIndex()) {
@@ -364,6 +369,12 @@ object DashManifest {
         val presentationTimeOffset = template.attr("presentationTimeOffset")?.let { raw ->
             raw.toLongOrNull()?.takeIf { it >= 0 } ?: return refuse("DASH presentationTimeOffset is not valid")
         } ?: 0L
+        // Listed identities run from startNumber through one past the last entry (and the open tail, if any).
+        // A wrapped identity would break the recorder's continuity check, so refuse before any byte is written.
+        val numbered = segments.size.toLong() + if (tail != null) 1L else 0L
+        if (runCatching { Math.addExact(startNumber, numbered) }.getOrNull() == null) {
+            return refuse("DASH segment numbers overflow")
+        }
         val first = segments.first()
         if (expand(media, id, bandwidth, startNumber, first.startTicks) == null) {
             return refuse("DASH media template uses a token that is not supported")
