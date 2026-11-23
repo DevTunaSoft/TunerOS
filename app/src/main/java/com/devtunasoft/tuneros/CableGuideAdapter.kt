@@ -49,6 +49,7 @@ internal class CableGuideAdapter(
     private var nowEpochSeconds: Long = 0
     private var focusedChannelId: String? = null
     private var focusedProgramStart: Long? = null
+    private var pendingFocusShiftDirection = 0
 
     private fun dp(value: Int): Int =
         (value * context.resources.displayMetrics.density + 0.5f).toInt()
@@ -87,6 +88,16 @@ internal class CableGuideAdapter(
         }
     }
 
+    /**
+     * Boundary keys are recorded against the focus owner, not the View that received them, so a
+     * ListView recycle cannot drop the direction before the new window is bound.
+     */
+    fun requestWindowShift(direction: Int) {
+        if (direction != -1 && direction != 1) return
+        pendingFocusShiftDirection = direction
+        onWindowShift(direction)
+    }
+
     override fun getCount(): Int = channels.size
     override fun getItem(position: Int): Channel = channels[position]
     override fun getItemId(position: Int): Long = channels[position].id.hashCode().toLong()
@@ -113,7 +124,7 @@ internal class CableGuideAdapter(
             context = context,
             onChannelSelected = onChannelSelected,
             onProgramFocused = ::handleProgramFocused,
-            onWindowShift = onWindowShift,
+            onWindowShift = ::requestWindowShift,
         )
         val holder = RowHolder(channelView, timelineView)
 
@@ -130,7 +141,7 @@ internal class CableGuideAdapter(
         }
         channelView.setOnKeyListener { _, keyCode, event ->
             if (event.action == KeyEvent.ACTION_DOWN && keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
-                onWindowShift(-1)
+                requestWindowShift(-1)
                 true
             } else {
                 false
@@ -153,6 +164,7 @@ internal class CableGuideAdapter(
     }
 
     private fun bind(holder: RowHolder, channel: Channel) {
+        val viewPreviousChannelId = holder.boundChannel?.id
         holder.boundChannel = channel
         holder.channelView.text = if (channel.storageKey in favoriteIds) "★ " + channel.name else channel.name
 
@@ -168,6 +180,12 @@ internal class CableGuideAdapter(
             TimelineLayout.row(emptyList(), fromEpochSeconds, toEpochSeconds)
         }
 
+        val shiftDirection = GuideRowFocusPolicy.shiftDirectionForBind(
+            viewPreviousChannelId = viewPreviousChannelId,
+            boundChannelId = channel.id,
+            focusedChannelId = focusedChannelId,
+            pendingDirection = pendingFocusShiftDirection,
+        )
         holder.timelineView.bind(
             channel = channel,
             entries = entries,
@@ -179,12 +197,35 @@ internal class CableGuideAdapter(
             } else {
                 null
             },
+            windowShiftDirection = shiftDirection,
         )
+        if (shiftDirection != 0) pendingFocusShiftDirection = 0
     }
 
     private fun handleProgramFocused(channel: Channel, program: GuideProgram?) {
+        // A focus move to another channel invalidates any shift recorded for the old owner.
+        if (focusedChannelId != channel.id) pendingFocusShiftDirection = 0
         focusedChannelId = channel.id
         focusedProgramStart = program?.startEpochSeconds
         onProgramFocused(channel, program)
     }
+}
+
+/**
+ * Pure decision for whether a pending D-pad window-shift direction applies to a row being bound.
+ * No Android dependency so the recycling rule can be asserted on the JVM with synthetic channels.
+ */
+internal object GuideRowFocusPolicy {
+    /**
+     * The direction belongs to the focused channel recorded by the adapter, never to the
+     * particular View instance that received the key. [viewPreviousChannelId] is passed by the
+     * recycled-row call site for documentation; it is deliberately absent from the decision so a
+     * row rebound from another channel still keeps its focus owner's pending shift.
+     */
+    fun shiftDirectionForBind(
+        viewPreviousChannelId: String?,
+        boundChannelId: String,
+        focusedChannelId: String?,
+        pendingDirection: Int,
+    ): Int = if (focusedChannelId == boundChannelId && pendingDirection != 0) pendingDirection else 0
 }
