@@ -135,7 +135,7 @@ object DashManifest {
             else -> return refuse("Unknown DASH manifest type")
         }
         for (name in UNSUPPORTED_ELEMENTS) {
-            if (root.getElementsByTagName(name).length > 0) return refuse("DASH $name is not supported")
+            if (hasElementNamed(root, name)) return refuse("DASH $name is not supported")
         }
         // A BaseURL may sit on the MPD or on a Representation, and at most once on each.
         val baseUrls = root.getElementsByTagName("BaseURL")
@@ -647,6 +647,20 @@ object DashManifest {
     }
 
     private val UNSUPPORTED_ELEMENTS = listOf("ContentProtection")
+
+    /**
+     * The DOM is namespace-unaware, so a prefixed protection element keeps its prefix in the tag name and an exact
+     * getElementsByTagName lookup misses it. Match the local name as well, without treating a longer name such as
+     * "NotContentProtection" as protection.
+     */
+    private fun hasElementNamed(root: Element, name: String): Boolean {
+        val elements = root.getElementsByTagName("*")
+        for (index in 0 until elements.length) {
+            val tag = elements.item(index).nodeName
+            if (tag == name || tag.endsWith(":$name")) return true
+        }
+        return false
+    }
 
     private fun refuse(reason: String): DashPlanOutcome = DashPlanOutcome.Unsupported(reason)
 
