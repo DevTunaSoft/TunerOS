@@ -137,6 +137,12 @@ Use this template per completed/blocked task, append it below, and commit/push a
 - **PASS** jshell semantics probe (`+0530`→1794112200, `-0500`→1794150000, NY overlap 01:30→1793511000 @-04:00, NY gap 02:30→1772955000/local 03:30); baseline `:core:test` 441 tests PASS; targeted 6 tests PASS; final `:core:test` 54 classes/447 tests PASS; `--rerun-tasks` at exact SHA 5 tasks/447 tests PASS, 0 failures/errors/skipped. **BLOCKED** `:app:compileDebugKotlin` — `SDK location not found`.
 - Commit `f4074a6ed82cf8d96a4972861f060686d9a932dc` pushed; PR #124 opened at that head. Next: Worker A6 `sa-0-614533a8` on SEC-01 (core slice), dispatched immediately; `core/src/**` ownership handed over cleanly.
 
+### SEC-01 (core slice) — Worker A6 (`sa-0-614533a8`) / PASS with real defect fixed / 2026-11-23T07:23Z
+- Audit: XML XXE/DTD/prolog **PASS** (`GuideParser` canonical-doctype-only lexical check, throwing entity resolver, mandatory lexical handler, 8 KiB prolog cap, depth 64; `XmltvProlog` byte whitelist; DASH `<!DOCTYPE` refusal; existing negatives). Added one missing `xincludeIsNeverResolved` negative. Redirect/scheme acceptance **PASS** (`SourceDownloader` http(s) only, no control chars, 5-hop cap, no HTTPS→HTTP downgrade, gzip byte cap, no-progress guard).
+- **Real defect found and fixed**: `GuideDoctor.summaryText` promised no credentials but only dropped URL-bearing warnings, so bare `token=` / `password:` / `api_key=` / `Authorization:` assignments reached the shareable summary. Filtered with the existing `TunerBackup` credential pattern; ordinary warnings still shown. Only synthetic `SYNTHETIC-CRED-abc123` markers used.
+- RED→GREEN: focused negative test `4 tests completed, 3 failed` before the fix, PASS after. Final `:core:test --rerun-tasks` `suites=54 tests=447 failures=0 errors=0 skipped=0`.
+- Commit `c7d64c972142f82f6fdbbbeb010c1ade2ab55038` pushed; PR #125 opened. `:app:*`/AGP/emulator NOT RUN (no SDK). Next: Worker A7 `sa-0-7f87bb3e` on UX-02 with named disjoint app files, dispatched immediately.
+
 ## F. Failed-attempt / anti-loop record
 
 No Hermes worker attempts have occurred as part of the handoff creation. Do not invent failures or successful tests. After two equivalent failures, record both logs, root-cause investigation and changed strategy here. After two no-progress cycles move to a separate unblocked task.
