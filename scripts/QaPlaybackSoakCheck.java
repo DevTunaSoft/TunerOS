@@ -110,6 +110,7 @@ public final class QaPlaybackSoakCheck {
     private static final class Loopback implements AutoCloseable {
         final HttpServer server;
         final ExecutorService pool;
+        final List<Thread> workers = new ArrayList<>();
         final AtomicInteger requests = new AtomicInteger();
         final byte[] payload = framePayload();
 
@@ -118,6 +119,7 @@ public final class QaPlaybackSoakCheck {
             pool = Executors.newFixedThreadPool(2, runnable -> {
                 Thread thread = new Thread(runnable, "qa-playback-http");
                 thread.setDaemon(true);
+                workers.add(thread);
                 return thread;
             });
             server.setExecutor(pool);
@@ -169,6 +171,12 @@ public final class QaPlaybackSoakCheck {
             server.stop(0);
             pool.shutdownNow();
             check(pool.awaitTermination(2, TimeUnit.SECONDS), "loopback handler threads did not stop");
+            // awaitTermination ends the tasks, but a worker can still be present in the
+            // JVM thread table for a moment. Join the owned threads before asserting.
+            for (Thread worker : workers) {
+                worker.join(2_000L);
+                check(!worker.isAlive(), "loopback handler thread still alive after join");
+            }
         }
     }
 

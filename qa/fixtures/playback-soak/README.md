@@ -68,6 +68,14 @@ player**, not evidence of a decoded Media3/H.264 video frame.
 - QA-02 `scripts/qa_epg_fixture_check.sh` already owns the large EPG import. This
   harness only borrows its generated playlist as channel identities.
 
+## Verification note (thread-cleanup regression)
+
+A repeat run exposed an intermittent `loopback handler threads survived close` failure:
+`ExecutorService.awaitTermination` ended the tasks, but a pool thread could still appear
+in `Thread.getAllStackTraces()` for a moment. `Loopback.close` now joins the owned
+threads after `awaitTermination` and asserts each is dead; the check is stronger, not
+weakened. Six consecutive local runs after that change passed (3 of 4 runs failed before).
+
 ## What this does not prove
 
 No Android runtime, hardware decoder, DRM license, real provider stream, real
