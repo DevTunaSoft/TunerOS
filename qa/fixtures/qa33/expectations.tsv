@@ -1,0 +1,37 @@
+B_NO_RETAIN	BASE	GuideMappingStore.kt	absent	fun retain(	0
+B_NO_MAP05_MARKER	BASE	GuideMappingStore.kt	absent	MAP-05	0
+C5_SEAMS_PRESENT	C5	GuideMappingStore.kt	count	internal interface Storage	1
+C5_RETAIN_ABSENT	C5	GuideMappingStore.kt	absent	fun retain(	0
+G_RETAIN_SIGNATURE	C8	GuideMappingStore.kt	count	fun retain(mappings: Map<String, String>, validKeys: Set<String>): Map<String, String>	1
+G_FAIL_CLOSED_EMPTY	C8	GuideMappingStore.kt	count	if (validKeys.isEmpty() || mappings.isEmpty()) return mappings	1
+G_KEY_MEMBERSHIP	C8	GuideMappingStore.kt	count	if (key !in validKeys) {	1
+G_NO_STALE_EARLY_RETURN	C8	GuideMappingStore.kt	count	if (!hasStaleKey) return mappings	1
+G_BOUNDED_ALLOCATION	C8	GuideMappingStore.kt	count	LinkedHashMap<String, String>(mappings.size)	1
+G_NO_PLAYLIST_SIZED_ALLOC	C8	GuideMappingStore.kt	absent	validKeys.size	0
+G_ITERATE_MAPPINGS	C8	GuideMappingStore.kt	count	for ((channelId, guideId) in mappings) {	1
+G_PRESERVE_VALUE	C8	GuideMappingStore.kt	count	retained[channelId] = guideId	1
+G_COMPANION	C8	GuideMappingStore.kt	count	companion object {	1
+G_NO_CALLER_MUTATION	C8	GuideMappingStore.kt	absent	mappings.remove(	0
+G_C5_SEAMS_ABSENT	C8	GuideMappingStore.kt	absent	internal interface Storage	0
+M_RETAIN_ONCE	C8	MainActivity.kt	count	GuideMappingStore.retain(	1
+M_NONEMPTY_GUARD	C8	MainActivity.kt	count	if (guideMappings.isNotEmpty()) {	1
+M_CHANGED_GUARD	C8	MainActivity.kt	count	pruned !== guideMappings	1
+W_ONSUCCESS	C8	MainActivity.kt	wincount	result.onSuccess {	1
+W_CHANNELS	C8	MainActivity.kt	wincount	channels = it.channels	1
+W_NONEMPTY	C8	MainActivity.kt	wincount	if (guideMappings.isNotEmpty()) {	1
+W_LIVEKEYS	C8	MainActivity.kt	wincount	val liveKeys = channels.mapTo(HashSet(channels.size))	1
+W_RETAIN	C8	MainActivity.kt	wincount	GuideMappingStore.retain(guideMappings, liveKeys)	1
+W_CHANGED_SAVE	C8	MainActivity.kt	wincount	if (pruned !== guideMappings && guideMappingStore.save(pruned)) {	1
+W_ASSIGN	C8	MainActivity.kt	wincount	guideMappings = pruned	1
+W_NO_BARE_SAVE	C8	MainActivity.kt	winabsent	guideMappingStore.save(guideMappings)	0
+T_REGRESSION_COUNT	C8	GuideMappingRetainTest.kt	count	@Test	10
+T01_retainKeepsLiveMappingsAndDr	C8	GuideMappingRetainTest.kt	count	fun retainKeepsLiveMappingsAndDropsOnlyStaleKeys()	1
+T02_retainPreservesValuesAndInse	C8	GuideMappingRetainTest.kt	count	fun retainPreservesValuesAndInsertionOrderVerbatim()	1
+T03_retainIsIdempotentAcrossRepe	C8	GuideMappingRetainTest.kt	count	fun retainIsIdempotentAcrossRepeatedPlays()	1
+T04_retainWithEmptyLivePlaylistK	C8	GuideMappingRetainTest.kt	count	fun retainWithEmptyLivePlaylistKeepsEveryMapping()	1
+T05_retainWithNoStaleKeysReturns	C8	GuideMappingRetainTest.kt	count	fun retainWithNoStaleKeysReturnsOriginalMapWithoutAllocating()	1
+T06_retainDoesNotMutateTheCaller	C8	GuideMappingRetainTest.kt	count	fun retainDoesNotMutateTheCallerMap()	1
+T07_retainHandlesEmptyMappings	C8	GuideMappingRetainTest.kt	count	fun retainHandlesEmptyMappings()	1
+T08_retainAfterChannelRenumberin	C8	GuideMappingRetainTest.kt	count	fun retainAfterChannelRenumberingDoesNotAccumulateStaleKeys()	1
+T09_retainOverSyntheticLargePlay	C8	GuideMappingRetainTest.kt	count	fun retainOverSyntheticLargePlaylistDropsExactlyTheStaleEntries()	1
+T10_retainDropsAllMappingsWhenNo	C8	GuideMappingRetainTest.kt	count	fun retainDropsAllMappingsWhenNoneOfTheKeysAreLive()	1
