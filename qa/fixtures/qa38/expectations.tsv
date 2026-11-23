@@ -1,0 +1,17 @@
+# id	ref	path	kind	fixed-needle	expected-count
+X_QA37_PINS_C10	QA37	qa37_refs	count	f57ab44ce83c9b281e43010c3e5b8dc968a189b6	1
+BASE_LOOP_REMOVE	BASE	backup	count	for (rule in series.all()) series.remove(rule)	1
+BASE_LOOP_ADD	BASE	backup	count	for (rule in contents.seriesRules) series.add(rule, now)	1
+BASE_NO_RULE_REFUSAL	BASE	backup	absent	ruleRefusal(	0
+C13_APPLY_CALLS_REFUSAL	C13	backup	count	val refusal = ruleRefusal(contents.seriesRules)	1
+C13_REFUSAL_THROW	C13	backup	count	if (refusal != null) throw IllegalStateException(refusal)	1
+C13_APPLY_CALLS_REPLACE	C13	backup	count	replaceSeriesRules(contents.seriesRules, nowEpochSeconds())	1
+C13_OVERCAP_GUARD	C13	backup	count	if (rules.size > SeriesRules.MAX_RULES) return TOO_MANY_RULES	1
+C13_DUP_GUARD	C13	backup	count	for (rule in rules) if (!ids.add(rule.id)) return DUPLICATE_RULE	1
+C13_REASON_TOO_MANY	C13	backup	count	"the backup holds too many series rules"	1
+C13_REASON_DUP	C13	backup	count	"the backup holds a duplicate series rule"	1
+C13_REASON_NOT_SAVED	C13	backup	count	"the series rules could not be saved"	1
+C13_PREVIOUS_SNAPSHOT	C13	backup	count	val previous = series.all()	1
+C13_FAILED_INSERT_RESTORE	C13	backup	count	restoreSeriesRules(previous, now)	2
+C13_FINAL_MATCH_CHECK	C13	backup	count	if (series.all().toSet() != rules.toSet())	1
+C13_ADD_GUARD	C13	backup	count	if (series.add(rule, now)) continue	1
