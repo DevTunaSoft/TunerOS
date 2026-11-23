@@ -26,8 +26,8 @@ object GuideParser {
     // Legitimate XMLTV is shallow; protect SAX/Android parser stack from
     // deeply nested, malformed or adversarial feeds.
     const val MAX_XML_DEPTH = 64
-    private val withOffset = DateTimeFormatter.ofPattern("yyyyMMddHHmmss Z")
-    private val withoutOffset = DateTimeFormatter.ofPattern("yyyyMMddHHmmss")
+    private val withOffset = DateTimeFormatter.ofPattern("uuuuMMddHHmmss Z")
+    private val withoutOffset = DateTimeFormatter.ofPattern("uuuuMMddHHmmss")
     private val noOffsetPattern = Regex("""\d{14}""")
     const val MAX_TITLE_CHARS = 256
     const val MAX_CHANNEL_NAME_CHARS = 256
