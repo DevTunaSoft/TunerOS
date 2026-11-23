@@ -48,9 +48,19 @@ class SourceDownloader(
                     return object : FilterInputStream(decoded) {
                         private var count = 0L
                         override fun read(): Int {
-                            val value = super.read()
-                            if (value != -1) checkLimit(1)
-                            return value
+                            var emptyReads = 0
+                            while (true) {
+                                val value = super.read()
+                                if (value != 0) {
+                                    if (value != -1) checkLimit(1)
+                                    return value
+                                }
+                                // A malformed stream can return zero from read();
+                                // bound it exactly like the bulk read path.
+                                if (++emptyReads >= MAX_EMPTY_READS) {
+                                    throw IOException("Source made no progress")
+                                }
+                            }
                         }
                         override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
                             // A broken provider stream can repeatedly return zero.
