@@ -46,6 +46,7 @@ object HlsAes128 {
         private val scratch = ByteArray(cipher.getOutputSize(CHUNK_BYTES))
         private val single = ByteArray(1)
         private var finished = false
+        private var finishFailure: String? = null
 
         /** Plaintext bytes that have reached the sink so far. */
         var plaintextBytes: Long = 0
@@ -74,19 +75,27 @@ object HlsAes128 {
 
         /** Completes the segment. Throws when the ciphertext is not whole blocks or the padding is invalid. */
         fun finish() {
+            // Retrying doFinal on a damaged segment can yield garbage plaintext and a silent
+            // success, so a rejection is remembered and repeated on every later call.
+            finishFailure?.let { throw IOException(it) }
             if (finished) return
             finished = true
             val last = try {
                 cipher.doFinal()
             } catch (error: IllegalBlockSizeException) {
-                throw IOException("AES-128 segment is not whole blocks")
+                reject("AES-128 segment is not whole blocks")
             } catch (error: BadPaddingException) {
-                throw IOException("AES-128 padding is invalid")
+                reject("AES-128 padding is invalid")
             }
             if (last.isNotEmpty()) {
                 sink.write(last)
                 plaintextBytes += last.size
             }
+        }
+
+        private fun reject(message: String): Nothing {
+            finishFailure = message
+            throw IOException(message)
         }
 
         override fun flush() = sink.flush()
