@@ -1,0 +1,9 @@
+#qa21-dimensions-v1
+seed=20261123
+run_count=64
+max_lines=32
+max_bytes=4096
+thread_cap=8
+cycles=6
+heap_cap_mb=96
+leak_inject=0

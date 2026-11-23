@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.devtunasoft.tuneros.test">
+    <instrumentation
+        android:name="com.devtunasoft.tuneros.qa21.Qa21Instrumentation"
+        android:targetPackage="com.devtunasoft.tuneros"
+        android:label="QA-21 report publication gate" />
+</manifest>
