@@ -1,0 +1,4 @@
+QA-23 scratch fixture for bounded DASH SegmentBase sidx index admission.
+Every address-like value is symbolic; no feed address, access marker, personal code, PIN or media text is stored.
+Index boxes are generated from fixed constants; no private recording payload is present.
+Rows carry ids, digests and outcomes only. Fixture bytes are LF encoded.
