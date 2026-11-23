@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Test-APK-only instrumentation declaration. The application manifest is untouched. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <instrumentation
+        android:name="com.devtunasoft.tuneros.qa08.Qa08Instrumentation"
+        android:label="QA08 bounded DVR overlap and series-rule assertions"
+        android:targetPackage="com.devtunasoft.tuneros" />
+</manifest>
