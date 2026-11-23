@@ -1,0 +1,3 @@
+case_id	step	decoder	provider	user_limit	op	tile_token	expect	max_tiles	tiles	audible
+C-01	1	2	2	2	OPEN	t01	ADMITTED	2	t01	t01
+C-01	0	2	2	2	OPEN	t02	ADMITTED	2	t01,t02	t01

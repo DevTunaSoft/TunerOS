@@ -1,0 +1,4 @@
+qa28 scratch contract v1
+Tab separated tables with exact headers; integer fields are bounded.
+Tile names are invented scratch tokens derived from a fixed seed.
+Only check ids, counts and digests are emitted; raw rows are never printed.

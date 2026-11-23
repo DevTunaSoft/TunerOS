@@ -1,0 +1,10 @@
+key	value
+seed	20261123
+case_count	37
+corrupt_count	9
+max_tiles	4
+max_id_chars	128
+cases_sha	173c98ad22c4b467ed647b296bde7368e34cc46809562bf3b17ec461a62b863d
+capacity_sha	75095bd0ded4deb2186dd58722ec9bf3321c1621e7cf1a6fe167721ea2ad7d9b
+corrupt_sha	d48e7afaef2182f6188c43990de4240985a6ecc9c0067c927b9ea74852a6980e
+marker_len	11
