@@ -267,17 +267,20 @@ class DvrRecordingService : Service() {
         } catch (error: Exception) {
             val bytes = sink?.bytesWritten ?: 0L
             val wasCancelled = cancelled.get()
-            val state = if (wasCancelled) "CANCELLED" else if (bytes > 0) "PARTIAL" else "FAILED"
+            val fault = StorageFaultPolicy.classify(error, wasCancelled)
+            val terminal = StorageCatalogPolicy.decide(fault, bytes, wasCancelled)
             catalog.finish(
                 id = id,
-                state = state,
+                state = terminal.state,
                 stoppedEpochSeconds = nowSeconds(),
                 bytesWritten = bytes,
-                storageLocation = sink?.location?.takeIf { bytes > 0 },
-                failureReason = if (wasCancelled) null else error.javaClass.simpleName,
+                // A PARTIAL row may keep its .partial path; a failure never claims a completed file.
+                storageLocation = if (terminal.state == "PARTIAL") sink?.location
+                    else terminal.completedLocation,
+                failureReason = fault.code,
             )
-            if (bytes == 0L) sink?.delete()
-            observeOutcome(state, bytes)
+            if (terminal.discardFile) sink?.delete()
+            observeOutcome(terminal.state, bytes)
         } finally {
             initialConnection?.disconnect()
             connections.abortCurrent()
@@ -461,7 +464,8 @@ class DvrRecordingService : Service() {
     ) {
         // Read cancellation once, at the moment of finalization: STOP or onDestroy after the
         // copy loop must not allow a partial capture to be promoted to COMPLETED.
-        val decision = RecordingOutcomePolicy.settle(requested, cancelled.get(), sink.bytesWritten)
+        val cancelledNow = cancelled.get()
+        val decision = RecordingOutcomePolicy.settle(requested, cancelledNow, sink.bytesWritten)
         if (decision.finalize) {
             val finalizedLocation = sink.finalizeRecording()
             val state = if (finalizedLocation != null) "COMPLETED" else "PARTIAL"
@@ -472,19 +476,20 @@ class DvrRecordingService : Service() {
                 bytesWritten = requested.bytesWritten,
                 storageLocation = finalizedLocation ?: sink.location.takeIf { requested.bytesWritten > 0 },
                 failureReason = if (finalizedLocation != null) null else
-                    "Unable to finalize recording output",
+                    StorageFault(StorageFaultKind.FINALIZATION_FAILED).code,
             )
             observeOutcome(state, requested.bytesWritten)
             return
         }
 
-        if (decision.discardEmpty) sink.delete()
+        // Cancellation is terminal: delete the partial so no orphan is left behind.
+        if (decision.discardEmpty || cancelledNow) sink.delete()
         catalog.finish(
             id = id,
             state = decision.state,
             stoppedEpochSeconds = nowSeconds(),
             bytesWritten = requested.bytesWritten,
-            storageLocation = sink.location.takeIf { requested.bytesWritten > 0 },
+            storageLocation = sink.location.takeIf { requested.bytesWritten > 0 && !cancelledNow },
             failureReason = decision.failureReason,
         )
         observeOutcome(decision.state, requested.bytesWritten)

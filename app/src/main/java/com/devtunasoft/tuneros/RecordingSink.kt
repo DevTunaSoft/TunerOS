@@ -7,6 +7,7 @@ import com.devtunasoft.tuneros.core.RecordingPolicy
 import com.devtunasoft.tuneros.core.RecordingState
 import java.io.File
 import java.io.FilterOutputStream
+import java.io.IOException
 import java.io.OutputStream
 
 internal interface RecordingSink {
@@ -17,6 +18,169 @@ internal interface RecordingSink {
     fun freeBytes(): Long
     fun finalizeRecording(): String?
     fun delete(): Boolean
+}
+
+/**
+ * Typed storage/SAF fault. Deliberately payload-free: no URI, path, exception text or media byte
+ * is retained, so a fault can be persisted or logged without leaking provider or stream details.
+ */
+internal enum class StorageFaultKind {
+    PERMISSION_LOST,
+    DISK_FULL,
+    PROVIDER_DISCONNECTED,
+    FINALIZATION_FAILED,
+    CANCELLED,
+    UNKNOWN,
+}
+
+internal data class StorageFault(val kind: StorageFaultKind) {
+    /** Stable diagnostic code safe to write to the catalog. */
+    val code: String get() = kind.name
+}
+
+/** Raised at the storage boundary so a fault keeps its type instead of becoming a bare message. */
+internal class StorageAccessException(val faultKind: StorageFaultKind) : RuntimeException(faultKind.name)
+
+internal sealed class StorageResult<out T> {
+    data class Success<T>(val value: T) : StorageResult<T>()
+    data class Failure(val fault: StorageFault) : StorageResult<Nothing>()
+
+    fun valueOrNull(): T? = (this as? Success)?.value
+    fun faultOrNull(): StorageFault? = (this as? Failure)?.fault
+}
+
+internal object StorageFaultPolicy {
+    /** Classify a boundary failure once. Exception text is never copied into the typed fault. */
+    fun classify(error: Throwable, cancelled: Boolean): StorageFault {
+        if (cancelled) return StorageFault(StorageFaultKind.CANCELLED)
+        return when (error) {
+            is StorageAccessException -> StorageFault(error.faultKind)
+            is SecurityException -> StorageFault(StorageFaultKind.PERMISSION_LOST)
+            is IOException -> StorageFault(
+                if (indicatesNoSpace(error.message)) StorageFaultKind.DISK_FULL
+                else StorageFaultKind.PROVIDER_DISCONNECTED,
+            )
+            else -> StorageFault(StorageFaultKind.UNKNOWN)
+        }
+    }
+
+    private fun indicatesNoSpace(message: String?): Boolean {
+        if (message.isNullOrBlank()) return false
+        val text = message.lowercase()
+        return listOf("no space", "enospc", "quota", "insufficient storage", "disk full", "storage full")
+            .any { text.contains(it) }
+    }
+
+    /** A single bounded attempt: no retry loop, with cancellation checked before the step. */
+    fun <T> attempt(cancelled: () -> Boolean, step: () -> T): StorageResult<T> = try {
+        if (cancelled()) StorageResult.Failure(StorageFault(StorageFaultKind.CANCELLED))
+        else StorageResult.Success(step())
+    } catch (error: Exception) {
+        StorageResult.Failure(classify(error, cancelled()))
+    }
+}
+
+internal enum class StorageDestination { INTERNAL, SAF }
+
+internal object RecordingSinkPolicy {
+    /**
+     * Choose exactly one destination. A selected SAF tree is authoritative: a disconnect or quota
+     * failure is a typed fault, never a silent redirect to internal storage (and vice versa).
+     */
+    fun selectDestination(
+        safTreeSelected: Boolean,
+        safAvailableBytes: Long?,
+        internalAvailableBytes: Long,
+        minFreeBytes: Long,
+    ): StorageResult<StorageDestination> {
+        if (safTreeSelected) {
+            val available = safAvailableBytes
+                ?: return StorageResult.Failure(StorageFault(StorageFaultKind.PROVIDER_DISCONNECTED))
+            if (available < minFreeBytes) {
+                return StorageResult.Failure(StorageFault(StorageFaultKind.DISK_FULL))
+            }
+            return StorageResult.Success(StorageDestination.SAF)
+        }
+        if (internalAvailableBytes < minFreeBytes) {
+            return StorageResult.Failure(StorageFault(StorageFaultKind.DISK_FULL))
+        }
+        return StorageResult.Success(StorageDestination.INTERNAL)
+    }
+}
+
+/** Fixed-memory guard that refuses to let one capture write past its storage budget. */
+internal class BoundedOutputStream(
+    private val delegate: OutputStream,
+    private val maxBytes: Long,
+) : OutputStream() {
+    init {
+        require(maxBytes >= 0) { "Negative storage bound" }
+    }
+
+    var count: Long = 0
+        private set
+
+    override fun write(oneByte: Int) {
+        reserve(1)
+        delegate.write(oneByte)
+        count = Math.addExact(count, 1L)
+    }
+
+    override fun write(buffer: ByteArray, offset: Int, length: Int) {
+        reserve(length.toLong())
+        delegate.write(buffer, offset, length)
+        count = Math.addExact(count, length.toLong())
+    }
+
+    private fun reserve(additional: Long) {
+        if (additional < 0 || additional > maxBytes - count) {
+            throw StorageAccessException(StorageFaultKind.DISK_FULL)
+        }
+    }
+
+    override fun flush() {
+        delegate.flush()
+    }
+
+    override fun close() {
+        delegate.close()
+    }
+}
+
+/** The only terminal transition a storage attempt may write to the catalog. */
+internal data class StorageTerminalDecision(
+    val state: String,
+    val finalize: Boolean,
+    val discardFile: Boolean,
+    val fault: StorageFault?,
+    val completedLocation: String?,
+)
+
+internal object StorageCatalogPolicy {
+    /** A fault can only produce FAILED / PARTIAL / CANCELLED, never COMPLETED or a final path. */
+    fun decide(fault: StorageFault?, bytesWritten: Long, cancelled: Boolean): StorageTerminalDecision {
+        val effective = if (cancelled) StorageFault(StorageFaultKind.CANCELLED) else fault
+        if (effective != null) {
+            val state = when (effective.kind) {
+                StorageFaultKind.CANCELLED -> "CANCELLED"
+                else -> if (bytesWritten > 0L) "PARTIAL" else "FAILED"
+            }
+            return StorageTerminalDecision(
+                state = state,
+                finalize = false,
+                discardFile = state == "CANCELLED" || bytesWritten <= 0L,
+                fault = effective,
+                completedLocation = null,
+            )
+        }
+        return if (bytesWritten > 0L) {
+            StorageTerminalDecision("COMPLETED", true, false, null, null)
+        } else {
+            StorageTerminalDecision(
+                "FAILED", false, true, StorageFault(StorageFaultKind.UNKNOWN), null,
+            )
+        }
+    }
 }
 
 /** Terminal result requested by a capture engine, shared so finalization can be tested on the JVM. */
@@ -81,21 +245,28 @@ internal object RecordingSinkFactory {
         extension: String,
     ): RecordingSink {
         val treeUri = RecordingDestinationStore(context).selectedTreeUri()
-        if (treeUri == null) {
-            val directory = (context.getExternalFilesDir("recordings")
-                ?: File(context.filesDir, "recordings")).apply { mkdirs() }
-            require(directory.isDirectory) { "Recording storage unavailable" }
-            return InternalRecordingSink(directory, safeId, extension)
+        // Inspect once, then decide on exactly one destination. A failed SAF check is a typed
+        // fault and must never be downgraded into a write to internal storage.
+        val info = treeUri?.let { SafStorageInspector.inspect(context, it) }
+        val directory = (context.getExternalFilesDir("recordings")
+            ?: File(context.filesDir, "recordings"))
+        val selection = RecordingSinkPolicy.selectDestination(
+            safTreeSelected = treeUri != null,
+            safAvailableBytes = info?.availableBytes,
+            internalAvailableBytes = if (treeUri == null) directory.usableSpace else 0L,
+            minFreeBytes = RecordingPolicy.DEFAULT_MIN_FREE_BYTES,
+        )
+        when (selection) {
+            is StorageResult.Failure -> throw StorageAccessException(selection.fault.kind)
+            is StorageResult.Success -> when (selection.value) {
+                StorageDestination.SAF -> return SafRecordingSink(context, info!!, safeId, extension)
+                StorageDestination.INTERNAL -> {
+                    directory.mkdirs()
+                    require(directory.isDirectory) { "Recording storage unavailable" }
+                    return InternalRecordingSink(directory, safeId, extension)
+                }
+            }
         }
-
-        val info = SafStorageInspector.inspect(context, treeUri)
-            ?: throw IllegalStateException(
-                "Selected recording storage is unavailable or cannot report free space",
-            )
-        require(info.availableBytes >= RecordingPolicy.DEFAULT_MIN_FREE_BYTES) {
-            "Selected recording storage is below the safety reserve"
-        }
-        return SafRecordingSink(context, info, safeId, extension)
     }
 }
 
@@ -142,7 +313,9 @@ internal class InternalRecordingSink(
             throw error
         }
         counter = output
-        return output
+        // Hard cap at the storage available when the capture opened: a runaway write becomes a
+        // typed DISK_FULL instead of an unbounded stream.
+        return BoundedOutputStream(output, directory.usableSpace)
     }
 
     override fun freeBytes(): Long = directory.usableSpace
@@ -189,7 +362,7 @@ private class SafRecordingSink(
             ?: throw IllegalStateException("Selected recording storage cannot open output")
         val output = CountingOutputStream(delegate)
         counter = output
-        return output
+        return BoundedOutputStream(output, lastReportedAvailable)
     }
 
     override fun freeBytes(): Long {
