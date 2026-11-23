@@ -153,6 +153,13 @@ Use this template per completed/blocked task, append it below, and commit/push a
 - The SAME subagent was continued (`deleg_d05c8f90`) to re-verify on-disk state, run `git diff --check` and a secret scan, then commit/push only its owned paths (not the integrator's JUnit commit `0894604`). No duplicate worktree, no duplicate worker, no speculative re-run of side effects. Registry updated with `resume_reason`.
 - At 07:56Z the resumed transcript was growing. Three workers live: A7 (resumed UX-02), A8 (PERF-02 core slice), B4 (QA-04 bounded rearm). Floor met.
 
+### UX-02 (recovered) — Worker A7 (`sa-0-7f87bb3e`) / PASS (JVM) / 2026-11-23T07:59Z
+- Three real production defects, each proved RED before the fix and GREEN after: (1) `ParentalControlsStore.setPin()` cleared the wrong-entry streak and active lockout, letting a PIN change bypass the lock; (2) `BackupRestore.apply()` ignored `series.add()` results, so a >50-rule backup silently truncated rules yet still wrote restrictions; (3) groups and channels were written in two preference edits, so a partial write dropped half the restriction data — replaced with atomic `replaceRestrictions()`.
+- Cancel area PASS: series cancel deletes exactly its own rule row; timeshift cancel reports `CANCELLED` and removes the whole ring (3 + 1 JUnit tests, synthetic loopback HLS fixture).
+- **PASS** final JVM harness `OK (9 tests)` / `OK (3 tests)`, exit codes A=0 B=0; **PASS** `git diff --check` and secret scan over all 17 changed files (only synthetic loopback URLs). **BLOCKED** `./gradlew :app:testDebugUnitTest` — `SDK location not found`; device/instrumentation NOT RUN.
+- Known remaining gap explicitly NOT fixed: cross-database DVR schedule rows created by `MainActivity.evaluateSeriesRules` are not cancelled by series removal (needs `MainActivity`/`RecordingScheduleStore`, A4-owned) — UNVERIFIED, flagged for integrator.
+- Commit `6022413c61f4f4514b84a9d5a1ff3b02bc1d0d35` pushed; PR #128 opened. Next task assigned immediately: UX-03 credential/bounded-output audit of app QA diagnostics (`ParentalQa`, `BackupQa`, `TimeshiftQa`) with new `ux03/**` tests, continuing the same warm subagent; A8 (PERF-02) and B4 (QA-04) remained live.
+
 ## F. Failed-attempt / anti-loop record
 
 No Hermes worker attempts have occurred as part of the handoff creation. Do not invent failures or successful tests. After two equivalent failures, record both logs, root-cause investigation and changed strategy here. After two no-progress cycles move to a separate unblocked task.
