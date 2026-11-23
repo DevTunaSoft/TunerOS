@@ -18,9 +18,18 @@ fun interface MultiviewPlayerFactory {
     fun create(tileId: String): MultiviewPlayer
 }
 
-enum class OpenResult { PRIMARY_OPENED, SECONDARY_OPENED, SECONDARY_REPLACED, ALREADY_OPEN, INVALID_ID }
+enum class OpenResult {
+    PRIMARY_OPENED, SECONDARY_OPENED, SECONDARY_REPLACED, ALREADY_OPEN, INVALID_ID,
+    /** The decoder/provider refused to create a player; no tile was left half-open. */
+    CREATE_FAILED,
+    /** Both decoder slots are occupied and strict capacity was requested. */
+    CAPACITY_REFUSED,
+}
 
-enum class FocusResult { FOCUSED, ALREADY_AUDIBLE, NOT_OPEN, INVALID_ID }
+enum class FocusResult { FOCUSED, ALREADY_AUDIBLE, NOT_OPEN, INVALID_ID, RELEASED_ON_FAILURE }
+
+/** What an open attempt did, plus the single tile that stays audible as its fallback. */
+data class OpenAttempt(val result: OpenResult, val fallbackAudibleTileId: String?)
 
 private const val AUDIBLE_VOLUME = 1f
 private const val MUTED_VOLUME = 0f
@@ -32,10 +41,16 @@ private const val MAX_ID_CHARS = 128
  * At most [MAX_TILES] players exist. The primary tile is the only audible one; the secondary tile is
  * always opened muted (volume 0f). Switching audio promotes the already-muted secondary and releases
  * the old primary, so audio is never doubled. [pause] releases the secondary and [stop] releases both.
- * Every release is issued exactly once, from a single deterministic place per tile.
+ * Every release is issued exactly once, from a single deterministic place per tile. Provider and
+ * volume failures are reported as structured results and never leave a half-open tile audible.
  */
 class MultiviewTileController(private val factory: MultiviewPlayerFactory) {
-    private class Tile(val id: String, val player: MultiviewPlayer)
+    private class Tile(val id: String, val player: MultiviewPlayer) {
+        /** Guards against a second release even when the platform release itself throws. */
+        var released = false
+    }
+
+    private enum class FullPolicy { REPLACE_SECONDARY, REFUSE }
 
     private var primary: Tile? = null
     private var secondary: Tile? = null
@@ -60,20 +75,87 @@ class MultiviewTileController(private val factory: MultiviewPlayerFactory) {
      * Shows [tileId]. The first tile becomes the audible primary; the next becomes a muted secondary;
      * a third bounded-replaces the secondary. Reopening an already visible tile is a no-op.
      */
-    fun open(tileId: String): OpenResult {
-        if (!valid(tileId)) return OpenResult.INVALID_ID
+    fun open(tileId: String): OpenResult = attemptOpen(tileId, FullPolicy.REPLACE_SECONDARY).result
+
+    /**
+     * Strict-decoder variant: when both slots are occupied a third distinct tile is refused instead of
+     * replacing the muted tile. The structured result names the single tile that remains audible.
+     */
+    fun openWithinCapacity(tileId: String): OpenAttempt = attemptOpen(tileId, FullPolicy.REFUSE)
+
+    private fun attemptOpen(tileId: String, fullPolicy: FullPolicy): OpenAttempt {
+        if (!valid(tileId)) return OpenAttempt(OpenResult.INVALID_ID, primary?.id)
         val currentPrimary = primary
         if (currentPrimary == null) {
-            primary = Tile(tileId, factory.create(tileId).also { it.setVolume(AUDIBLE_VOLUME) })
-            return OpenResult.PRIMARY_OPENED
+            val created = createPlayer(tileId) ?: return OpenAttempt(OpenResult.CREATE_FAILED, null)
+            if (!setVolume(created, AUDIBLE_VOLUME)) {
+                releaseUnregistered(created)
+                return OpenAttempt(OpenResult.CREATE_FAILED, null)
+            }
+            primary = Tile(tileId, created)
+            return OpenAttempt(OpenResult.PRIMARY_OPENED, tileId)
         }
-        if (tileId == currentPrimary.id) return OpenResult.ALREADY_OPEN
+        if (tileId == currentPrimary.id || tileId == secondary?.id) {
+            return OpenAttempt(OpenResult.ALREADY_OPEN, currentPrimary.id)
+        }
         val oldSecondary = secondary
-        if (oldSecondary != null && tileId == oldSecondary.id) return OpenResult.ALREADY_OPEN
-        // Bounded replacement: the old muted tile is released before the new one is created.
-        oldSecondary?.player?.release()
-        secondary = Tile(tileId, factory.create(tileId).also { it.setVolume(MUTED_VOLUME) })
-        return if (oldSecondary == null) OpenResult.SECONDARY_OPENED else OpenResult.SECONDARY_REPLACED
+        if (oldSecondary == null) {
+            return openSecondary(tileId, currentPrimary, OpenResult.SECONDARY_OPENED)
+        }
+        if (fullPolicy == FullPolicy.REFUSE) {
+            // No third decoder is requested and nothing is released: audio stays on the primary.
+            return OpenAttempt(OpenResult.CAPACITY_REFUSED, currentPrimary.id)
+        }
+        // Bounded replacement: clear and release the muted tile before freeing a decoder slot.
+        secondary = null
+        releaseTile(oldSecondary)
+        return openSecondary(tileId, currentPrimary, OpenResult.SECONDARY_REPLACED)
+    }
+
+    private fun openSecondary(
+        tileId: String,
+        currentPrimary: Tile,
+        success: OpenResult,
+    ): OpenAttempt {
+        val created = createPlayer(tileId)
+            ?: return OpenAttempt(OpenResult.CREATE_FAILED, currentPrimary.id)
+        if (!setVolume(created, MUTED_VOLUME)) {
+            releaseUnregistered(created)
+            return OpenAttempt(OpenResult.CREATE_FAILED, currentPrimary.id)
+        }
+        secondary = Tile(tileId, created)
+        return OpenAttempt(success, currentPrimary.id)
+    }
+
+    private fun createPlayer(tileId: String): MultiviewPlayer? = try {
+        factory.create(tileId)
+    } catch (failure: Exception) {
+        null
+    }
+
+    private fun setVolume(player: MultiviewPlayer, volume: Float): Boolean = try {
+        player.setVolume(volume)
+        true
+    } catch (failure: Exception) {
+        false
+    }
+
+    private fun releaseUnregistered(player: MultiviewPlayer) {
+        try {
+            player.release()
+        } catch (failure: Exception) {
+            // A player that was never registered cannot corrupt controller state.
+        }
+    }
+
+    private fun releaseTile(tile: Tile) {
+        if (tile.released) return
+        tile.released = true
+        try {
+            tile.player.release()
+        } catch (failure: Exception) {
+            // Release is at most once; state is cleared by the caller regardless.
+        }
     }
 
     /** Makes an open secondary the audible tile. The old primary is released; audio stays exclusive. */
@@ -83,9 +165,15 @@ class MultiviewTileController(private val factory: MultiviewPlayerFactory) {
         if (tileId == currentPrimary.id) return FocusResult.ALREADY_AUDIBLE
         val currentSecondary = secondary
         if (currentSecondary == null || tileId != currentSecondary.id) return FocusResult.NOT_OPEN
-        currentPrimary.player.release()
-        // Reuse the promoted player: it was muted, now it is the single audible tile.
-        currentSecondary.player.setVolume(AUDIBLE_VOLUME)
+        // Release the old audible tile before promoting, so two tiles are never audible at once.
+        releaseTile(currentPrimary)
+        if (!setVolume(currentSecondary.player, AUDIBLE_VOLUME)) {
+            // The selection failed: release the would-be tile too and leave zero audible tiles.
+            releaseTile(currentSecondary)
+            primary = null
+            secondary = null
+            return FocusResult.RELEASED_ON_FAILURE
+        }
         primary = currentSecondary
         secondary = null
         return FocusResult.FOCUSED
@@ -94,15 +182,15 @@ class MultiviewTileController(private val factory: MultiviewPlayerFactory) {
     /** Releases the muted secondary, e.g. on pause or on a channel switch. Idempotent. */
     fun pause(): Boolean {
         val currentSecondary = secondary ?: return false
-        currentSecondary.player.release()
+        releaseTile(currentSecondary)
         secondary = null
         return true
     }
 
     /** Releases both tiles. Idempotent: a second call issues no further releases. */
     fun stop() {
-        secondary?.player?.release()
-        primary?.player?.release()
+        secondary?.let { releaseTile(it) }
+        primary?.let { releaseTile(it) }
         secondary = null
         primary = null
     }

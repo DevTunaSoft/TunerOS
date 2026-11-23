@@ -13,7 +13,9 @@ class MultiviewTileControllerTest {
     private class FakePlayer : MultiviewPlayer {
         var lastVolume = -1f
         var releaseCount = 0
+        var failOnSetVolume = false
         override fun setVolume(volume: Float) {
+            if (failOnSetVolume) throw IllegalStateException("volume change refused")
             lastVolume = volume
         }
         override fun release() {
@@ -24,9 +26,19 @@ class MultiviewTileControllerTest {
     private class Factory : MultiviewPlayerFactory {
         val created = ArrayList<FakePlayer>()
         val byId = HashMap<String, FakePlayer>()
-        override fun create(tileId: String): FakePlayer = FakePlayer().also {
-            created += it
-            byId[tileId] = it
+        var failNextCreate = false
+        var failNextVolume = false
+        override fun create(tileId: String): FakePlayer {
+            if (failNextCreate) {
+                failNextCreate = false
+                throw IllegalStateException("decoder capacity exhausted")
+            }
+            return FakePlayer().also {
+                it.failOnSetVolume = failNextVolume
+                failNextVolume = false
+                created += it
+                byId[tileId] = it
+            }
         }
     }
 
@@ -195,5 +207,128 @@ class MultiviewTileControllerTest {
             controller.primaryTileId?.let { assertEquals(1f, factory.byId[it]!!.lastVolume, 0f) }
             controller.secondaryTileId?.let { assertEquals(0f, factory.byId[it]!!.lastVolume, 0f) }
         }
+    }
+
+    @Test
+    fun failedSecondaryCreationLeavesOnlyTheAudiblePrimary() {
+        val (controller, factory) = controller()
+        controller.open("a")
+        controller.open("b")
+        factory.failNextCreate = true
+        try {
+            controller.open("c")
+        } catch (expected: IllegalStateException) {
+            // MV-01 propagates the provider failure; MV-02 must also clean up after it.
+        }
+        // The released old secondary must not remain registered as a live tile.
+        assertEquals(1, controller.playerCount)
+        assertEquals("a", controller.audibleTileId)
+        assertNull(controller.secondaryTileId)
+        assertTrue(controller.openTileIds == listOf("a"))
+        assertEquals(1, factory.byId["b"]!!.releaseCount)
+        assertEquals(0, factory.byId["a"]!!.releaseCount)
+        assertEquals(1f, factory.byId["a"]!!.lastVolume, 0f)
+        // A failed attempt must not consume decoder capacity or leave a third player alive.
+        assertEquals(2, factory.created.size)
+    }
+
+    @Test
+    fun focusFailureReleasesBothTilesAndLeavesZeroAudible() {
+        val (controller, factory) = controller()
+        controller.open("a")
+        controller.open("b")
+        factory.byId["b"]!!.failOnSetVolume = true
+        try {
+            controller.focus("b")
+        } catch (expected: IllegalStateException) {
+            // MV-01 propagates the volume failure; MV-02 must release every tile on that failure.
+        }
+        assertNull(controller.audibleTileId)
+        assertEquals(0, controller.playerCount)
+        assertTrue(controller.openTileIds.isEmpty())
+        assertEquals(1, factory.byId["a"]!!.releaseCount)
+        assertEquals(1, factory.byId["b"]!!.releaseCount)
+        assertFalse(controller.isAudible("a"))
+        assertFalse(controller.isAudible("b"))
+    }
+
+    @Test
+    fun thirdTileIsRefusedWithinCapacityWithStructuredAudibleFallback() {
+        val (controller, factory) = controller()
+        controller.open("a")
+        controller.open("b")
+        val attempt = controller.openWithinCapacity("c")
+        assertEquals(OpenResult.CAPACITY_REFUSED, attempt.result)
+        assertEquals("a", attempt.fallbackAudibleTileId)
+        assertEquals("a", controller.audibleTileId)
+        assertEquals("b", controller.secondaryTileId)
+        assertEquals(2, controller.playerCount)
+        // Refusal allocates no third decoder and releases nothing.
+        assertEquals(2, factory.created.size)
+        assertTrue(factory.created.none { it.releaseCount > 0 })
+        assertEquals(OpenResult.ALREADY_OPEN, controller.openWithinCapacity("a").result)
+        assertEquals(OpenResult.ALREADY_OPEN, controller.openWithinCapacity("b").result)
+        assertEquals(2, factory.created.size)
+    }
+
+    @Test
+    fun strictCapacityOpenUsesFreeSlotAfterFocusFailureAndAfterStop() {
+        val (controller, factory) = controller()
+        controller.open("a")
+        controller.open("b")
+        factory.byId["b"]!!.failOnSetVolume = true
+        assertEquals(FocusResult.RELEASED_ON_FAILURE, controller.focus("b"))
+        assertNull(controller.audibleTileId)
+        controller.stop()
+        // No tile is released twice by the failure cleanup followed by stop.
+        assertTrue(factory.created.all { it.releaseCount == 1 })
+        assertEquals(OpenResult.PRIMARY_OPENED, controller.openWithinCapacity("c").result)
+        assertEquals("c", controller.audibleTileId)
+        assertEquals(1, controller.playerCount)
+    }
+
+    @Test
+    fun providerCreationFailureReturnsStructuredResultAndKeepsOneAudibleTile() {
+        val (controller, factory) = controller()
+        controller.open("a")
+        controller.open("b")
+        factory.failNextCreate = true
+        val result = controller.open("c")
+        assertEquals(OpenResult.CREATE_FAILED, result)
+        assertEquals("a", controller.audibleTileId)
+        assertNull(controller.secondaryTileId)
+        // Capacity is restored: the next strict open may create a secondary again.
+        assertEquals(OpenResult.SECONDARY_OPENED, controller.openWithinCapacity("d").result)
+        assertEquals("d", controller.secondaryTileId)
+    }
+
+    @Test
+    fun primaryCreationFailureLeavesZeroAudibleAndConsumesNoCapacity() {
+        val (controller, factory) = controller()
+        factory.failNextCreate = true
+        val attempt = controller.openWithinCapacity("a")
+        assertEquals(OpenResult.CREATE_FAILED, attempt.result)
+        assertNull(attempt.fallbackAudibleTileId)
+        assertNull(controller.audibleTileId)
+        assertEquals(0, controller.playerCount)
+        assertEquals(0, factory.created.size)
+        assertEquals(OpenResult.INVALID_ID, controller.openWithinCapacity(" ").result)
+        assertEquals(OpenResult.PRIMARY_OPENED, controller.openWithinCapacity("b").result)
+        assertEquals("b", controller.audibleTileId)
+    }
+
+    @Test
+    fun secondaryVolumeFailureReleasesFailedTileAndKeepsPrimaryAudible() {
+        val (controller, factory) = controller()
+        controller.open("a")
+        factory.failNextVolume = true
+        val attempt = controller.openWithinCapacity("b")
+        assertEquals(OpenResult.CREATE_FAILED, attempt.result)
+        assertEquals("a", attempt.fallbackAudibleTileId)
+        assertEquals("a", controller.audibleTileId)
+        assertNull(controller.secondaryTileId)
+        assertEquals(1, controller.playerCount)
+        assertEquals(1, factory.byId["b"]!!.releaseCount)
+        assertEquals(0, factory.byId["a"]!!.releaseCount)
     }
 }
