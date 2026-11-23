@@ -214,6 +214,8 @@ No Hermes worker attempts have occurred as part of the handoff creation. Do not 
 
 - **C10 SECOND INTERRUPTION (23:11Z)**: after the first recovery, C10 reached a verified RED state (7 tests, 4 failures) and restored the GREEN source byte-identically, but the final full-suite terminal call was cancelled by a lost session lease. No commit or push had occurred; the worktree still held only owned changes. The SAME subagent was continued again with explicit instructions not to redo RED, to run a bounded targeted GREEN then one bounded full-suite run, to label any cancellation NOT RUN rather than fabricate a PASS, and to commit/push only owned paths. Its new transcript showed live tool calls within 8 s; registry delegation ID/transcript updated, ownership check PASS with 5 RUNNING slots.
 
+- **HTTP-07 RESULT / C11 SLOT REFILL (23:13Z)**: C11 `197520e` (PR 218) fixed a real app-side URL/token echo in SourceHttp after its interrupted delegation was recovered: both URL construction sites now use a fixed malformed-URL refusal, redirect failures release the connection, 3 synthetic tests PASS and the full AGP suite passed 24/24 tasks at exact SHA. Ownership hook PASS at commit and push; device NOT RUN. C12 `sa-0-060dbf93` (`deleg_4b607045`, `hermes/worker-c12-qa36`) registered before launch with `scripts/qa36/**` + `qa/fixtures/qa36/**` and is building a mutation-sensitive host gate for HTTP-07. Five RUNNING slots: A58, B42, C10, B43, C12; ownership `sync` PASS at 23:13:50Z. No merges.
+
 ## G. Session recovery (run automatically; do not ask owner to paste commands)
 
 1. Re-open `AGENTS.md` and `docs/HERMES_AUTONOMOUS_TAKEOVER.md`; finish all mandatory full-document reading.
