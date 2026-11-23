@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- QA-01 only. Declares a bounded platform-Instrumentation runner for the
+     compiled TV-guide layout and remote-key acceptance checks. No new test
+     dependencies, no changes to the application manifest. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <instrumentation
+        android:name="com.devtunasoft.tuneros.TvGuideLayoutInstrumentation"
+        android:targetPackage="com.devtunasoft.tuneros"
+        android:label="TunerOS TV guide layout acceptance" />
+</manifest>
