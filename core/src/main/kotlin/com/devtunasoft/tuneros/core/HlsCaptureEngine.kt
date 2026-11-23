@@ -36,6 +36,7 @@ interface HlsSegmentListener {
 }
 
 private const val MAX_CACHED_KEYS = 4
+private const val MALFORMED_RESOURCE = "HLS resource URI is malformed"
 
 class HlsCaptureEngine(
     private val maxStalledPolls: Int = 6,
@@ -395,8 +396,17 @@ class HlsCaptureEngine(
         (targetDurationSeconds ?: 4L).coerceIn(2L, 20L) * 500L
 
     private fun resolveHttp(base: String, relative: String): String {
-        val baseUri = URI(base)
-        val resolved = baseUri.resolve(relative)
+        // URI failures carry raw playlist text, which may include provider tokens. Never propagate that message.
+        val baseUri = try {
+            URI(base)
+        } catch (_: Exception) {
+            throw IllegalArgumentException(MALFORMED_RESOURCE)
+        }
+        val resolved = try {
+            baseUri.resolve(relative)
+        } catch (_: Exception) {
+            throw IllegalArgumentException(MALFORMED_RESOURCE)
+        }
         require((resolved.scheme.equals("http", ignoreCase = true) ||
             resolved.scheme.equals("https", ignoreCase = true)) &&
             !resolved.host.isNullOrBlank()) {
