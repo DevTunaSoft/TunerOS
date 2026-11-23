@@ -1,0 +1,9 @@
+# id<TAB>ref<TAB>path<TAB>pinned-git-blob-sha1<TAB>expected-added-count
+FIX_P203_C2	P203_C2	app/src/test/java/com/devtunasoft/tuneros/dvr03/Dvr03RearmTest.kt	d31c0b767fcb3c3a03abb7e23532b3f96c68abef	1
+FIX_P206_C3	P206_C3	app/src/test/java/com/devtunasoft/tuneros/upgraderearm/UpgradePackageReplacedRearmTest.kt	2b7caefd2c755f689b79b2f8d776671d5641cd5f	1
+FIX_P210_C5	P210_C5	app/src/test/java/com/devtunasoft/tuneros/map04/GuideMappingStoreTest.kt	98c0e857e75bce201470e242b10a1953cf51409a	1
+FIX_P213_C8	P213_C8	app/src/test/java/com/devtunasoft/tuneros/map05/GuideMappingRetainTest.kt	97a0a5c367d9a6a7321cd8df293848b23e37d066	1
+FIX_P214_C7	P214_C7	app/src/test/java/com/devtunasoft/tuneros/guide07/GuideRecycledRowFocusTest.kt	6c1eb36a224682b7759fea65ad590bdae8155945	1
+FIX_P218_C11	P218_C11	app/src/test/java/com/devtunasoft/tuneros/http07/SourceHttpHygieneTest.kt	eb801943ce00fe8a652027d8f338f3b6057ec2ac	1
+FIX_P220_C10	P220_C10	app/src/test/java/com/devtunasoft/tuneros/fav06/SeriesRuleReplaceTest.kt	b71774d0e778a112ceb576a2373ba58d212cc914	1
+FIX_P221_QA34	P221_QA34	qa/fixtures/qa34/markers.tsv	a3ecd3b01b05cd83552cea7649e2f13e3889119b	1
