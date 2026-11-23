@@ -1,0 +1,6 @@
+QA-20 scratch fixture for the bounded runtime parental decision slice.
+All identifiers are invented. No feed address, access marker, PIN or recording is stored.
+Event rows replay a failed-entry sequence from a pinned start snapshot.
+Policy rows replay group, channel, recording and bounded-set decisions.
+Corrupt rows carry hex-encoded malformed event lines with a pinned rejection reason.
+The sensitive marker is derived at run time and appears in no file.
