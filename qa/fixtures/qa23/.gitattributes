@@ -1,0 +1,5 @@
+* -text
+.gitattributes -text
+*.txt -text
+*.tsv -text
+*.idx -text
