@@ -21,11 +21,13 @@ trap 'rm -f "$TMP"' EXIT
 
 echo "QA05 JDK: $($JAVA_BIN -version 2>&1 | head -1)"
 $JAVA_BIN scripts/qa05/Qa05FixtureGenerator.java "$TMP"
-if ! cmp -s "$TMP" "$FIXTURE"; then
+# core.autocrlf may give the checked-out fixture CRLF while the generator always writes LF.
+# Compare line content so the check is about the data, not the checkout's line endings.
+if ! diff -q <(tr -d '\r' < "$TMP") <(tr -d '\r' < "$FIXTURE") >/dev/null; then
   echo "QA05 FAIL: committed fixture differs from deterministic generator output"
   diff -u "$FIXTURE" "$TMP" || true
   exit 1
 fi
-echo "QA05 PASS: committed fixture is byte-identical to regenerated output"
+echo "QA05 PASS: committed fixture matches regenerated output (line endings normalised)"
 $JAVA_BIN scripts/qa05/Qa05FixtureVerifier.java "$FIXTURE" \
   --embedded app/src/androidTest/java/com/devtunasoft/tuneros/qa05/Qa05GuideAssertions.kt
