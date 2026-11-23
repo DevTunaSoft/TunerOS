@@ -39,9 +39,9 @@ No actual Hermes worker has been launched by this documentation update. All task
 
 | Slot | Candidate objective | File ownership **once reserved** | Forbidden overlap | Status |
 |---|---|---|---|---|
-| Hermes integrator | Audit, coordinate, review/merge; shared ledger/docs | `AGENTS.md`, `CLAUDE.md`, `README.md`, `docs/**`, Gradle settings/build files; shared changes only after serialized coordination | Do not independently modify an agent-owned implementation file mid-task | NOT RUN |
-| Worker A | Actual two-tile selectable-audio Media3 path, or closest unblocked enabling slice | Explicit assigned paths under `app/src/main/**`; exact related `core/src/**` / test files only as reserved | `scripts/**`, `.github/workflows/**`, all shared docs | NOT RUN |
-| Worker B | Real compiled TV/emulator acceptance & memory instrumentation, filling coverage gaps | `scripts/**`, `.github/workflows/**`, `app/src/androidTest/**` and distinct QA fixtures | `app/src/main/**`, shared doc/Gradle files | NOT RUN |
+| Hermes integrator | Audit, coordinate, review/merge; shared ledger/docs | `AGENTS.md`, `CLAUDE.md`, `README.md`, `docs/**`, Gradle settings/build files; shared changes only after serialized coordination | Do not independently modify an agent-owned implementation file mid-task | **RUNNING** (runtime live; ledger update on `hermes/ledger-update`) |
+| Worker A | Actual two-tile selectable-audio Media3 path, or closest unblocked enabling slice | Explicit assigned paths under `app/src/main/**`; exact related `core/src/**` / test files only as reserved | `scripts/**`, `.github/workflows/**`, all shared docs | **ACTIVE** — `sa-0-6375ec58`, PLAY-01+MV-01, worktree `/TunerWork/workerA`, branch `hermes/worker-a-playback` |
+| Worker B | Real compiled TV/emulator acceptance & memory instrumentation, filling coverage gaps | `scripts/**`, `.github/workflows/**`, `app/src/androidTest/**` and distinct QA fixtures | `app/src/main/**`, shared doc/Gradle files | **ACTIVE** — `sa-1-c8728573`, QA-02+PERF-01, worktree `/TunerWork/workerB`, branch `hermes/worker-b-qa` |
 
 Do not create worker branches until these are reconciled with existing work. If Worker A must edit `MainActivity`, that file is owned exclusively by A until it finishes; Hermes may integrate it only after it is released. Worker B must never change it concurrently. Integrator alone updates this ledger, and may serialize the corresponding doc commit.
 
@@ -76,6 +76,21 @@ Use this template per completed/blocked task, append it below, and commit/push a
 - Open limitations, rollback, next assigned task:
 - Last known good terminal commands + restart action:
 
+### OPS-01 / OPS-02 / Hermes integrator / PASS (runtime setup), 2026-11-23T05:59Z
+- Objective and user-visible effect: stand up the TunerOS autonomous development runtime — two real disjoint workers plus one native five-minute watchdog — per PR #118.
+- Original problem / verified root cause: handoff docs were documentation-only and explicitly recorded worker count and cron as NOT RUN; no runtime existed.
+- Source base SHA / branch / worktree / owned paths: `main` `a523c2e43d198ee752f7c4f03f9f7853356ffb30`; PR #118 head `1fe3134a19c219441f1f8d89ab36da58e36c91b9`; integrator worktree `C:/Users/X1/TunerWork/integrator` (`hermes/ledger-update`, tracks PR branch), owned paths `docs/**` and local `.hermes/tunos/**`.
+- Source changes and architectural rationale: no product code changed. Registered one native cron job `0f160f15b5a4` (`*/5 * * * *`, enabled, workdir TunerOS, continuity on, deliver local) with a self-contained payload implementing the seven checks from `HERMES_INTERNAL_CRON.md`. Reserved disjoint ownership in `.hermes/tunos/ownership.md`; launched two `delegate_task` children with separate worktrees/branches at the reconciled base SHA.
+- Alternative rejected / failure history: OS Task Scheduler / crontab / external watchdog explicitly rejected per AGENTS.md. Manual cron `run` reported "already running" (no duplicate launched). Local build attempt not possible (no JDK/SDK on PATH) — recorded BLOCKED, not PASS.
+- RAM, CPU, storage, network and battery implications: negligible local overhead; two worker contexts and one low-frequency scheduler tick; no emulators launched merely to satisfy worker count.
+- Tests added, command, runner, device, API, seed: no new product tests from integrator. Verification commands: `cronjob_manage list/create/update/run`, `delegate_task list`, `gh pr checks 118 -R DevTunaSoft/TunerOS`, `gh run list -R DevTunaSoft/TunerOS --limit 8`, `git worktree list`.
+- **PASS** — cron job listed enabled at `*/5 * * * *` with real ID `0f160f15b5a4`; first real tick wrote a checkpoint at `2026-11-23T05:59:26Z` reporting 2 active workers. **PASS** — `delegate_task list` shows both children `status: running` with fresh transcripts. **PASS** — PR #118's four checks green at head `1fe3134` (self-tests run 45119109785, TV checks 45119109796, two builds). **BLOCKED** — local JDK/Android SDK unavailable. **UNVERIFIED** — physical device acceptance, auto-recovery exercise, durability across runtime restart.
+- Commit SHA, PR link, GitHub Actions run URL at that SHA: worker commits pending; PR #118 open, NOT merged; CI URLs above.
+- Integration merge SHA and exact-main CI verification: NOT DONE — merges require explicit owner authorization.
+- Security/provenance review: no credentials, provider URLs, DRM keys, recordings or private data logged; `.hermes/` excluded from git.
+- Open limitations, rollback, next assigned task: restore by re-running the cron payload and the two worker briefs; next: verify worker commits and exact-SHA CI, review, then hold merges pending authorization.
+- Last known good terminal commands + restart action: `cronjob_manage list`; `git -C C:/Users/X1/TunerOS worktree list`; `delegate_task list`; re-create workers from `workers.json` if the session restarts.
+
 ## F. Failed-attempt / anti-loop record
 
 No Hermes worker attempts have occurred as part of the handoff creation. Do not invent failures or successful tests. After two equivalent failures, record both logs, root-cause investigation and changed strategy here. After two no-progress cycles move to a separate unblocked task.
@@ -94,11 +109,13 @@ No Hermes worker attempts have occurred as part of the handoff creation. Do not 
 ## H. Internal cron and liveness ledger
 
 - **Required platform:** Hermes-native recurring scheduler only; `*/5 * * * *` (every five minutes). **External system cron/Windows Task Scheduler is not authorized as a substitute** for this requirement.
-- **Cron job ID:** NOT RUN / not yet installed by Hermes.
-- **Real native cron invocation evidence:** NOT RUN.
-- **Observed real active worker count:** NOT RUN (target >= 2, Hermes coordinator excluded).
-- **Auto-recovery test:** NOT RUN.
-- **Durability across session/runtime restart:** UNVERIFIED.
+- **Cron job ID:** `0f160f15b5a4` — name "TunerOS five-minute autonomous continuity", schedule `*/5 * * * *`, repeat forever, enabled, `workdir=C:\Users\X1\TunerOS`, `deliver=local`, `continuity=true`. Registered via Hermes's native `cronjob_manage` tool (gateway PID 7200 alive at check). No OS cron / Task Scheduler / external watchdog used.
+- **Native mechanism:** Hermes internal cron tool `cronjob_manage` (create/run/list/update), verified in the live job list (3 jobs total; the two others are unrelated Canopy/Cinnamon jobs). One TunerOS job only.
+- **Real native cron invocation evidence:** PASS — first real scheduled fire recorded at `2026-11-23T05:59:26Z` in local `.hermes/tunos/checkpoint.md` (job ID, UTC, worker count, CI and blockers). A manual `run` was issued at ~05:57Z and the scheduler reported the job already in flight; no duplicate worker/branch/worktree was created.
+- **Observed real active worker count:** 2 (minimum met, Hermes coordinator excluded) at `05:59:26Z`, confirmed from live `delegate_task` registry and fresh transcript mtimes: Worker A `sa-0-6375ec58`, task PLAY-01+MV-01, worktree `C:/Users/X1/TunerWork/workerA`, branch `hermes/worker-a-playback`; Worker B `sa-1-c8728573`, task QA-02+PERF-01, worktree `C:/Users/X1/TunerWork/workerB`, branch `hermes/worker-b-qa`. Both rooted at base SHA `a523c2e43d198ee752f7c4f03f9f7853356ffb30`; disjoint file ownership per `ownership.md`.
+- **Auto-recovery test:** NOT RUN — no worker has stalled/terminated yet. The liveness rule (transcript mtime <=15 min for `delegate_task_child`; heartbeat + live PID for `durable_process`) is installed in the job payload and ready to exercise.
+- **Durability across session/runtime restart:** UNVERIFIED — `delegate_task` children are process-local and die with the parent process; ticks fire only while the Hermes gateway/scheduler is alive. The cron job can create durable detached `hermes chat -q` workers with `terminal(background=true, persist_on_release=true)` when restoration is needed. No 24/7 uptime claim.
+- **Local build environment:** BLOCKED for Android build/emulator — no JDK/Android SDK on this shell's PATH at check time; Worker B provisioning JDK 17 locally. GitHub Actions CI is available and green.
 - **Configuration/acceptance instructions:** `docs/HERMES_INTERNAL_CRON.md`.
 - **Actionable priority roadmap:** `docs/HERMES_EXECUTION_ROADMAP.md`.
 

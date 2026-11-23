@@ -30,7 +30,7 @@ This is the *actionable*, ordered roadmap. The older `docs/ROADMAP.md` is the or
 
 | ID | Milestone | Must be proven to finish | Initial assessment |
 |---|---|---|---|
-| M0 | Autonomous takeover, 2+ active workers and native five-minute cron | Complete full-document reading/audit; 2 running distinct workers; native cron installed and verified by at least one real invocation; failure/replacement proof; owned worktrees/branches | **NOT RUN by Hermes** |
+| M0 | Autonomous takeover, 2+ active workers and native five-minute cron | Complete full-document reading/audit; 2 running distinct workers; native cron installed and verified by at least one real invocation; failure/replacement proof; owned worktrees/branches | **PARTIAL** — 2 real workers running (verified 2026-11-23T05:59:26Z); native cron job `0f160f15b5a4` installed and a real fire observed; owned worktrees/branches active. Full engineering-corpus reading and auto-recovery exercise still NOT RUN/UNVERIFIED. |
 | M1 | Reproducible build and tests | Core unit tests, debug APK, Android phone emulator, Android TV emulator pass on actual head SHA; artifact and logs captured | **Historical PASS**, new head unverified |
 | M2 | Functional Classic Cable guide | D-pad focus, OK/select-to-play, channel search, user-controlled hide-no-EPG, future-only schedules, scroll/rotation, genuine compiled UI bounds | **PARTIAL** |
 | M3 | Playback and usable multiview | Controlled first-frame playback, rapid switches, 2 actual video tiles, exactly 1 audible tile, limit and cleanup verification | **PARTIAL / multiview device UNVERIFIED** |
