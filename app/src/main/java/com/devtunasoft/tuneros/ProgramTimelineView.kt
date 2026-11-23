@@ -57,7 +57,6 @@ internal class ProgramTimelineView(
     private var toEpochSeconds: Long = 1
     private var nowEpochSeconds: Long = 0
     private var selectedIndex: Int = -1
-    private var pendingWindowShiftDirection = 0
 
     init {
         isFocusable = true
@@ -73,26 +72,18 @@ internal class ProgramTimelineView(
         toEpochSeconds: Long,
         nowEpochSeconds: Long,
         preferredProgramStart: Long?,
+        windowShiftDirection: Int = 0,
     ) {
         require(toEpochSeconds > fromEpochSeconds)
-        val previousChannelId = this.channel?.id
         this.channel = channel
         this.entries = entries
         this.fromEpochSeconds = fromEpochSeconds
         this.toEpochSeconds = toEpochSeconds
         this.nowEpochSeconds = nowEpochSeconds
-        // A D-pad boundary shift preserves movement direction across the rebind.
-        // This is an O(visible cells) scan with no extra list or view allocation.
-        // ListView may recycle this view onto a different channel while a
-        // shift is pending. Never transfer that channel's focus intent.
-        val shiftDirection = if (previousChannelId == channel.id) {
-            pendingWindowShiftDirection
-        } else {
-            0
-        }
-        pendingWindowShiftDirection = 0
-        selectedIndex = if (shiftDirection != 0) {
-            TimelineFocusPolicy.shiftedIndex(entries, preferredProgramStart, shiftDirection)
+        // A D-pad boundary shift is owned by the adapter's focused channel, not by this View:
+        // ListView can recycle the row onto another channel before the new window is bound.
+        selectedIndex = if (windowShiftDirection != 0) {
+            TimelineFocusPolicy.shiftedIndex(entries, preferredProgramStart, windowShiftDirection)
         } else {
             TimelineFocusPolicy.preferredIndex(entries, preferredProgramStart)
         }
@@ -184,9 +175,8 @@ internal class ProgramTimelineView(
             setSelectedIndex(next)
             return true
         }
-        // Both edges must shift the guide. Returning false on the left edge
-        // previously let Android move focus out of the timeline unexpectedly.
-        pendingWindowShiftDirection = direction
+        // Both edges must shift the guide. The adapter records the direction against the
+        // focused channel, so a ListView recycle cannot drop it before the new window binds.
         onWindowShift(direction)
         return true
     }
