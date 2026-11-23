@@ -47,18 +47,19 @@ object SeriesRules {
 
     /**
      * The programmes to record for [rules]: each programme that starts after [nowEpochSeconds] and matches at least one
-     * rule, once, in guide order. A title is compared without allocating, so a large guide is matched within a bounded
-     * budget; only the planned programmes are kept.
+     * rule, once, in guide order: a repeated entry collapses, distinct programmes sharing a start are kept. Titles
+     * are compared without allocating, so a large guide is matched within a bounded budget; only the planned
+     * programmes are kept.
      */
     fun plan(rules: List<SeriesRule>, programs: List<GuideProgram>, nowEpochSeconds: Long): List<GuideProgram> {
         require(rules.size <= MAX_RULES)
         if (rules.isEmpty()) return emptyList()
         val planned = ArrayList<GuideProgram>()
-        val seen = HashSet<String>()
+        val seen = HashSet<GuideProgram>()
         for (program in programs) {
             if (program.startEpochSeconds <= nowEpochSeconds) continue
             if (rules.none { matches(it, program) }) continue
-            if (seen.add("${program.channelId}|${program.startEpochSeconds}")) planned += program
+            if (seen.add(program)) planned += program
         }
         return planned
     }
