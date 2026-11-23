@@ -1,0 +1,12 @@
+# id	ref	path	kind	fixed-needle	expected-count
+X_QA37_PINS_C10	QA37	qa37_refs	count	f57ab44ce83c9b281e43010c3e5b8dc968a189b6	1
+X_QA37_COVERS_OVERCAP	QA37	qa37_exp	count	incoming.size > maxRules	1
+X_QA37_COVERS_DUP	QA37	qa37_exp	count	!ids.add(rule.id)	1
+X_QA37_COVERS_ROLLBACK	QA37	qa37_exp	count	for (old in current) table.insert(old, nowEpochSeconds)	1
+BASE_LOOP_REMOVE	BASE	backup	count	for (rule in series.all()) series.remove(rule)	1
+BASE_LOOP_ADD	BASE	backup	count	for (rule in contents.seriesRules) series.add(rule, now)	1
+BASE_NO_REPLACEALL	BASE	backup	absent	series.replaceAll(	0
+C13_NO_LOOP_REMOVE	C13	backup	absent	for (rule in series.all()) series.remove(rule)	0
+C13_NO_LOOP_ADD	C13	backup	absent	for (rule in contents.seriesRules) series.add(rule, now)	0
+C13_USES_REPLACEALL	C13	backup	count	series.replaceAll(	1
+C13_NO_UNGUARDED_ADD	C13	backup	absent	series.add(rule, now)	0
