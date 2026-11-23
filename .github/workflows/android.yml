@@ -163,11 +163,13 @@ jobs:
           heap-size: 256M
           disable-animations: true
           script: |
-            bash scripts/emulator-self-test.sh
-            # QA-03 on-device instrumentation: no decoder, no provider, no second emulator.
+            # QA-03 on-device instrumentation must run before emulator-self-test.sh:
+            # that script stops the emulator in its EXIT trap before returning here.
+            adb install -r ci-apk/app-debug.apk
             adb install -r ci-test-apk/app-debug-androidTest.apk
             adb shell am instrument -w com.devtunasoft.tuneros.test/com.devtunasoft.tuneros.qa.PlaybackSoakInstrumentation | tee qa-playback-soak.txt
             grep -q 'INSTRUMENTATION_STATUS: qa_playback_result=PASS' qa-playback-soak.txt
+            bash scripts/emulator-self-test.sh
         env:
           PUBLIC_PLAYLIST_URL: ${{ inputs.public_playlist_url }}
           PUBLIC_GUIDE_URL: ${{ inputs.public_guide_url }}
