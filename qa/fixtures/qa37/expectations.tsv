@@ -1,0 +1,36 @@
+# id	ref	path	kind	needle	expected
+S_BOUND_GUARD	FIX	SeriesRuleStore.kt	count	if (incoming.size > maxRules) return SeriesReplaceOutcome.Rejected("too many series rules")	1
+S_INVALID_BOUND	FIX	SeriesRuleStore.kt	count	if (maxRules <= 0) return SeriesReplaceOutcome.Rejected("the rule bound is invalid")	1
+S_DUP_GUARD	FIX	SeriesRuleStore.kt	count	if (!ids.add(rule.id)) return SeriesReplaceOutcome.Rejected("a series rule is duplicated")	1
+S_IDS_FROM_INCOMING	FIX	SeriesRuleStore.kt	count	val ids = HashSet<String>(incoming.size)	1
+S_FRESH_SNAPSHOT	FIX	SeriesRuleStore.kt	count	val outcome = replaceSeriesRules(table, all(), rules, nowEpochSeconds)	1
+S_CLEAR_GUARD	FIX	SeriesRuleStore.kt	count	if (!table.clear()) return SeriesReplaceOutcome.Rejected("the stored rules could not be cleared")	1
+S_CLEAR_CALLS	FIX	SeriesRuleStore.kt	count	table.clear()	2
+S_ROLLBACK_RESTORE	FIX	SeriesRuleStore.kt	count	for (old in current) table.insert(old, nowEpochSeconds)	1
+S_ROLLBACK_REASON	FIX	SeriesRuleStore.kt	count	return SeriesReplaceOutcome.Rejected("a series rule could not be saved")	1
+S_APPLIED	FIX	SeriesRuleStore.kt	count	return SeriesReplaceOutcome.Applied	1
+S_TXN_BEGIN	FIX	SeriesRuleStore.kt	count	db.beginTransaction()	1
+S_TXN_SUCCESS_GUARD	FIX	SeriesRuleStore.kt	count	if (outcome is SeriesReplaceOutcome.Applied) db.setTransactionSuccessful()	1
+S_TXN_END_FINALLY	FIX	SeriesRuleStore.kt	count	db.endTransaction()	1
+S_CLEAR_DB	FIX	SeriesRuleStore.kt	count	db.delete("series_rules", null, null)	1
+S_INSERT_DELEGATE	FIX	SeriesRuleStore.kt	count	override fun insert(rule: SeriesRule, now: Long): Boolean = add(rule, now)	1
+S_TABLE_IFACE	FIX	SeriesRuleStore.kt	count	internal interface SeriesRuleTable {	1
+S_OUTCOME_SEALED	FIX	SeriesRuleStore.kt	count	internal sealed class SeriesReplaceOutcome {	1
+L_REASON_LITERALS	FIX	SeriesRuleStore.kt	count	SeriesReplaceOutcome.Rejected("	5
+L_NO_INTERPOLATED_REASON	FIX	SeriesRuleStore.kt	absent	Rejected($	0
+T_AT_COUNT	FIX	SeriesRuleReplaceTest.kt	count	@Test	7
+T_VALID	FIX	SeriesRuleReplaceTest.kt	count	fun validReplacementAppliesExactly()	1
+T_EMPTY	FIX	SeriesRuleReplaceTest.kt	count	fun anEmptyBackupClearsEveryOldRule()	1
+T_AT_CAP	FIX	SeriesRuleReplaceTest.kt	count	fun aListExactlyAtTheCapIsApplied()	1
+T_OVER_CAP	FIX	SeriesRuleReplaceTest.kt	count	fun aListOverTheCapIsRefusedAndLeavesTheStoredRulesUntouched()	1
+T_DUP	FIX	SeriesRuleReplaceTest.kt	count	fun duplicateIdsAreRefusedInsteadOfCollapsingTheList()	1
+T_ROLLBACK	FIX	SeriesRuleReplaceTest.kt	count	fun aFailedInsertRollsBackToThePreviousRules()	1
+T_BOUND_ARG	FIX	SeriesRuleReplaceTest.kt	count	fun anExplicitSmallerBoundIsHonoured()	1
+T_ROLLBACK_ASSERT	FIX	SeriesRuleReplaceTest.kt	count	assertEquals("a partial restore is data loss", old, table.stored())	1
+T_NO_CLEAR_ON_REFUSAL	FIX	SeriesRuleReplaceTest.kt	count	assertEquals("refusal must not clear the old rules", 0, table.clears)	1
+T_NO_INSERT_ON_REFUSAL	FIX	SeriesRuleReplaceTest.kt	count	assertEquals("refusal must not attempt a single insert", 0, table.inserts)	1
+T_SYNTHETIC_SCOPE	FIX	SeriesRuleReplaceTest.kt	count	synthetic rule	1
+P_BASE_NO_REPLACEALL	BASE	SeriesRuleStore.kt	absent	fun replaceAll(	0
+P_BASE_NO_POLICY	BASE	SeriesRuleStore.kt	absent	fun replaceSeriesRules(	0
+P_BASE_NO_TABLE	BASE	SeriesRuleStore.kt	absent	internal interface SeriesRuleTable	0
+P_BASE_NO_OUTCOME	BASE	SeriesRuleStore.kt	absent	SeriesReplaceOutcome	0
