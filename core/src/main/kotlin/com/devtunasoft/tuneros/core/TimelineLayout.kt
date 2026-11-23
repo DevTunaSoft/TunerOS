@@ -75,6 +75,12 @@ object TimelineLayout {
     /** Converts duration to a stable proportional width without Android display dependencies. */
     fun widthUnits(entry: TimelineEntry, unitsPerHour: Int = 240): Int {
         require(unitsPerHour > 0)
-        return maxOf(1, ((entry.durationSeconds * unitsPerHour) / 3600L).coerceAtMost(Int.MAX_VALUE.toLong()).toInt())
+        // Clamp before multiplying: a huge duration * unitsPerHour overflows Long and can wrap
+        // to a tiny (or negative) width. cap is the duration at which the quotient reaches Int.MAX_VALUE.
+        val cap = Int.MAX_VALUE.toLong() * 3600L
+        val units = unitsPerHour.toLong()
+        val duration = entry.durationSeconds
+        return if (duration > cap / units) Int.MAX_VALUE
+        else maxOf(1, (duration * units / 3600L).toInt())
     }
 }
