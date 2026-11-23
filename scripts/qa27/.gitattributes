@@ -1,0 +1,4 @@
+* -text
+*.java -text
+*.sh -text
+*.py -text

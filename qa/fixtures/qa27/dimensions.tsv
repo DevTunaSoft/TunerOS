@@ -1,0 +1,12 @@
+qa27-fixture-v1
+token-count=7
+field-count=3
+max-field-bytes=32
+max-fixture-bytes=2048
+contrast-min-milli=4500
+distinction-min=12
+marker-min=24
+border-min=16
+corrupt-cases=8
+seed=271827
+canonical-bytes=338
