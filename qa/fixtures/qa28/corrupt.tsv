@@ -1,0 +1,10 @@
+name	schema	code
+header	cases	HEADER_STRICT
+fields	cases	FIELD_BOUNDS
+numeric	cases	NUMERIC_BOUNDS
+op	cases	OP_BOUNDS
+token	cases	TOKEN_BOUNDS
+result	cases	RESULT_BOUNDS
+steps	cases	NUMERIC_BOUNDS
+truncated	cases	FIELD_BOUNDS
+capacity	capacity	CAPACITY_BOUND
