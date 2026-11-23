@@ -1,0 +1,27 @@
+# name=bad-header
+TUNEROS-BACKUP 0
+favorite	ch00000
+# name=unknown-kind
+TUNEROS-BACKUP 1
+legacy	ch00000
+# name=url-value
+TUNEROS-BACKUP 1
+favorite	http://scratch.invalid/list.m3u8
+# name=credential-value
+TUNEROS-BACKUP 1
+mapping	ch00000	token=SCRATCH
+# name=bad-escape
+TUNEROS-BACKUP 1
+favorite	ch0000\q
+# name=empty-value
+TUNEROS-BACKUP 1
+favorite	
+# name=too-many-fields
+TUNEROS-BACKUP 1
+favorite	ch00000	extra
+# name=oversized-value
+TUNEROS-BACKUP 1
+favorite	xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+# name=empty-group
+TUNEROS-BACKUP 1
+restricted	   

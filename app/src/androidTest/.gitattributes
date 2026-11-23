@@ -1,0 +1,3 @@
+AndroidManifest.xml -text
+java/com/devtunasoft/tuneros/qa11/*.kt -text
+.gitattributes -text
