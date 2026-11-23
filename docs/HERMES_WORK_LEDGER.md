@@ -216,6 +216,8 @@ No Hermes worker attempts have occurred as part of the handoff creation. Do not 
 
 - **HTTP-07 RESULT / C11 SLOT REFILL (23:13Z)**: C11 `197520e` (PR 218) fixed a real app-side URL/token echo in SourceHttp after its interrupted delegation was recovered: both URL construction sites now use a fixed malformed-URL refusal, redirect failures release the connection, 3 synthetic tests PASS and the full AGP suite passed 24/24 tasks at exact SHA. Ownership hook PASS at commit and push; device NOT RUN. C12 `sa-0-060dbf93` (`deleg_4b607045`, `hermes/worker-c12-qa36`) registered before launch with `scripts/qa36/**` + `qa/fixtures/qa36/**` and is building a mutation-sensitive host gate for HTTP-07. Five RUNNING slots: A58, B42, C10, B43, C12; ownership `sync` PASS at 23:13:50Z. No merges.
 
+- **QA-35 RESULT / B43 SLOT REFILL (23:15Z)**: B43 `3cfc95a` (PR 219) delivered a 52-check pinned-object gate for GUIDE-07: gate-only 52/52 PASS, mutation RED rc=1 with exactly one A_PASS_TO_BIND failure, restored byte-identically, GREEN rc=0, fixture sha256 3/3 OK under autocrlf simulation; ownership hook PASS on 9 paths. B44 `sa-0-2825a787` (`deleg_5f748f36`, `hermes/worker-b44-qa37`) registered before launch with `scripts/qa37/**` + `qa/fixtures/qa37/**`, building a host gate for FAV-06 once C10 lands its final SHA. Five RUNNING slots: A58, B42, C10, C12, B44; ownership `sync` PASS at 23:15:49Z. No merges.
+
 ## G. Session recovery (run automatically; do not ask owner to paste commands)
 
 1. Re-open `AGENTS.md` and `docs/HERMES_AUTONOMOUS_TAKEOVER.md`; finish all mandatory full-document reading.
