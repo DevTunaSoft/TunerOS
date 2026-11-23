@@ -220,6 +220,8 @@ No Hermes worker attempts have occurred as part of the handoff creation. Do not 
 
 - **FAV-06 RESULT / C13 SLOT REFILL (23:17Z)**: C10 `f57ab44` (PR 220) proved and fixed a real backup data-loss defect: BackupRestore.apply ignored add() results while decode accepts 5000 rules vs MAX_RULES=50, silently dropping rules and risking half-restore. Added a pure bounded replaceSeriesRules policy (cap + duplicate-id validation before writes, rollback) and transactional replaceAll adapter; RED 7/4 -> GREEN 7/7, full AGP suite PASS, privacy scan clean, hook PASS. CROSS-SCOPE: BackupRestore.apply still uses the old loop, so the user-visible restore path is unchanged until C13 wires it. C13 `sa-0-e1c31db6` (`deleg_6a4b2f84`, `hermes/worker-c13-restore02`) registered before launch, owns only BackupRestore.kt + new `restore02/**` tests; five RUNNING slots A58/B42/C12/B44/C13, ownership `sync` PASS at 23:17:53Z. No merges.
 
+- **QA-34 RESULT / B45 SLOT REFILL (23:20Z)**: B42 `2f4aa76` (PR 221) delivered the dual merge-hazard gate: 46/46 checks PASS with verdict MERGE-REVIEW-NEEDED and exit 3, both HAZARD lines present, two independent RED controls (D_C3_REC_DISPATCH 5 fails, M_C8_FAIL_CLOSED 3 fails) and 13/13 byte-identical restores. B45 `sa-0-b1450211` (`deleg_89aeb8a3`, `hermes/worker-b45-qa38`) registered before launch with `scripts/qa38/**` + `qa/fixtures/qa38/**`, building a host gate for RESTORE-02. Five RUNNING slots: A58, C12, B44, C13, B45; ownership `sync` PASS at 23:20:05Z. No merges.
+
 ## G. Session recovery (run automatically; do not ask owner to paste commands)
 
 1. Re-open `AGENTS.md` and `docs/HERMES_AUTONOMOUS_TAKEOVER.md`; finish all mandatory full-document reading.
