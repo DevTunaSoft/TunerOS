@@ -47,12 +47,34 @@ jobs:
           yes | "$SDKMANAGER" --licenses >/dev/null || true
           "$SDKMANAGER" --install 'platforms;android-35' 'build-tools;35.0.0'
       - name: Unit tests and debug APK
-        run: ./gradlew --no-daemon :core:test :app:assembleDebug
+        run: ./gradlew --no-daemon :core:test :app:assembleDebug :app:assembleDebugAndroidTest
+      # QA-02/PERF-01: one bounded JVM step, no emulator and no new job. It generates a
+      # deterministic 25k-channel / 250k-programme synthetic EPG twice, compares hashes,
+      # imports it through the existing :core parser entry points and asserts counts,
+      # hide-no-EPG, name search, future-only windows and sampled peak memory.
+      - name: Large EPG deterministic fixture check (QA-02/PERF-01)
+        timeout-minutes: 12
+        run: bash scripts/qa_epg_fixture_check.sh
+      # QA-03: one bounded JVM step in this existing job. It reuses the QA-02 loopback
+      # channel fixture when present, opens only a short-lived 127.0.0.1 source, and
+      # asserts deterministic switching, player/thread cleanup, error taxonomy and
+      # privacy. No emulator, second workflow, provider URL or new dependency.
+      - name: Playback regression and switching soak (QA-03)
+        timeout-minutes: 5
+        run: bash scripts/qa_playback_soak_check.sh
       - uses: actions/upload-artifact@v4
         if: success()
         with:
           name: TunerOS-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+      # QA-03 on-device instrumentation APK: built with the same task as the app so the
+      # debug signing key and applicationId match. No new workflow or emulator job.
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: TunerOS-debug-androidTest-apk
+          path: app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
           if-no-files-found: error
       # The package-upgrade check in the emulator job installs the debug APK of a base commit, seeds it, and then installs
       # this commit's APK over it with adb install -r. The base is the pull request's base commit
@@ -117,6 +139,10 @@ jobs:
         with:
           name: TunerOS-debug-apk
           path: ci-apk
+      - uses: actions/download-artifact@v4
+        with:
+          name: TunerOS-debug-androidTest-apk
+          path: ci-test-apk
       # The base APK for the package-upgrade check. See the build job for which commit it is and why it shares a signing key.
       - uses: actions/download-artifact@v4
         with:
@@ -136,7 +162,14 @@ jobs:
           ram-size: 2048M
           heap-size: 256M
           disable-animations: true
-          script: bash scripts/emulator-self-test.sh
+          script: |
+            # QA-03 on-device instrumentation must run before emulator-self-test.sh:
+            # that script stops the emulator in its EXIT trap before returning here.
+            adb install -r ci-apk/app-debug.apk
+            adb install -r ci-test-apk/app-debug-androidTest.apk
+            adb shell am instrument -w com.devtunasoft.tuneros.test/com.devtunasoft.tuneros.qa.PlaybackSoakInstrumentation | tee qa-playback-soak.txt
+            grep -Eq 'INSTRUMENTATION_(STATUS|RESULT): qa_playback_result=PASS' qa-playback-soak.txt
+            bash scripts/emulator-self-test.sh
         env:
           PUBLIC_PLAYLIST_URL: ${{ inputs.public_playlist_url }}
           PUBLIC_GUIDE_URL: ${{ inputs.public_guide_url }}
@@ -153,5 +186,6 @@ jobs:
             ui-report.txt
             upgrade-report.txt
             upgrade-recovery-report.txt
+            qa-playback-soak.txt
           if-no-files-found: warn
           retention-days: 14
