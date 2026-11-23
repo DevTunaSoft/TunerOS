@@ -1,0 +1,7 @@
+QA-30 bounded partial-content admission contract
+version=1 seed=20261123 cap=96 header_chars=96 corrupt=6
+A reply is admitted only when its range field names the exact requested start and end.
+A wildcard total is allowed; a numeric total must exceed the stated end.
+A missing field, wrong unit, trailing text, internal marker or oversized field is refused.
+A non-positive length, negative start or arithmetic overflow is refused before parsing.
+Scratch identifiers and counts are invented; no provider address or content bytes are stored.

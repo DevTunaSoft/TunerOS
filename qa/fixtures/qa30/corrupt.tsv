@@ -1,0 +1,7 @@
+name	payload
+bad-fields	qa30-badfields	bytes 0-15/100	0
+non-numeric	qa30-nonnumeric	bytes 0-15/100	N	16	REJECT	REJECT_OFFSET
+bad-expected	qa30-badexpected	bytes 0-15/100	0	16	MAYBE	ACCEPT
+bad-group	qa30-badgroup-001	bytes 0-15/100	0	16	ACCEPT	OTHER
+bad-id	XX	bytes 0-15/100	0	16	ACCEPT	ACCEPT
+long-header	qa30-longheader	bytes 999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999	0	16	ACCEPT	ACCEPT
