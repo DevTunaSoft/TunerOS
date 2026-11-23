@@ -1,0 +1,31 @@
+# id	ref	path	kind	fixed-needle	expected-count
+X_QA31_PINS_C2	QA31	qa31_refs	count	789f91b3280583238a333bda79f36f18939b77d2	1
+X_QA31_PINS_C3	QA31	qa31_refs	count	672f6eb174dde6ef8592255d61a69f27227c2162	1
+D_DBASE_NO_INPROGRESS	DBASE	scheduler	absent	rearmInProgress	0
+D_DBASE_NO_EXACTDONE	DBASE	scheduler	absent	exactRearmDone	0
+D_C2_CAS	C2	scheduler	count	rearmInProgress.compareAndSet(false, true)	1
+D_C2_DONE_GET	C2	scheduler	count	if (exactRearmDone.get()) return false	1
+D_C2_DONE_SET	C2	scheduler	count	if (exact > 0 && blocked == 0L && failed == 0L) exactRearmDone.set(true)	1
+D_C2_RELEASE	C2	scheduler	count	rearmInProgress.set(false)	1
+D_C2_MAN_NO_REPLACED	C2	manifest	absent	MY_PACKAGE_REPLACED	0
+D_C3_MAN_RECEIVER	C3	manifest	count	<receiver android:name=".UpgradeRearmReceiver" android:exported="false">	1
+D_C3_MAN_ACTION	C3	manifest	count	android.intent.action.MY_PACKAGE_REPLACED	1
+D_C3_REC_DISPATCH	C3	receiver	count	RecordingScheduler.rearmPending(	1
+D_C3_REC_ACTION_GUARD	C3	receiver	count	Intent.ACTION_MY_PACKAGE_REPLACED	1
+D_C3_REC_APPCTX	C3	receiver	count	context.applicationContext	1
+D_C3_REC_GOASYNC	C3	receiver	count	goAsync()	1
+D_C3_REC_FINISH	C3	receiver	count	pending.finish()	1
+D_C3_SCHED_NO_INPROGRESS	C3	scheduler	absent	rearmInProgress	0
+D_C3_SCHED_NO_EXACTDONE	C3	scheduler	absent	exactRearmDone	0
+X_QA33_PINS_C5	QA33	qa33_refs	count	9d27d9e25ec3a72a5d7bade03d513546d95a9b3a	1
+X_QA33_PINS_C8	QA33	qa33_refs	count	fd4db647db31ce6b5bd9b1d193c356857e9c7122	1
+X_QA33_MARKER	QA33	qa33_marker	count	MERGE-REVIEW-NEEDED	1
+M_C5_STORE_SEAMS	C5	store	count	internal interface Storage	1
+M_C5_NO_RETAIN	C5	store	absent	fun retain(	0
+M_C5_MAIN_NO_RETAIN	C5	main	absent	GuideMappingStore.retain(	0
+M_C8_RETAIN_SIG	C8	store	count	fun retain(mappings: Map<String, String>, validKeys: Set<String>): Map<String, String>	1
+M_C8_FAIL_CLOSED	C8	store	count	if (validKeys.isEmpty() || mappings.isEmpty()) return mappings	1
+M_C8_BOUNDED	C8	store	count	LinkedHashMap<String, String>(mappings.size)	1
+M_C8_NO_SEAMS	C8	store	absent	internal interface Storage	0
+M_C8_MAIN_RETAIN	C8	main	count	GuideMappingStore.retain(	1
+M_C8_MAIN_CHANGED	C8	main	count	pruned !== guideMappings	1
