@@ -1,0 +1,4 @@
+QA-16 synthetic scratch fixture for cancellable guide-import staging.
+All references use the local scratch namespace derived from the fixed seed.
+Tables are tab separated with an exact header; dimensions are key=value.
+No real feed address, access marker, PIN, DRM key or recording bytes are stored.
