@@ -218,6 +218,8 @@ No Hermes worker attempts have occurred as part of the handoff creation. Do not 
 
 - **QA-35 RESULT / B43 SLOT REFILL (23:15Z)**: B43 `3cfc95a` (PR 219) delivered a 52-check pinned-object gate for GUIDE-07: gate-only 52/52 PASS, mutation RED rc=1 with exactly one A_PASS_TO_BIND failure, restored byte-identically, GREEN rc=0, fixture sha256 3/3 OK under autocrlf simulation; ownership hook PASS on 9 paths. B44 `sa-0-2825a787` (`deleg_5f748f36`, `hermes/worker-b44-qa37`) registered before launch with `scripts/qa37/**` + `qa/fixtures/qa37/**`, building a host gate for FAV-06 once C10 lands its final SHA. Five RUNNING slots: A58, B42, C10, C12, B44; ownership `sync` PASS at 23:15:49Z. No merges.
 
+- **FAV-06 RESULT / C13 SLOT REFILL (23:17Z)**: C10 `f57ab44` (PR 220) proved and fixed a real backup data-loss defect: BackupRestore.apply ignored add() results while decode accepts 5000 rules vs MAX_RULES=50, silently dropping rules and risking half-restore. Added a pure bounded replaceSeriesRules policy (cap + duplicate-id validation before writes, rollback) and transactional replaceAll adapter; RED 7/4 -> GREEN 7/7, full AGP suite PASS, privacy scan clean, hook PASS. CROSS-SCOPE: BackupRestore.apply still uses the old loop, so the user-visible restore path is unchanged until C13 wires it. C13 `sa-0-e1c31db6` (`deleg_6a4b2f84`, `hermes/worker-c13-restore02`) registered before launch, owns only BackupRestore.kt + new `restore02/**` tests; five RUNNING slots A58/B42/C12/B44/C13, ownership `sync` PASS at 23:17:53Z. No merges.
+
 ## G. Session recovery (run automatically; do not ask owner to paste commands)
 
 1. Re-open `AGENTS.md` and `docs/HERMES_AUTONOMOUS_TAKEOVER.md`; finish all mandatory full-document reading.
