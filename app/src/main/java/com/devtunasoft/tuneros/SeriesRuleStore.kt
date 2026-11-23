@@ -72,4 +72,67 @@ internal class SeriesRuleStore(
     /** Removes [rule]. False when it was not stored. */
     fun remove(rule: SeriesRule): Boolean =
         writableDatabase.delete("series_rules", "id = ?", arrayOf(rule.id)) > 0
+
+    /**
+     * Replaces every stored rule with [rules] as one operation. False, with no stored rules changed, when the list is
+     * invalid or any write fails. Unlike a remove-all/add-each loop, a refused list cannot leave a partial restore behind.
+     */
+    fun replaceAll(rules: List<SeriesRule>, nowEpochSeconds: Long): Boolean {
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            val table = object : SeriesRuleTable {
+                override fun clear(): Boolean {
+                    db.delete("series_rules", null, null)
+                    return true
+                }
+                override fun insert(rule: SeriesRule, now: Long): Boolean = add(rule, now)
+            }
+            val outcome = replaceSeriesRules(table, all(), rules, nowEpochSeconds)
+            if (outcome is SeriesReplaceOutcome.Applied) db.setTransactionSuccessful()
+            return outcome is SeriesReplaceOutcome.Applied
+        } finally {
+            db.endTransaction()
+        }
+    }
+}
+
+/** The storage surface a whole-list rule replacement needs, small enough for a plain-JVM test double. */
+internal interface SeriesRuleTable {
+    fun clear(): Boolean
+    fun insert(rule: SeriesRule, nowEpochSeconds: Long): Boolean
+}
+
+/** Whether a whole-list replacement was applied, or why it was refused before anything was changed. */
+internal sealed class SeriesReplaceOutcome {
+    object Applied : SeriesReplaceOutcome()
+    data class Rejected(val reason: String) : SeriesReplaceOutcome()
+}
+
+/**
+ * Policy for replacing all stored series rules. [current] is the snapshot that must survive a refusal. The whole list is
+ * checked before any write, and a failed insert is rolled back, so a caller can never end up with half a backup restored.
+ * Reasons are fixed strings: no rule value is repeated into a diagnostic.
+ */
+internal fun replaceSeriesRules(
+    table: SeriesRuleTable,
+    current: List<SeriesRule>,
+    incoming: List<SeriesRule>,
+    nowEpochSeconds: Long,
+    maxRules: Int = SeriesRules.MAX_RULES,
+): SeriesReplaceOutcome {
+    if (maxRules <= 0) return SeriesReplaceOutcome.Rejected("the rule bound is invalid")
+    if (incoming.size > maxRules) return SeriesReplaceOutcome.Rejected("too many series rules")
+    val ids = HashSet<String>(incoming.size)
+    for (rule in incoming) {
+        if (!ids.add(rule.id)) return SeriesReplaceOutcome.Rejected("a series rule is duplicated")
+    }
+    if (!table.clear()) return SeriesReplaceOutcome.Rejected("the stored rules could not be cleared")
+    for (rule in incoming) {
+        if (table.insert(rule, nowEpochSeconds)) continue
+        table.clear()
+        for (old in current) table.insert(old, nowEpochSeconds)
+        return SeriesReplaceOutcome.Rejected("a series rule could not be saved")
+    }
+    return SeriesReplaceOutcome.Applied
 }
