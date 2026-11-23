@@ -1,0 +1,8 @@
+package android.database
+
+import android.database.sqlite.SQLiteDatabase
+
+/** JVM-test-only stub. Never compiled into the app. */
+object DatabaseUtils {
+    fun queryNumEntries(db: SQLiteDatabase, table: String): Long = db.rows.size.toLong()
+}

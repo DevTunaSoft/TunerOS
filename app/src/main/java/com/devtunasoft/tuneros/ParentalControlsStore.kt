@@ -17,16 +17,23 @@ internal class ParentalControlsStore(context: Context, prefsName: String = PREFS
 
     fun hasPin(): Boolean = prefs.contains(KEY_SALT) && prefs.contains(KEY_HASH)
 
-    /** Stores [pin] as a new salted hash and clears the wrong-entry count. The caller checks the PIN is valid. */
+    /**
+     * Stores [pin] as a new salted hash and clears the wrong-entry count on first use. The caller checks the PIN is valid.
+     * Replacing an existing PIN keeps the recorded streak and lock: changing the PIN is a state transition, not a way to
+     * reset a lockout.
+     */
     fun setPin(pin: String) {
         require(ParentalPin.isValid(pin)) { "a PIN is ${ParentalPin.MIN_DIGITS} to ${ParentalPin.MAX_DIGITS} digits" }
         val salt = ByteArray(ParentalPin.SALT_BYTES).also { SecureRandom().nextBytes(it) }
         val hash = ParentalPin.hash(pin, salt)
+        val hadPin = hasPin()
+        val failures = if (hadPin) prefs.getInt(KEY_FAILURES, 0).coerceIn(0, MAX_FAILURES - 1) else 0
+        val lockedUntil = if (hadPin) prefs.getLong(KEY_LOCKED_UNTIL, 0L).coerceAtLeast(0L) else 0L
         prefs.edit()
             .putString(KEY_SALT, encode(salt))
             .putString(KEY_HASH, encode(hash))
-            .putInt(KEY_FAILURES, 0)
-            .putLong(KEY_LOCKED_UNTIL, 0L)
+            .putInt(KEY_FAILURES, failures)
+            .putLong(KEY_LOCKED_UNTIL, lockedUntil)
             .apply()
     }
 
@@ -68,6 +75,19 @@ internal class ParentalControlsStore(context: Context, prefsName: String = PREFS
     /** Replaces the restricted channel names in one write. The whole list is checked first. */
     fun replaceRestrictedChannels(channels: Set<String>) {
         prefs.edit().putStringSet(KEY_RESTRICTED_CHANNELS, ParentalPolicy.normalizeAll(channels).toMutableSet()).apply()
+    }
+
+    /**
+     * Replaces both restriction sets in one preference write. A restore that wrote them separately could leave a backup's
+     * group list next to the previous channel list (or the other way round), silently half-applying the restrictions.
+     */
+    fun replaceRestrictions(groups: Set<String>, channels: Set<String>) {
+        val normalizedGroups = ParentalPolicy.normalizeAll(groups)
+        val normalizedChannels = ParentalPolicy.normalizeAll(channels)
+        prefs.edit()
+            .putStringSet(KEY_RESTRICTED, normalizedGroups.toMutableSet())
+            .putStringSet(KEY_RESTRICTED_CHANNELS, normalizedChannels.toMutableSet())
+            .apply()
     }
 
     /** Adds or removes [channel] from the restricted channel names. Refuses an empty name or too many entries. */

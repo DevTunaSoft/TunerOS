@@ -1,0 +1,68 @@
+package android.database.sqlite
+
+import android.content.ContentValues
+import android.database.Cursor
+
+/** A tiny in-memory database that records deletes; enough to exercise SeriesRuleStore's SQL contract on the JVM. */
+class SQLiteDatabase {
+    companion object {
+        const val CONFLICT_IGNORE = 4
+    }
+    val rows = LinkedHashMap<String, LinkedHashMap<String, Any?>>()
+    var lastDeleteWhere: String? = null
+        private set
+    var lastDeleteArgs: List<String>? = null
+        private set
+
+    fun execSQL(sql: String) {
+        // CREATE TABLE is implicit in this in-memory model.
+    }
+
+    fun query(
+        table: String,
+        columns: Array<String>,
+        selection: String?,
+        selectionArgs: Array<String>?,
+        groupBy: String?,
+        having: String?,
+        orderBy: String?,
+    ): Cursor {
+        val found = rows.values.filter { row ->
+            selection == null || (selection == "id = ?" && row["id"] == selectionArgs?.getOrNull(0))
+        }.sortedWith { left, right ->
+            val leftEpoch = left["created_epoch"] as? Long ?: 0L
+            val rightEpoch = right["created_epoch"] as? Long ?: 0L
+            if (leftEpoch != rightEpoch) leftEpoch.compareTo(rightEpoch)
+            else (left["id"] as String).compareTo(right["id"] as String)
+        }
+        var position = -1
+        return object : Cursor {
+            override val count: Int get() = found.size
+            override fun moveToFirst(): Boolean { position = 0; return found.isNotEmpty() }
+            override fun moveToNext(): Boolean { position++; return position < found.size }
+            override fun isNull(columnIndex: Int): Boolean = found[position][columns[columnIndex]] == null
+            override fun getString(columnIndex: Int): String = found[position][columns[columnIndex]] as String
+            override fun close() = Unit
+        }
+    }
+
+    fun insertWithOnConflict(
+        table: String,
+        nullColumnHack: String?,
+        values: ContentValues,
+        conflictAlgorithm: Int,
+    ): Long {
+        val snapshot = values.snapshot()
+        val id = snapshot["id"] as String
+        if (rows.containsKey(id)) return -1L
+        rows[id] = LinkedHashMap(snapshot)
+        return rows.size.toLong()
+    }
+
+    fun delete(table: String, whereClause: String?, whereArgs: Array<String>?): Int {
+        lastDeleteWhere = whereClause
+        lastDeleteArgs = whereArgs?.toList()
+        val id = whereArgs?.getOrNull(0) ?: return 0
+        return if (rows.remove(id) != null) 1 else 0
+    }
+}
