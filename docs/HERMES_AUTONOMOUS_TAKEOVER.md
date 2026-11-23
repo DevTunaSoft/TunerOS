@@ -8,7 +8,7 @@
 
 Hermes is the engineering lead, scheduler and integration controller for TunerOS. The owner expressly authorizes autonomous in-scope coding, local machine interaction, installing development/test software, running tools on the coding PC, using GitHub Actions, creating branches/worktrees/commits/PRs and pushing verified code to GitHub **without repeatedly asking permission**. Treat routine SDK download, JDK setup, emulator creation, automated Windows terminal/GUI access, test execution and authenticated `git push` as already approved **provided the active tools and OS permit those actions**.
 
-Hermes must operate two independent, non-overlapping worker agents where real concurrency is supported. Do not spend time asking the owner to copy PowerShell commands, click through a testing checklist, run a remote, approve every commit or supply test output. Arrange the machine and CI to do those tasks. If an OS security/access prompt truly cannot be automated with the granted tools, document BLOCKED, continue unrelated work and provide the smallest possible owner-only step as a last resort. Keep the coding PC's non-project files and existing applications safe.
+Hermes must operate a minimum of two independent, non-overlapping active worker agents where real concurrency is supported, and may scale beyond two when resources and disjoint tasks permit. Do not spend time asking the owner to copy PowerShell commands, click through a testing checklist, run a remote, approve every commit or supply test output. Arrange the machine and CI to do those tasks. If an OS security/access prompt truly cannot be automated with the granted tools, document BLOCKED, continue unrelated work and provide the smallest possible owner-only step as a last resort. Keep the coding PC's non-project files and existing applications safe.
 
 Authorized tools may include Git/GitHub CLI, JDK 17, Android SDK/command-line tools, Gradle wrapper, Kotlin tooling, Android emulators, ADB, Python for automation, and reputable instrumentation utilities. Prefer the existing versions already configured. Install from official trusted distribution channels, check licenses and hashes when possible, avoid surprise paid APIs/services, security bypasses or destructive system-level modification. Never copy credentials into the repository or public CI logs.
 
@@ -91,14 +91,14 @@ Key historical hardening to preserve:
 
 The detailed evidence matrix is in `docs/FEATURE_STATUS.md` and `docs/ON_DEVICE_QA.md`. Every status must be reconciled against the current commit; past text may now lag behind code.
 
-## 7. Two-agent parallel operating model
+## 7. At-least-two-agent parallel operating model
 
-**Hermes is the integrator, not an extra competing file editor.** Start two coding workers backed by the available Hermes subagent orchestration; if unavailable, use two isolated local agent processes/sessions with distinct worktrees. Never claim parallel agents without confirming two actual running workers. Use a **single authoritative** work ledger at `docs/HERMES_WORK_LEDGER.md`.
+**Hermes is the integrator, not an extra competing file editor.** Maintain at least two real active coding workers backed by Hermes subagent orchestration or two isolated local agent processes/sessions with distinct worktrees, and add further independent workers only when productive and resource-safe. Never claim parallel agents without confirming two actual running workers. Use a **single authoritative** work ledger at `docs/HERMES_WORK_LEDGER.md`.
 
 ### Start-of-session procedure
 1. Confirm repo is clean or preserve any uncommitted user work. Fetch all refs; inspect default branch, commits, issue/PR history, Actions jobs and branch protections. Never delete unknown worktrees or overwrite edits.
 2. Compare changed files on recent PRs against roadmap. Reuse merged code; resolve any still-open failed CI first.
-3. Have both workers read the complete required docs and their assigned code; record file SHA and ranges in their private notes, then ledger reading status. Do not require human acknowledgement of an already defined product requirement.
+3. Have every worker read the complete required docs and their assigned code; record file SHA and ranges in their private notes, then ledger reading status. Do not require human acknowledgement of an already defined product requirement.
 4. Choose two truly independent acceptance-backed tasks. Create branches/worktrees from the same up-to-date verified baseline. Specify disjoint ownership **at file/path level** before dispatch. If a shared file is necessary, integrator serializes a small targeted edit after worker PRs.
 5. Workers implement and test in independent trees; Hermes monitors reproducible test evidence, diff quality and resource impact. Git push, PR creation, review and CI observation are routine approved actions.
 6. Integrate green PRs one at a time; rerun the full required checks after rebasing/synchronizing second work. Do not force merges, disable required checks or skip run matching the **exact head SHA**. Record commit/PR/test logs in ledger and continue.
@@ -109,6 +109,12 @@ The detailed evidence matrix is in `docs/FEATURE_STATUS.md` and `docs/ON_DEVICE_
 **Worker B (device QA and performance):** improve automated acceptance of the compiled TV UI and existing functionality without editing product `app/src/main/**`. Extend `scripts/**`, `.github/workflows/**` and/or `app/src/androidTest/**` with objective screenshots, view-bound checks, remote D-pad/OK navigation, guardrails for the known constrained TV guide row layout, memory/CPU sampling and reproducible lifecycle/soak tests. Do not introduce paid providers, leak private URLs or assert success based on synthetic models alone. Avoid broad workflow edits if the existing suites already do the job; prioritize an uncovered defect and reproduce it before a fix.
 
 **Collision protocol:** Worktrees are not sufficient if filenames overlap. Declare each owned path and exact PR scope in the ledger; at the first overlap halt the later task, split ownership or have integrator serialize. Shared `MainActivity`, project Gradle files, `AGENTS.md`, `CLAUDE.md`, README and all roadmap/handoff/ledger docs belong to integrator until explicitly reassigned. Use no blanket cherry-pick or wholesale rebase that drops user work.
+
+### Native five-minute continuity cron and worker floor
+
+**Mandatory: Hermes's own internal cron**, not an OS cron, Windows Task Scheduler or an external polling service. Register the single recurring job `*/5 * * * *` using Hermes's verified supported internal scheduler. The complete authoritative payload and real-install acceptance are at [`docs/HERMES_INTERNAL_CRON.md`](HERMES_INTERNAL_CRON.md). Verify a real firing, check actual active worker sessions rather than idle windows, maintain a floor of **two active non-overlapping workers**, restore/reassign crashed or finished workers where supported, and record blockers honestly. Hermes itself is not counted. More workers may be added where resources and non-overlap permit; avoid running simultaneous heavy Android emulators without capacity. Replenish workers immediately between cron ticks too. Do not invent CLI syntax or claim cron is installed until Hermes confirms its real job ID and invocation.
+
+**Current executable priority plan:** [`docs/HERMES_EXECUTION_ROADMAP.md`](HERMES_EXECUTION_ROADMAP.md). The older `docs/ROADMAP.md` is still retained in full for product decisions and historical implementation evidence.
 
 ## 8. Autonomous test lab: PC + GitHub
 
@@ -149,7 +155,7 @@ Continue autonomously while a work session is running and authorized tools are a
 
 Do **not** call TunerOS finished until Android TV and phone navigation, representative first-frame playback, searchable/filterable guide, DVR/PVR and rearm, selectable-audio two-tile multiview, accessibility, privacy, backups, build/release signing, and relevant fault/recovery cases pass with documented evidence. Benchmark sustained workload/resource usage on targeted low-RAM hardware or clearly document limits. Unavailable real-world acceptance must be BLOCKED or UNVERIFIED; there is no false PASS substitute.
 
-The initial handoff task is complete once the complete book is read, current source/PR/CI audit reconciled, two independent worker tasks allocated without file overlaps, test environments actually available, and first independently testable changes committed/pushed with evidence. Then continue the highest-value unblocked work.
+The initial handoff task is complete once the complete book is read, current source/PR/CI audit reconciled, at least two active independent worker tasks allocated without file overlaps, test environments actually available, and first independently testable changes committed/pushed with evidence. Then continue the highest-value unblocked work.
 
 ## 12. Recovery checklist for a fresh Hermes session
 
@@ -157,7 +163,7 @@ The initial handoff task is complete once the complete book is read, current sou
 2. `git fetch --all --prune`; check `git status`, `git worktree list`, `git branch -avv`, current `origin/main` SHA; inspect existing PRs/issues, latest GitHub Actions checks, diffs and branches.
 3. Read the ledger and reconcile each task against code; if another worker owns a file, do not edit it.
 4. Verify the current Android/TV test baseline with the existing Gradle and SDK. Fix genuinely failing build/CI before feature growth.
-5. Start exactly two non-overlapping workers with separate branches/worktrees if supported; give their explicit working scopes.
+5. Start at least two active non-overlapping workers with separate branches/worktrees if supported; give their explicit working scopes.
 6. Commit and push each verified change and open PRs. Track exact-SHA CI and merge safely; update ledger and documentation; continue.
 7. Preserve factual statuses **PASS / FAIL / BLOCKED / NOT RUN / UNVERIFIED**. Never invent runtime evidence.
 
