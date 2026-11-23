@@ -1,0 +1,12 @@
+version=QA15-REPEATED-EPG-V1
+seed=20261123
+channels=4096
+programs-per-channel=24
+slot-seconds=1800
+window-from=1800007200
+window-to=1800018000
+cycles=6
+corrupt-variants=6
+fixture-bytes=13685995
+fixture-sha256=d1ecac3dbf7ecf4bcfcaff96f6f3975e28ea8602fdb1c0478125f9586e5e284e
+sidecar-sha256=e24c659da2376533e2df19088195fa07bba3b692b7e54d4cf6cea6d6f24c3d93
