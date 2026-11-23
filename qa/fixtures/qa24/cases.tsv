@@ -1,0 +1,21 @@
+id	raw	field	expect	season	episode	clipped
+C01	7	season	ACCEPT	7	0
+C02	S03	season	ACCEPT	3	0
+C03	 004 	season	ACCEPT	4	0
+C04		season	ACCEPT	-1	0
+C05	9999	season	ACCEPT	9999	0
+C06	10000	season	ACCEPT	9999	1
+C07	2147483648	season	OVERFLOW	0	0
+C08	-1	season	BAD_NUMBER	0	0
+C09	+5	season	BAD_NUMBER	0	0
+C10	e007	episode	ACCEPT	7	0
+C11	0000000001	episode	ACCEPT	1	0
+C12	999999999	episode	ACCEPT	9999	1
+C13	٣	episode	BAD_NUMBER	0	0
+C14	no	episode	BAD_NUMBER	0	0
+C15	12345678901234567	season	ROW_BOUNDS	0	0
+C16	  	season	ACCEPT	-1	0
+C17	S12	season	ACCEPT	12	0
+C18	0	episode	ACCEPT	0	0
+C19	S	season	BAD_NUMBER	0	0
+C20	10001	episode	ACCEPT	9999	1
