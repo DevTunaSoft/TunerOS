@@ -42,7 +42,7 @@ object GuideDoctor {
     fun channelsWithoutSchedule(channels: List<Channel>, guide: GuideSnapshot?): List<Channel> =
         channels.filter { channel ->
             val guideId = channel.guideId
-            guide == null || guideId == null || !guide.hasSchedule(guideId)
+            guide == null || guideId.isNullOrBlank() || !guide.hasSchedule(guideId)
         }
 
     /**
@@ -93,7 +93,7 @@ object GuideDoctor {
     }
 
     private fun statusOf(guideId: String?, guide: GuideSnapshot): Status = when {
-        guideId == null -> Status.NO_GUIDE_ID
+        guideId.isNullOrBlank() -> Status.NO_GUIDE_ID
         guide.hasSchedule(guideId) -> Status.SCHEDULED
         guideId in guide.channelNames -> Status.NO_PROGRAMMES
         else -> Status.GUIDE_ID_NOT_DECLARED
