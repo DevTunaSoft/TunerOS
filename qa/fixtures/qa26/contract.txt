@@ -1,0 +1,5 @@
+qa26 scratch contract v1
+Tables are tab separated with an exact header; dimensions use tab pairs.
+Every value is an invented token derived from the fixed seed.
+The verifier parses committed bytes and renders each row into a small MPD.
+Only check ids, counts and digests are emitted; no raw input is printed.

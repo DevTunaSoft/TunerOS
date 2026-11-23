@@ -1,0 +1,24 @@
+id	defect	reason
+x001	dtd	DASH manifest declares a DTD, which is not accepted
+x002	malformed	DASH manifest is not well formed
+x003	root	Not a DASH manifest
+x004	unknown-type	Unknown DASH manifest type
+x005	protection	DASH ContentProtection is not supported
+x006	audio	Separate audio or text renditions are not supported
+x007	two-periods	DASH manifests with exactly one period are supported
+x008	period-start	DASH period start offsets are not supported
+x009	bad-timescale	DASH timescale is not a positive number
+x010	bad-duration	DASH SegmentTemplate has no positive duration
+x011	bad-startnumber	DASH startNumber is not a valid number
+x012	unknown-token	DASH media template uses a token that is not supported
+x013	timeline-gap	DASH SegmentTimeline is not contiguous; gaps are not supported
+x014	open-static	DASH SegmentTimeline repeats to the end only in live manifests
+x015	open-not-last	DASH SegmentTimeline repeats to the end only in its last entry
+x016	nested-baseurl	Nested or repeated DASH BaseURL is not supported
+x017	live-base	DASH live SegmentBase is not supported
+x018	bad-range	DASH SegmentURL byte range is not valid
+x019	no-duration	Static DASH manifest needs a presentation duration
+x020	no-availability	Live DASH manifest needs a valid availabilityStartTime
+x021	too-large	DASH manifest is too large
+x022	two-timelines	DASH SegmentTemplate has more than one SegmentTimeline
+x023	overflow	DASH SegmentTimeline entry needs a positive duration
