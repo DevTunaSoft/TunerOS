@@ -1,0 +1,4 @@
+QA-22 scratch fixture for bounded HLS segment admission.
+Every address-like value is symbolic; no feed address, access marker or personal code is stored.
+Ciphertext is generated from synthetic byte patterns; no private media text is present.
+Rows carry ids, digests and outcomes only. Fixture bytes are LF encoded.

@@ -1,0 +1,4 @@
+* -text
+.gitattributes -text
+AndroidManifest.xml -text
+java/**/*.kt -text

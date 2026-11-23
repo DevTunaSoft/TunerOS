@@ -1,0 +1,6 @@
+* -text
+.gitattributes -text
+*.sh -text
+*.py -text
+*.kt -text
+README.md -text
