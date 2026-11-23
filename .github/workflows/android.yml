@@ -168,7 +168,7 @@ jobs:
             adb install -r ci-apk/app-debug.apk
             adb install -r ci-test-apk/app-debug-androidTest.apk
             adb shell am instrument -w com.devtunasoft.tuneros.test/com.devtunasoft.tuneros.qa.PlaybackSoakInstrumentation | tee qa-playback-soak.txt
-            grep -q 'INSTRUMENTATION_STATUS: qa_playback_result=PASS' qa-playback-soak.txt
+            grep -Eq 'INSTRUMENTATION_(STATUS|RESULT): qa_playback_result=PASS' qa-playback-soak.txt
             bash scripts/emulator-self-test.sh
         env:
           PUBLIC_PLAYLIST_URL: ${{ inputs.public_playlist_url }}
