@@ -28,7 +28,10 @@ class SourceDownloader(
                     if (hop == MAX_REDIRECTS) throw IllegalArgumentException("Too many redirects")
                     val location = connection.getHeaderField("Location")
                         ?: throw IllegalArgumentException("Redirect without location")
-                    val next = checkedUrl(URL(current, location).toString())
+                    // The JDK echoes an untrusted Location in MalformedURLException messages.
+                    val resolved = runCatching { URL(current, location) }.getOrNull()
+                        ?: throw IllegalArgumentException("Invalid redirect location")
+                    val next = checkedUrl(resolved.toString())
                     if (current.protocol.equals("https", true) && !next.protocol.equals("https", true))
                         throw IllegalArgumentException("HTTPS source redirected to insecure HTTP")
                     current = next
