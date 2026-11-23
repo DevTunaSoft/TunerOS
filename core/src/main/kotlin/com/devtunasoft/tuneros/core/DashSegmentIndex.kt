@@ -81,7 +81,9 @@ object DashSegmentIndex {
         if (!fits(size, pos, 12 * count)) return Outcome.Refused("DASH SegmentBase index is truncated")
 
         return try {
-            var offset = Math.addExact(indexRange.offset + boxSize, firstOffset)
+            var offset = Math.addExact(Math.addExact(indexRange.offset, boxSize), firstOffset)
+            // The upper-bound check below cannot catch a position before the file's start.
+            if (offset < 0) return Outcome.Refused("DASH SegmentBase index offsets are too large")
             val references = ArrayList<Reference>(count)
             for (index in 0 until count) {
                 val word = buffer.getInt(pos).toLong() and 0xFFFF_FFFFL
