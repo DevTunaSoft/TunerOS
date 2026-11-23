@@ -48,6 +48,13 @@ jobs:
           "$SDKMANAGER" --install 'platforms;android-35' 'build-tools;35.0.0'
       - name: Unit tests and debug APK
         run: ./gradlew --no-daemon :core:test :app:assembleDebug
+      # QA-02/PERF-01: one bounded JVM step, no emulator and no new job. It generates a
+      # deterministic 25k-channel / 250k-programme synthetic EPG twice, compares hashes,
+      # imports it through the existing :core parser entry points and asserts counts,
+      # hide-no-EPG, name search, future-only windows and sampled peak memory.
+      - name: Large EPG deterministic fixture check (QA-02/PERF-01)
+        timeout-minutes: 12
+        run: bash scripts/qa_epg_fixture_check.sh
       - uses: actions/upload-artifact@v4
         if: success()
         with:
