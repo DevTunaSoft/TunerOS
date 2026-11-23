@@ -121,6 +121,16 @@ Use this template per completed/blocked task, append it below, and commit/push a
 - A further on-device instrumentation commit `516e04a8392550466bc4b33dc78fe4592c7355ad` (androidTest APK build/upload + instrumentation step + shared harness) was produced by concurrent work on the same branch and is now committed and pushed; integrator did not discard it. An attempted `git checkout`/`rm` cleanup of those files was BLOCKED pending owner consent and was not retried — no files were lost.
 - **BLOCKED** Android/AGP path (`SDK location not found`). "First frame" is a synthetic bounded loopback byte marker, NOT a decoded Media3 frame — device acceptance remains UNVERIFIED. PR #122 open; exact-head CI in progress at 06:37Z.
 
+### UX-01 — Worker A3 (`sa-0-c1419ed1`) / PASS (JVM), UNVERIFIED (device) / 2026-11-23T06:50Z
+- Proved a concrete defect (not speculative): `ProgramTimelineView.onDraw` rendered a text sliver whenever `right - textLeft > padding`, so a 4 px region with an 8 px glyph produced unreadable text in a focused, highlighted cell after resize/dense schedule/large font. Fix: new pure-Kotlin `guide/GuideCellLabelPolicy.kt` requires a region at least one measured glyph wide; 5-line wiring in `ProgramTimelineView.kt` measures `"M"` advance once. No colour, font, padding, focus fill or layout redesign.
+- RED→GREEN evidence: legacy guard `Tests run: 6, Failures: 3`; after fix `OK (6 tests)`; full 11-source JVM suite `COMPILE_OK`, `OK (40 tests)`; `git diff --check` and secret scan clean.
+- **BLOCKED** `./gradlew :app:testDebugUnitTest` — `SDK location not found` (exit 1, BUILD FAILED in 52 s). **UNVERIFIED** AGP type-check of `ProgramTimelineView.kt` and on-device screenshots.
+- Commit `70cd7c1f8af20162bc55d5e5c324154a41a7dba4` pushed; PR #123 opened at that exact head. The cron had opened PR #121 for Worker A2's branch (a different branch), so this commit needed its own PR.
+- Next: Worker A5 `sa-0-6d729ce2` dispatched on CORE-01 with `core/src/**` only, disjoint from A4's DVR files and B3's QA paths.
+
+### QA-03 CI repair — sibling cron tick / PASS at new exact SHA / 2026-11-23T06:50Z
+- PR #122 at `516e04a` had genuine red CI: build run 45125274214 failed on `loopback handler threads survived close: 1` (`QaPlaybackSoakCheck.java:438`). A sibling cron tick found an uncommitted thread-join fix in `workerB2` (track handler threads in a `List<Thread>`, join after `awaitTermination`) and deliberately did not duplicate the edit. Branch advanced to `86e148c753c194e42ed2c1828e5bda533dfb969f`; at that head TV checks PASS (45126273162, 3m3s), both builds PASS (37s, 1m36s), Android-35 self-tests pending at last check. Red test was repaired, not waived.
+
 ## F. Failed-attempt / anti-loop record
 
 No Hermes worker attempts have occurred as part of the handoff creation. Do not invent failures or successful tests. After two equivalent failures, record both logs, root-cause investigation and changed strategy here. After two no-progress cycles move to a separate unblocked task.
