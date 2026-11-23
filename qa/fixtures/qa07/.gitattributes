@@ -1,0 +1,4 @@
+# QA-07 scratch fixtures are compared byte-for-byte by Qa07Gate.
+# No EOL normalization on any file in this directory, on any platform.
+.gitattributes -text
+* -text

@@ -1,0 +1,4 @@
+# QA-07 host gate files must keep LF bytes: CRLF breaks the Bash runner and byte-identity checks.
+.gitattributes -text
+qa07-gate.sh -text
+qa07/Qa07Gate.java -text

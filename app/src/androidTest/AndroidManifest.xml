@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- QA-07: zero-dependency instrumentation entry point. No junit or androidx.test runner is needed;
+         Qa07Instrumentation writes its own bounded report and finishes with PASS/FAIL counts. -->
+    <instrumentation
+        android:name="com.devtunasoft.tuneros.Qa07Instrumentation"
+        android:targetPackage="com.devtunasoft.tuneros"
+        android:label="QA-07 scratch PIN and bounded-list checks" />
+</manifest>

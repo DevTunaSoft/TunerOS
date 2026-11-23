@@ -1,0 +1,84 @@
+# name=valid
+qa07-store-v1
+salt=CzBVep/E6Q4zWH2ix+wRNg==
+hash=TBafQq94FRUqRRyOjK8LawdB0c5upA+0o8qYf08wBOA=
+failures=0
+locked-until=0
+# name=corrupt.bad-header
+qa07-store-v0
+salt=CzBVep/E6Q4zWH2ix+wRNg==
+hash=TBafQq94FRUqRRyOjK8LawdB0c5upA+0o8qYf08wBOA=
+failures=0
+locked-until=0
+# name=corrupt.bad-salt-b64
+qa07-store-v1
+salt=!!!!
+hash=TBafQq94FRUqRRyOjK8LawdB0c5upA+0o8qYf08wBOA=
+failures=0
+locked-until=0
+# name=corrupt.short-salt
+qa07-store-v1
+salt=CzBVep/E6Q4zWH2ix+wR
+hash=TBafQq94FRUqRRyOjK8LawdB0c5upA+0o8qYf08wBOA=
+failures=0
+locked-until=0
+# name=corrupt.bad-hash-b64
+qa07-store-v1
+salt=CzBVep/E6Q4zWH2ix+wRNg==
+hash=@@@@
+failures=0
+locked-until=0
+# name=corrupt.short-hash
+qa07-store-v1
+salt=CzBVep/E6Q4zWH2ix+wRNg==
+hash=TBafQq94FRUqRRyOjK8LawdB0c5upA+0o8qYf08wBA==
+failures=0
+locked-until=0
+# name=corrupt.negative-failures
+qa07-store-v1
+salt=CzBVep/E6Q4zWH2ix+wRNg==
+hash=TBafQq94FRUqRRyOjK8LawdB0c5upA+0o8qYf08wBOA=
+failures=-1
+locked-until=0
+# name=corrupt.too-many-failures
+qa07-store-v1
+salt=CzBVep/E6Q4zWH2ix+wRNg==
+hash=TBafQq94FRUqRRyOjK8LawdB0c5upA+0o8qYf08wBOA=
+failures=5
+locked-until=0
+# name=corrupt.negative-lock
+qa07-store-v1
+salt=CzBVep/E6Q4zWH2ix+wRNg==
+hash=TBafQq94FRUqRRyOjK8LawdB0c5upA+0o8qYf08wBOA=
+failures=0
+locked-until=-1
+# name=corrupt.empty-lock
+qa07-store-v1
+salt=CzBVep/E6Q4zWH2ix+wRNg==
+hash=TBafQq94FRUqRRyOjK8LawdB0c5upA+0o8qYf08wBOA=
+failures=0
+locked-until=
+# name=corrupt.wrong-hash
+qa07-store-v1
+salt=CzBVep/E6Q4zWH2ix+wRNg==
+hash=W4ZkQLTK+Vl/9CxTju75UoOmYlsBxeEsilwP+AXNXJk=
+failures=0
+locked-until=0
+# name=corrupt.extra-field
+qa07-store-v1
+salt=CzBVep/E6Q4zWH2ix+wRNg==
+hash=TBafQq94FRUqRRyOjK8LawdB0c5upA+0o8qYf08wBOA=
+failures=0 extra=1
+locked-until=0
+# name=corrupt.duplicate-key
+qa07-store-v1
+salt=TBafQq94FRUqRRyOjK8LawdB0c5upA+0o8qYf08wBOA=
+hash=TBafQq94FRUqRRyOjK8LawdB0c5upA+0o8qYf08wBOA=
+failures=0
+locked-until=0
+# name=corrupt.swapped-keys
+qa07-store-v1
+salt=TBafQq94FRUqRRyOjK8LawdB0c5upA+0o8qYf08wBOA=
+hash=CzBVep/E6Q4zWH2ix+wRNg==
+failures=0
+locked-until=0
