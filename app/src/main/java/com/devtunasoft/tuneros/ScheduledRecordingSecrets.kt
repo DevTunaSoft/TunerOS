@@ -4,7 +4,11 @@ internal data class ScheduledRecordingSource(
     val url: String,
     val userAgent: String?,
     val referer: String?,
-)
+) {
+    /** Diagnostics and shareable reports may carry shape, never provider URLs or headers. */
+    override fun toString(): String =
+        "ScheduledRecordingSource(urlLen=${url.length}, userAgent=${userAgent != null}, referer=${referer != null})"
+}
 
 internal object ScheduledRecordingSecrets {
     private const val USER_AGENT_SUFFIX = ".userAgent"

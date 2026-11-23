@@ -1,0 +1,3 @@
+QA-SCHED-1	Prime Show SYNTH_TITLE_ALPHA https://provider.example.invalid/title?token=SYNTH_TITLE_URL	qa-channel-one	http://provider.example.invalid/error?token=SYNTH_ERROR_TOKEN
+QA-SCHED-2	SYNTH_TITLE_BETA on qa-channel-two	qa-channel-two	SYNTH_ERROR_DETAIL
+QA-SCHED-3	Late show (qa-channel-three)	qa-channel-three	https://referer.example.invalid/last?key=SYNTH_LAST_ERROR

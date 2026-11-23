@@ -1,0 +1,4 @@
+SEC02-SHAREABLE-REPORT-v1
+schedules=3
+sources=3
+source=ScheduledRecordingSource(urlLen={urlLen}, userAgent=true, referer=true)
