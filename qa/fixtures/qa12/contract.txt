@@ -1,0 +1,3 @@
+QA-12 synthetic scratch fixture for crash / partial-write DVR recovery.
+All ids, bytes and report rows are synthetic; no real provider, credential or payload.
+catalog.tsv is a crash snapshot; diagnostics.tsv is the bounded recovery journal.

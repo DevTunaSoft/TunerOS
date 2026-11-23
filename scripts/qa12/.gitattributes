@@ -1,0 +1,5 @@
+* -text
+.gitattributes -text
+Qa12Gate.java -text
+run.sh -text
+agp_compile.sh -text

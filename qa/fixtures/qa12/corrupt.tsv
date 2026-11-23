@@ -1,0 +1,25 @@
+# corrupt catalog shapes; strict parser rejects each
+# name=bad-field-count
+rec00001	COMPLETED	1	2
+
+# name=bad-id
+recX0001	COMPLETED	1	2	1	media/rec00001.ts
+
+# name=bad-state
+rec00001	UNKNOWN	1	2	1	media/rec00001.ts
+
+# name=bad-number
+rec00001	COMPLETED	1	2	not-a-number	media/rec00001.ts
+
+# name=absolute-path
+rec00001	COMPLETED	1	2	1	C:/scratch/rec00001.ts
+
+# name=path-id-mismatch
+rec00001	COMPLETED	1	2	1	media/rec00002.ts
+
+# name=negative-bytes
+rec00001	COMPLETED	1	2	-1	media/rec00001.ts
+
+# name=query-in-path
+rec00001	COMPLETED	1	2	1	media/rec00001.ts?x=1
+
