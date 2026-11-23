@@ -1,0 +1,13 @@
+case	probe	state	mask	count	decoded
+focus_pass_last	focus	PASS	0	-1	-
+focus_fail_last	focus	FAIL	19	-1	source,search,next-target
+focus_invalid_mask	focus	FAIL	-1	-1	invalid
+focus_unrelated_after	focus	FAIL	3	-1	source,search
+empty_pass_last	empty	PASS	-1	-1	-
+empty_fail_last	empty	FAIL	-1	-1	-
+marker_pass_last	marker	PASS	-1	-1	-
+marker_fail_last	marker	FAIL	-1	-1	-
+rearm_exact_last	rearm	PASS	-1	3	-
+rearm_blocked_last	rearm	BLOCKED	-1	5	-
+rearm_fail_last	rearm	FAIL	-1	7	-
+rearm_unrelated_first	rearm	PASS	-1	2	-

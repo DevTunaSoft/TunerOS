@@ -1,0 +1,3 @@
+QA-10 synthetic scratch fixture for the OnDeviceSelfTest event-log gate.
+Every marker is derived at run time; no real provider, PIN, credential or recording payload.
+Event rows are wall, uptime, event, metric, pss; logs are read in file order.

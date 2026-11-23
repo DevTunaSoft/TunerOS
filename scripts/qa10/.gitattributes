@@ -1,0 +1,5 @@
+* -text
+.gitattributes -text
+Qa10EventLogGate.kt -text
+qa10_event_log_gate.sh -text
+qa10_device_gate.sh -text
