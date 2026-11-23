@@ -91,6 +91,25 @@ Use this template per completed/blocked task, append it below, and commit/push a
 - Open limitations, rollback, next assigned task: restore by re-running the cron payload and the two worker briefs; next: verify worker commits and exact-SHA CI, review, then hold merges pending authorization.
 - Last known good terminal commands + restart action: `cronjob_manage list`; `git -C C:/Users/X1/TunerOS worktree list`; `delegate_task list`; re-create workers from `workers.json` if the session restarts.
 
+### MV-01/PLAY-01 — Worker A (`sa-0-6375ec58`) / PASS (policy), BLOCKED (AGP) / 2026-11-23T06:10Z
+- Objective: genuine bounded two-tile Media3 path with exactly one audible tile; verify select-to-play first.
+- Root cause / audit: `MainActivity` has exactly one `player: ExoPlayer?` and one `playerView`; D-pad OK and touch both funnel into `MainActivity.play(Channel)`. No two-tile path existed. Classic Cable activation itself had no defect.
+- Base SHA / branch / worktree: `a523c2e` → commit `aeb0032d941a7009e3b92e75945d6ccf97db57e0`, `hermes/worker-a-playback`, `/TunerWork/workerA`. Owned paths only.
+- Changes: new `multiview/MultiviewTileController.kt` (max 2 live players, secondary volume 0f, focus promotes muted tile and releases prior primary, pause releases secondary, stop releases both, idempotent/bounded), `ExoPlayerMultiviewPlayer.kt` (Media3 bridge), `MultiviewTileControllerTest.kt` (10 JUnit 4 tests). No MainActivity edits, no new services.
+- Failure history: two direct-compile/test failures (`setVolume(F)V` JVM signature clash; assertion counted created vs live players). Both were test defects, fixed at root; final `JUnitCore` run `OK (10 tests)`, exit 0.
+- Status: **PASS** direct JVM JUnit run; **BLOCKED** `./gradlew :app:testDebugUnitTest` (no JDK at first, then `SDK location not found`); **UNVERIFIED** AGP compilation of the Media3 bridge and device two-tile playback.
+- Integrator follow-up: added `testImplementation("junit:junit:4.13.2")` on the same branch at `92d8355358e7e08bba15169f29f5f616a0fe2ffe`; PR #119 opened; exact-head CI in progress at check time.
+- Next: MV-02 MainActivity wiring, assigned to Worker A2 (`sa-0-29326fe6`, `hermes/worker-a2-mv02`).
+
+### QA-02/PERF-01 — Worker B (`sa-1-c8728573`) / PASS (local) / 2026-11-23T06:10Z
+- Objective: deterministic large-EPG import/no-EPG/search/future-only/memory gate plus bounded CI coverage.
+- Base SHA / branch / worktree: `a523c2e` → commit `174c9cc763807bb487751ed1e622222320d65e0b`, `hermes/worker-b-qa`, `/TunerWork/workerB`.
+- Changes: `scripts/generate_qa_epg_fixture.py` (seed 20261123, 25,000 channels/250,000 programmes, 128 MiB cap, `.invalid` URLs only), `scripts/QaFixtureCheck.java` (existing core entry points only), `scripts/qa_epg_fixture_check.sh`, `qa/fixtures/core-classpath.init.gradle.kts`, `qa/fixtures/README.md`, one bounded step in existing `android.yml` (no new workflow/emulator).
+- Failure history: first check FAIL (`future window on qa.ch.1 returned 9, expected 10`); root cause was the generator's first slot ending at the anchor, fixed by shifting `first` to `ANCHOR_EPOCH - SLOT_SECONDS`; assertion unchanged. Rerun PASS.
+- Status: **PASS** all seven local gates including determinism (identical SHA over two seeded runs), 25,000/250,000 counts, hide-no-EPG 24,750 visible/250 hidden, name search, future-only window, peak heap 149,679,616 B < 402,653,184 B limit. **PASS** `bash -n`, YAML parse, `git diff --check`. **UNVERIFIED** Linux RSS gate (Windows returns -1), exact-SHA CI (no run triggered yet for PR #120 at check time), physical device.
+- Integrator follow-up: PR #120 opened at `174c9cc`; no checks reported at check time — investigation in progress, no PASS claimed.
+- Next: QA-03 switching-soak harness, assigned to Worker B2 (`sa-1-bc1bf8b9`, `hermes/worker-b2-qa03`).
+
 ## F. Failed-attempt / anti-loop record
 
 No Hermes worker attempts have occurred as part of the handoff creation. Do not invent failures or successful tests. After two equivalent failures, record both logs, root-cause investigation and changed strategy here. After two no-progress cycles move to a separate unblocked task.
