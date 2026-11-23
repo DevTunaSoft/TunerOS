@@ -152,19 +152,19 @@ object HlsPlaylistParserCore {
                     require(!mediaSequenceSeen && !sawSegmentUri) {
                         "HLS media sequence must appear once, before the first segment"
                     }
-                    mediaSequence = line.substringAfter(':').trim().toLong()
+                    mediaSequence = longField(line.substringAfter(':').trim())
                     nextSequence = mediaSequence
                     mediaSequenceSeen = true
                     sawMediaTag = true
                 }
                 line.startsWith("#EXT-X-TARGETDURATION:", ignoreCase = true) -> {
                     require(!sawMasterTag) { "Mixed HLS master and media playlist" }
-                    targetDuration = line.substringAfter(':').trim().toLong()
+                    targetDuration = longField(line.substringAfter(':').trim())
                     sawMediaTag = true
                 }
                 line.startsWith("#EXTINF:", ignoreCase = true) -> {
                     require(!sawMasterTag) { "Mixed HLS master and media playlist" }
-                    pendingDuration = line.substringAfter(':').substringBefore(',').trim().toDouble()
+                    pendingDuration = doubleField(line.substringAfter(':').substringBefore(',').trim())
                     sawMediaTag = true
                 }
                 line.startsWith("#EXT-X-BYTERANGE:", ignoreCase = true) -> {
@@ -237,12 +237,20 @@ object HlsPlaylistParserCore {
 
                     if (range != null) {
                         lastRangeUri = line
-                        lastRangeEnd = Math.addExact(range.offset, range.length)
+                        lastRangeEnd = try {
+                            Math.addExact(range.offset, range.length)
+                        } catch (overflow: ArithmeticException) {
+                            throw IllegalArgumentException("HLS byte range end exceeds Long.MAX_VALUE")
+                        }
                     } else {
                         lastRangeUri = null
                         lastRangeEnd = null
                     }
 
+                    // A segment numbered Long.MAX_VALUE is valid as the last one, but the next sequence cannot be
+                    // represented. Refuse instead of wrapping to Long.MIN_VALUE and yielding duplicate/out-of-order
+                    // numbers on a long or malicious playlist.
+                    require(latestSequence != Long.MAX_VALUE) { "HLS segment sequence exceeds Long.MAX_VALUE" }
                     val sequence = nextSequence++
                     sawSegmentUri = true
                     latestSequence = sequence
@@ -294,11 +302,24 @@ object HlsPlaylistParserCore {
 
     private fun parseRange(value: String): PendingRange {
         val parts = value.split('@', limit = 2)
-        val length = parts[0].toLong()
+        val length = longField(parts[0])
         require(length > 0) { "HLS byte-range length must be positive" }
-        val offset = parts.getOrNull(1)?.toLong()
+        val offset = parts.getOrNull(1)?.let { longField(it) }
         require(offset == null || offset >= 0) { "HLS byte-range offset must be non-negative" }
         return PendingRange(length, offset)
+    }
+
+    /** Generic refusals: NumberFormatException echoes the raw tag, which may carry URL or credential material. */
+    private fun longField(value: String): Long = try {
+        value.toLong()
+    } catch (malformed: NumberFormatException) {
+        throw IllegalArgumentException("HLS numeric field is malformed")
+    }
+
+    private fun doubleField(value: String): Double = try {
+        value.toDouble()
+    } catch (malformed: NumberFormatException) {
+        throw IllegalArgumentException("HLS numeric field is malformed")
     }
 
     private fun attribute(line: String, name: String): String? {

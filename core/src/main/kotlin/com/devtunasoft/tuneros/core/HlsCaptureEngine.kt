@@ -217,7 +217,7 @@ class HlsCaptureEngine(
                                 totalBytes,
                                 lastSequence,
                                 StopReason.UNSUPPORTED,
-                                "Encrypted HLS method is not supported (${segment.keyMethod})",
+                                "Encrypted HLS method is not supported (${safeMethodName(segment.keyMethod)})",
                             )
                         }
                         val keyFormat = segment.keyFormat
@@ -388,6 +388,12 @@ class HlsCaptureEngine(
                 }
             }
         }
+    }
+
+    /** A METHOD attribute is untrusted playlist text, so only known method names may reach a diagnostic. */
+    private fun safeMethodName(method: String): String = when (method.uppercase()) {
+        "AES-128", "SAMPLE-AES", "SAMPLE-AES-CTR", "SAMPLE-AES-CENC" -> method
+        else -> "<redacted>"
     }
 
     /** Clamp seconds before multiplication so malformed manifests cannot overflow into rapid polls. */
