@@ -1,0 +1,14 @@
+qa13-fixture-v1
+channels=260
+normal-channels=256
+snapshots=17
+window-cap=7
+retention-millis=60000
+half-span-millis=7000
+step-millis=4000
+base-millis=10000
+back-millis=10000
+max-position-millis=1000000
+max-window-bytes=4096
+seek-rows-per-channel=10
+mirror-digest=687e06ebb5c450576c3c0e8a8de3195fa647b7c4d7ffda9dd692a43a19faa8ff
