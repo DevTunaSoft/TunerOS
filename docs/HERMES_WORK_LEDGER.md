@@ -143,6 +143,16 @@ Use this template per completed/blocked task, append it below, and commit/push a
 - RED→GREEN: focused negative test `4 tests completed, 3 failed` before the fix, PASS after. Final `:core:test --rerun-tasks` `suites=54 tests=447 failures=0 errors=0 skipped=0`.
 - Commit `c7d64c972142f82f6fdbbbeb010c1ade2ab55038` pushed; PR #125 opened. `:app:*`/AGP/emulator NOT RUN (no SDK). Next: Worker A7 `sa-0-7f87bb3e` on UX-02 with named disjoint app files, dispatched immediately.
 
+### QA-01 / DVR-01 / DVR-02 — cron-replaced workers / PASS / 2026-11-23T07:56Z
+- **B3 QA-01** `a91ba4c58bc11331f9c4c4aee54aa224d19124dc`: compiled TV-guide layout + D-pad/OK instrumentation (8 files, 957 insertions). **Genuine emulator PASS at 07:18:38Z**: `device=sdk_gphone64_x86_64 checks=4 failures=0` covering loaded/unloaded row bounds, no clipping, D-pad focus transitions and OK select-to-play request only; no video-decode claim. PR #126 opened; 4/4 checks PASS at that exact head.
+- **A4 DVR-01** `ca1f0fd…` (cancellation/finalization hardening) and **DVR-02** `69ab3997f9ff7449d3e8cff626b92c1accc07a06` (SAF/storage faults, 3 deterministic JVM test classes) pushed on the same branch. PR #127 opened; 4/4 checks PASS at the DVR-02 head. Both worker-reported JVM results were not independently re-run on this host; CI is the exact-SHA evidence.
+- PR #125 (SEC-01) also 4/4 PASS. No merges.
+
+### UX-02 delegation recovery — Worker A7 (`sa-0-7f87bb3e`) / RESUMED / 2026-11-23T07:56Z
+- The original `deleg_cfa02936` owner exited before recording a terminal result. Evidence, not assumption: worktree intact with uncommitted owned edits to `BackupRestore.kt` and `ParentalControlsStore.kt` plus 12 test/stub files under `app/src/test/.../ux02/**`; transcript showed `OK (9 tests)` and `OK (3 tests)` from the bounded JVM harness, followed by `SDK location not found` for Gradle.
+- The SAME subagent was continued (`deleg_d05c8f90`) to re-verify on-disk state, run `git diff --check` and a secret scan, then commit/push only its owned paths (not the integrator's JUnit commit `0894604`). No duplicate worktree, no duplicate worker, no speculative re-run of side effects. Registry updated with `resume_reason`.
+- At 07:56Z the resumed transcript was growing. Three workers live: A7 (resumed UX-02), A8 (PERF-02 core slice), B4 (QA-04 bounded rearm). Floor met.
+
 ## F. Failed-attempt / anti-loop record
 
 No Hermes worker attempts have occurred as part of the handoff creation. Do not invent failures or successful tests. After two equivalent failures, record both logs, root-cause investigation and changed strategy here. After two no-progress cycles move to a separate unblocked task.
