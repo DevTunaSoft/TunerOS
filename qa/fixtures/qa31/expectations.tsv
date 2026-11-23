@@ -1,0 +1,23 @@
+# id	ref	path	kind	fixed-needle	expected-count
+M_ACTION_COUNT	C3	app/src/main/AndroidManifest.xml	count	android.intent.action.MY_PACKAGE_REPLACED	1
+M_RECEIVER_DECL	C3	app/src/main/AndroidManifest.xml	count	<receiver android:name=".UpgradeRearmReceiver" android:exported="false">	1
+M_ACTION_TAG	C3	app/src/main/AndroidManifest.xml	count	<action android:name="android.intent.action.MY_PACKAGE_REPLACED" />	1
+R_DISPATCH_EXACTLY_ONE	C3	app/src/main/java/com/devtunasoft/tuneros/RecordingRearmReceiver.kt	count	RecordingScheduler.rearmPending(	1
+R_CLASS_DECL	C3	app/src/main/java/com/devtunasoft/tuneros/RecordingRearmReceiver.kt	count	class UpgradeRearmReceiver : BroadcastReceiver()	1
+R_ACTION_GUARD	C3	app/src/main/java/com/devtunasoft/tuneros/RecordingRearmReceiver.kt	count	Intent.ACTION_MY_PACKAGE_REPLACED	1
+R_APPLICATION_CONTEXT	C3	app/src/main/java/com/devtunasoft/tuneros/RecordingRearmReceiver.kt	count	context.applicationContext	1
+R_GOASYNC	C3	app/src/main/java/com/devtunasoft/tuneros/RecordingRearmReceiver.kt	count	goAsync()	1
+R_PENDING_FINISH	C3	app/src/main/java/com/devtunasoft/tuneros/RecordingRearmReceiver.kt	count	pending.finish()	1
+S_GUARD_INPROGRESS_DECL	C2	app/src/main/java/com/devtunasoft/tuneros/RecordingScheduler.kt	count	private val rearmInProgress = AtomicBoolean(false)	1
+S_GUARD_EXACTDONE_DECL	C2	app/src/main/java/com/devtunasoft/tuneros/RecordingScheduler.kt	count	private val exactRearmDone = AtomicBoolean(false)	1
+S_CAS	C2	app/src/main/java/com/devtunasoft/tuneros/RecordingScheduler.kt	count	rearmInProgress.compareAndSet(false, true)	1
+S_DONE_GET	C2	app/src/main/java/com/devtunasoft/tuneros/RecordingScheduler.kt	count	if (exactRearmDone.get()) return false	1
+S_DONE_SET_GUARDED	C2	app/src/main/java/com/devtunasoft/tuneros/RecordingScheduler.kt	count	if (exact > 0 && blocked == 0L && failed == 0L) exactRearmDone.set(true)	1
+S_INPROGRESS_RELEASE	C2	app/src/main/java/com/devtunasoft/tuneros/RecordingScheduler.kt	count	rearmInProgress.set(false)	1
+B_BASE_NO_REPLACED_ACTION	BASE	app/src/main/AndroidManifest.xml	absent	android.intent.action.MY_PACKAGE_REPLACED	0
+B_BASE_NO_UPGRADE_RECEIVER	BASE	app/src/main/AndroidManifest.xml	absent	UpgradeRearmReceiver	0
+B_BASE_NO_INPROGRESS	BASE	app/src/main/java/com/devtunasoft/tuneros/RecordingScheduler.kt	absent	rearmInProgress	0
+B_BASE_NO_EXACTDONE	BASE	app/src/main/java/com/devtunasoft/tuneros/RecordingScheduler.kt	absent	exactRearmDone	0
+C2_NO_REPLACED_ACTION	C2	app/src/main/AndroidManifest.xml	absent	android.intent.action.MY_PACKAGE_REPLACED	0
+C3_NO_REARM_GUARDS	C3	app/src/main/java/com/devtunasoft/tuneros/RecordingScheduler.kt	absent	rearmInProgress	0
+C3_NO_EXACTDONE	C3	app/src/main/java/com/devtunasoft/tuneros/RecordingScheduler.kt	absent	exactRearmDone	0
