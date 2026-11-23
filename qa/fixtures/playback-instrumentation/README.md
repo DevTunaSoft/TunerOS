@@ -13,6 +13,8 @@ The repository already has a bounded JVM playback soak (`scripts/qa_playback_soa
   a plain `android.app.Instrumentation` (no JUnit/androidx.test dependency). It runs the
   shared soak on the device, then drives the **real** `OnDeviceSelfTest.observe` event sink
   with bounded synthetic playback events and scans the resulting app-private event file.
+- `app/src/androidTest/AndroidManifest.xml` — test-APK-only registration of that
+  instrumentation so `am instrument` can resolve it. The application manifest is untouched.
 - `scripts/qa_playback_check.sh` — local JVM acceptance runner for the shared harness.
   It is intentionally **not** a second CI gate; CI already has the JVM soak step.
 

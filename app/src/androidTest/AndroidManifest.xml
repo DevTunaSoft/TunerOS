@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Test-APK-only manifest. The application's own AndroidManifest.xml is untouched. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <instrumentation
+        android:name="com.devtunasoft.tuneros.qa.PlaybackSoakInstrumentation"
+        android:targetPackage="com.devtunasoft.tuneros"
+        android:label="QA-03 Playback Soak" />
+</manifest>
