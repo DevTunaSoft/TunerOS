@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <instrumentation
+        android:name="com.devtunasoft.tuneros.qa64.Qa64Instrumentation"
+        android:targetPackage="com.devtunasoft.tuneros"
+        android:label="QA-64 bounded width-unit mirror" />
+</manifest>

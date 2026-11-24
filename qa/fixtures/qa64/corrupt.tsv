@@ -1,0 +1,7 @@
+variant	start	end	units
+zero-units	0	3600	0
+negative-units	0	3600	-1
+reversed-window	100	50	240
+nonnumeric-units	0	3600	zz
+nonnumeric-start	zz	3600	240
+decimal-units	0	3600	240.5
