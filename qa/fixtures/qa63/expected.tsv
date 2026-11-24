@@ -1,0 +1,27 @@
+c01	0	g01	BBC One	100
+c01	1	g03	bbcone	100
+c01	2	g04	BBC One West	60
+c01	3	g05	One	60
+c01	4	g02	BBC Two	30
+c02	0	g08	Discovery	100
+c02	1	g07	Discovery Channel	100
+c02	2	g09	Disc	60
+c03	0	g16	National	60
+c03	1	g13	Geographic Today	30
+c03	2	g12	Wild National	30
+c04	0	g19	News	100
+c04	1	g20	News	100
+c04	2	g21	News	100
+c04	3	g22	News Extra	60
+c05	0	g30	Sport	100
+c08	0	gallery	A Different Name	100
+c08	1	g43	Gallery Annex	60
+c09	0	g50	bbc one	100
+c09	1	g51	BBC	60
+c11	0	g72	Movie	100
+c11	1	g71	Movie Central	60
+c12	0	g80	Star	100
+c12	1	g87	Star Four	60
+c12	2	g86	Star Three	60
+c12	3	g82	Star Trek	60
+c12	4	g85	Star Two	60
