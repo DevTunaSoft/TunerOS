@@ -1,0 +1,10 @@
+key	value
+markerSeed	QA53-FIXED-SEED-2026-11-24
+caseCount	36
+corruptCount	8
+headerRows	520
+cycles	4
+admittedPerCycle	24
+refusedPerCycle	12
+headerAdmitted	1040
+aggregateSha256	9ca5140e932997918c06ef8d5af18cfae8e9d4504530c324e9b07ede05a956b9
