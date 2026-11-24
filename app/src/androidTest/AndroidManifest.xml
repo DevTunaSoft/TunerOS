@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <instrumentation
+        android:name="com.devtunasoft.tuneros.qa58.Qa58Instrumentation"
+        android:label="QA-58 bounded resume-position persistence gate"
+        android:targetPackage="com.devtunasoft.tuneros" />
+</manifest>

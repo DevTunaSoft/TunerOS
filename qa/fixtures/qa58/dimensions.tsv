@@ -1,0 +1,6 @@
+entries	20000
+max_entries	64
+top_limit	8
+window_ms	2592000000
+corrupt_cases	7
+tail_ms	3000
