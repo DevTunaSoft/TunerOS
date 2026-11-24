@@ -20,7 +20,27 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
+
+/**
+ * Tracks which accepted START owns service teardown. A finishing capture worker must not strip
+ * the foreground notification or stop the service after a newer START has claimed it.
+ */
+internal class DvrServiceTeardownGate {
+    private val ownerStartId = AtomicInteger(0)
+
+    /** A START that won the single-recorder slot now owns service teardown. */
+    fun beginStart(startId: Int) {
+        ownerStartId.set(startId)
+    }
+
+    /**
+     * Grants teardown only to the current owner and clears the claim atomically. A stale
+     * worker must not remove the newer recording's foreground notification or stop its service.
+     */
+    fun releaseIfOwner(startId: Int): Boolean = ownerStartId.compareAndSet(startId, 0)
+}
 
 /**
  * Single-capture foreground DVR service.
@@ -58,6 +78,7 @@ class DvrRecordingService : Service() {
     private val worker = Executors.newSingleThreadExecutor()
     private val cancelled = AtomicBoolean(false)
     private val activeRecordingId = AtomicReference<String?>(null)
+    private val teardownGate = DvrServiceTeardownGate()
     private val connections = AbortableSlot<HttpURLConnection> { it.disconnect() }
     private val catalogLazy = lazy { RecordingCatalog(this, qaCatalogDatabaseName ?: "recordings.db") }
     private val catalog: RecordingCatalog get() = catalogLazy.value
@@ -126,6 +147,8 @@ class DvrRecordingService : Service() {
             return
         }
 
+        teardownGate.beginStart(startId)
+
         val endEpochSeconds = intent.getLongExtra(EXTRA_END_EPOCH_SECONDS, Long.MAX_VALUE)
         cancelled.set(false)
         connections.reset()
@@ -134,6 +157,7 @@ class DvrRecordingService : Service() {
                 failScheduledDispatch(id, scheduleKey, "Recording ID already exists")
             }
             activeRecordingId.compareAndSet(id, null)
+            abandonStart(startId)
             stopSelf(startId)
             return
         }
@@ -155,6 +179,7 @@ class DvrRecordingService : Service() {
                 failScheduledDispatch(id, scheduleKey, "Foreground start failed")
             }
             activeRecordingId.compareAndSet(id, null)
+            abandonStart(startId)
             stopSelf(startId)
             return
         }
@@ -170,7 +195,7 @@ class DvrRecordingService : Service() {
                 // service startup; do not record or delete another schedule's key.
                 catalog.finish(id, "FAILED", nowSeconds(), 0, null, "Schedule cancelled before start")
                 activeRecordingId.compareAndSet(id, null)
-                stopForeground(STOP_FOREGROUND_REMOVE)
+                abandonStart(startId)
                 stopSelf()
                 return
             }
@@ -195,12 +220,20 @@ class DvrRecordingService : Service() {
                 capture(id, url, endEpochSeconds, userAgent, referer)
             } finally {
                 activeRecordingId.set(null)
-                stopForeground(STOP_FOREGROUND_REMOVE)
-                // Not stopSelf(startId): a later Stop command makes that id stale and Android
-                // would keep the service running after the recording ended.
-                stopSelf()
+                if (teardownGate.releaseIfOwner(startId)) {
+                    stopForeground(STOP_FOREGROUND_REMOVE)
+                    // Not stopSelf(startId): a later Stop command makes that id stale and Android
+                    // would keep the service running after the recording ended.
+                    stopSelf()
+                }
             }
         }
+    }
+
+    /** A START that claimed teardown but was refused clears its claim and notification. */
+    private fun abandonStart(startId: Int) {
+        teardownGate.releaseIfOwner(startId)
+        stopForeground(STOP_FOREGROUND_REMOVE)
     }
 
     /**
