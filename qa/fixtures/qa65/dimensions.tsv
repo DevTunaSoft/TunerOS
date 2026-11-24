@@ -1,0 +1,11 @@
+schema	qa65-canon-v1
+seed	20261124
+title_cap	48
+rule_cap	16
+max_title_len	128
+marker_len	8
+null_n	8
+lead_n	10
+space_n	12
+case_n	12
+idem_n	6

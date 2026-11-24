@@ -1,0 +1,65 @@
+id	family	title	expectedKey	channel	expectedRuleId	expectedValid
+c0001	null	!!!	<null>	-	-	1
+c0002	null	---	<null>	-	-	1
+c0003	null	...	<null>	-	-	1
+c0004	null	   	<null>	-	-	1
+c0005	null	!-!	<null>	-	-	1
+c0006	null	_._	<null>	-	-	1
+c0007	null	, ,	<null>	-	-	1
+c0008	null	..!	<null>	-	-	1
+c0009	lead	  ab12	ab12	-	-	1
+c0010	lead	!!cd34	cd34	-	-	1
+c0011	lead	..ef56	ef56	-	-	1
+c0012	lead	--gh78	gh78	-	-	1
+c0013	lead	  ij90	ij90	-	-	1
+c0014	lead	!!kl	kl	-	-	1
+c0015	lead	..mn	mn	-	-	1
+c0016	lead	--op	op	-	-	1
+c0017	lead	  qr	qr	-	-	1
+c0018	lead	!!st	st	-	-	1
+c0019	space	ab  cd	ab cd	-	-	1
+c0020	space	ab--cd	ab cd	-	-	1
+c0021	space	ab..cd	ab cd	-	-	1
+c0022	space	ab!!cd	ab cd	-	-	1
+c0023	space	ab__cd	ab cd	-	-	1
+c0024	space	ab,,cd	ab cd	-	-	1
+c0025	space	xy 12	xy 12	-	-	1
+c0026	space	xy--34	xy 34	-	-	1
+c0027	space	xy..56	xy 56	-	-	1
+c0028	space	xy!!78	xy 78	-	-	1
+c0029	space	xy__90	xy 90	-	-	1
+c0030	space	xy,,ab	xy ab	-	-	1
+c0031	case	ABC	abc	-	-	1
+c0032	case	XYZ123	xyz123	-	-	1
+c0033	case	HELLO	hello	-	-	1
+c0034	case	WORLD9	world9	-	-	1
+c0035	case	MIXEDCase	mixedcase	-	-	1
+c0036	case	UPPERlower	upperlower	-	-	1
+c0037	case	DIGIT42	digit42	-	-	1
+c0038	case	ALPHA7	alpha7	-	-	1
+c0039	case	BETA8	beta8	-	-	1
+c0040	case	ÉCOLE	école	-	-	1
+c0041	case	ÄPFEL	äpfel	-	-	1
+c0042	case	OMEGA4	omega4	-	-	1
+c0043	idem	ab cd	ab cd	-	-	1
+c0044	idem	xy 12	xy 12	-	-	1
+c0045	idem	the news	the news	-	-	1
+c0046	idem	one two three	one two three	-	-	1
+c0047	idem	a1 b2	a1 b2	-	-	1
+c0048	idem	z9 y8	z9 y8	-	-	1
+c0049	rule	show 001	show 001		show 001|*	1
+c0050	rule	show 002	show 002		show 002|*	1
+c0051	rule	show 003	show 003		show 003|*	1
+c0052	rule	show 004	show 004		show 004|*	1
+c0053	rule	show 005	show 005		show 005|*	1
+c0054	rule	show 006	show 006		show 006|*	1
+c0055	rule	show 007	show 007		show 007|*	1
+c0056	rule	show 008	show 008		show 008|*	1
+c0057	rule	show 009	show 009	ch16	show 009|ch16	1
+c0058	rule	show 010	show 010	ch17	show 010|ch17	1
+c0059	rule	show 011	show 011	ch18	show 011|ch18	1
+c0060	rule	show 012	show 012	ch19	show 012|ch19	1
+c0061	rule	show 013	show 013	ch20	show 013|ch20	1
+c0062	rule	show 014	show 014	ch21	show 014|ch21	1
+c0063	rule	show 015	show 015	ch22	show 015|ch22	1
+c0064	rule	show 016	show 016	ch23	show 016|ch23	1
