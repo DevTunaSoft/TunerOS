@@ -232,6 +232,8 @@ No Hermes worker attempts have occurred as part of the handoff creation. Do not 
 
 - **QA-38 RESULT / B45 RETIRED (23:50Z)**: B45 `1da0e70` (PR 226) delivered a 30/30 pinned host gate for C13 RESTORE-02 fc89867: apply calls ruleRefusal then replaceSeriesRules with no unchecked remove/add, checks precede writes, failed insert restores prior rules, six restore02 test paths present. Mutation RED first C13_REFUSAL_THROW with 4 restored refs, GREEN 30/30, hook PASS. Static evidence only, no Kotlin/device claim. B45 obeyed the RAM-cap steer, started no new task, and is marked RETIRED; no replacement launched. RUNNING remains exactly A59 + C14; B46/B47 still RETIRING.
 
+- **QA-40 RESULT / B47 RETIRED (00:00Z, 2026-11-24)**: B47 `3c789f9` (PR 227) delivered a pinned fix-chain gate: 43/43 checks PASS but truthful verdict MERGE-REVIEW-NEEDED (exit 3, hazards=2) both pre- and post-commit. Pinned eight fix heads (C2/C3/C5/C8/C7/C11/C10/B42) plus QA-33 marker, verified branch-head drift and exact git blob identity without repeating single-gate semantics. Mutation RED first FIX_BLOB_FIX_P220_C10 markers=0, 11/11 byte-identical restore, GREEN 43/43; hook PASS. Static evidence only, device NOT RUN. B47 obeyed the RAM-cap steer and is RETIRED with no replacement. RUNNING remains exactly A59 + C14; B46 still RETIRING.
+
 ## G. Session recovery (run automatically; do not ask owner to paste commands)
 
 1. Re-open `AGENTS.md` and `docs/HERMES_AUTONOMOUS_TAKEOVER.md`; finish all mandatory full-document reading.
