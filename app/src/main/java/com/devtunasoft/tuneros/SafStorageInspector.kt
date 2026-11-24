@@ -25,6 +25,14 @@ internal object SafStorageInspector {
         val treeDocumentId = DocumentsContract.getTreeDocumentId(treeUri)
         if (treeDocumentId.isBlank()) return@runCatching null
 
+        // A stored tree URI is not proof of access: the grant may have been revoked, replaced or
+        // retained read-only. Fail closed unless this exact tree still has a persisted read+write
+        // grant, so inspection cannot advertise a destination that cannot be written to.
+        if (!hasPersistedWriteGrant(context, treeUri, treeDocumentId)) {
+            debugLog(context, "persistedWriteGrant=false")
+            return@runCatching null
+        }
+
         val selectedDocument = DocumentsContract.buildDocumentUriUsingTree(
             treeUri,
             treeDocumentId,
@@ -67,6 +75,20 @@ internal object SafStorageInspector {
     }.getOrNull()
 
     private class VolumeSpace(val volumeId: String, val usableBytes: Long)
+
+    /** True only for a persisted read+write grant covering this exact tree. */
+    private fun hasPersistedWriteGrant(
+        context: Context,
+        treeUri: Uri,
+        treeDocumentId: String,
+    ): Boolean = context.contentResolver.persistedUriPermissions.any { permission ->
+        if (permission.uri.authority != treeUri.authority ||
+            !permission.isReadPermission || !permission.isWritePermission
+        ) {
+            return@any false
+        }
+        runCatching { DocumentsContract.getTreeDocumentId(permission.uri) }.getOrNull() == treeDocumentId
+    }
 
     /**
      * Usable space for each mounted storage volume. The app's own external files directory on each volume is
