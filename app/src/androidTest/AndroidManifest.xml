@@ -1,0 +1,6 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <instrumentation
+        android:name="com.devtunasoft.tuneros.qa57.Qa57Instrumentation"
+        android:targetPackage="com.devtunasoft.tuneros"
+        android:label="QA57 bounded library-label composition gate" />
+</manifest>

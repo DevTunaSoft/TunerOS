@@ -1,0 +1,4 @@
+# qa57 diagnostics carry check ids, counts and digests only
+CHECK	BYTE_IDENTITY	PASS
+CHECK	PRIVACY_SCAN	PASS
+SUMMARY	checks=2	fail=0
