@@ -1,0 +1,9 @@
+seed=20261124
+families=9
+perFamily=8
+cases=72
+cycles=6
+maxFlags=1048576
+minUsable=-1
+maxUsable=1099511627776
+casesSha256=be99653c09bb1ea09e0bb8934a580d028a48c8a1bd1d27ae802054a2d28d0de4

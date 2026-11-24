@@ -1,0 +1,7 @@
+QA-49 bounded SAF tree admission and volume free-space gate
+Production seam: SafStorageInspector.inspect; no product file is edited.
+A tree is admitted only for the exact documents authority, a non-blank document id,
+a create-capable directory cursor, and a mounted volume with non-negative usable space.
+Every other input fails closed and returns no storage info.
+Diagnostics contain document ids and sizes only, never a tree address or account value.
+Verdicts: PASS FAIL BLOCKED NOT RUN UNVERIFIED.
