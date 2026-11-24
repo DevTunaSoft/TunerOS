@@ -1,0 +1,6 @@
+schema	qa66-hide-guide-v1
+seed	20261124
+channel_cap	4
+case_cap	12
+max_query_len	32
+case_n	12
