@@ -1,0 +1,8 @@
+name|rule|value
+bad-op|op|frobnicate
+negative-delay|delay|-1
+over-cap|count|13
+duplicate-id|id|w000
+bad-fields|fields|w006+work
+truncated|terminator|w001~work
+swapped|order|cleanup-first
