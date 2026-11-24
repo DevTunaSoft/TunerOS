@@ -1,0 +1,12 @@
+BEGIN header-bad
+id	family	start	end	period	first	last	changeAt	unansweredFrom	missing	reason	detail	outHex	copies	reads
+END header-bad
+BEGIN fields-short
+q59-01	stall	1000	1100	10S	1	3	0	0	0					
+END fields-short
+BEGIN family-unknown
+q59-01	unknown	1000	1100	10S	1	3	0	0	0						
+END family-unknown
+BEGIN id-range
+q59-9	stall	1000	1100	10S	1	3	0	0	0						
+END id-range
