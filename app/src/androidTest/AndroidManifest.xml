@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <instrumentation
+        android:name="com.devtunasoft.tuneros.qa61.Qa61Instrumentation"
+        android:label="QA-61 bounded timeline window-shift focus gate"
+        android:targetPackage="com.devtunasoft.tuneros" />
+</manifest>

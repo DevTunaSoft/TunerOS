@@ -1,0 +1,1 @@
+QA-61 bounded timeline window-shift focus gate. Scratch fixture only.
