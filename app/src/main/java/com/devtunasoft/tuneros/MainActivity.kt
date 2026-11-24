@@ -1,9 +1,11 @@
 package com.devtunasoft.tuneros
 
+import android.Manifest
 import android.app.Activity
 import android.app.AlertDialog
 import android.app.AlarmManager
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
 import android.text.InputFilter
@@ -92,6 +94,9 @@ class MainActivity : Activity() {
     private val recordingTreeRequestCode = 1701
     private val backupExportRequestCode = 1702
     private val backupRestoreRequestCode = 1703
+    private val postNotificationsRequestCode = 1704
+    private var postNotificationsRequested = false
+    private var pendingRecordingStart: Intent? = null
     private val downloader = SourceDownloader()
     private val searchRefresh = Runnable { renderChannels() }
     private val clockRefresh = object : Runnable {
@@ -1636,8 +1641,50 @@ class MainActivity : Activity() {
             channel.referer?.let { putExtra(DvrRecordingService.EXTRA_REFERER, it) }
             putExtra(DvrRecordingService.EXTRA_END_EPOCH_SECONDS, program.endEpochSeconds)
         }
-        startForegroundService(intent)
+        startRecordingWithNotificationPermission(intent)
         showStatus("Recording: " + program.title)
+    }
+
+    /** POST_NOTIFICATIONS gates the foreground recording notification on Android 13+. */
+    private fun startRecordingWithNotificationPermission(intent: Intent) {
+        if (postNotificationsGranted()) {
+            startForegroundService(intent)
+            return
+        }
+        pendingRecordingStart = intent
+        requestPostNotificationsOnce()
+    }
+
+    private fun postNotificationsGranted(): Boolean =
+        Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+
+    /** One prompt per process. A denial never crashes and never re-prompts. */
+    private fun requestPostNotificationsOnce() {
+        if (postNotificationsRequested) {
+            showStatus("Enable notifications to see recording status")
+            return
+        }
+        postNotificationsRequested = true
+        requestPermissions(
+            arrayOf(Manifest.permission.POST_NOTIFICATIONS),
+            postNotificationsRequestCode,
+        )
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<String>,
+        grantResults: IntArray,
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode != postNotificationsRequestCode) return
+        if (grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) {
+            pendingRecordingStart?.let { startForegroundService(it) }
+        } else {
+            showStatus("Notifications are off; enable them to see recording status")
+        }
+        pendingRecordingStart = null
     }
 
 
