@@ -68,6 +68,39 @@ import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
+/**
+ * Bounded guide focus anchor for configuration changes: a provider-scoped channel id and the
+ * programme start instant. No channel name, programme title, URL or EPG payload is persisted.
+ */
+internal data class FocusAnchor(val channelId: String, val programStartSeconds: Long)
+
+/** Pure save/restore contract for the focus anchor; no logging and at most two small Bundle keys. */
+internal object FocusAnchorState {
+    const val KEY_CHANNEL = "tuneros.state.focus.channel"
+    const val KEY_PROGRAM_START = "tuneros.state.focus.program"
+    private const val MAX_CHANNEL_ID = 128
+
+    @JvmStatic
+    fun save(outState: Bundle, channel: Channel?, program: GuideProgram?) {
+        val channelId = channel?.id
+        if (channelId.isNullOrBlank() || channelId.length > MAX_CHANNEL_ID) return
+        val start = program?.startEpochSeconds ?: return
+        if (start <= 0L) return
+        outState.putString(KEY_CHANNEL, channelId)
+        outState.putLong(KEY_PROGRAM_START, start)
+    }
+
+    @JvmStatic
+    fun read(state: Bundle?): FocusAnchor? {
+        if (state == null) return null
+        val channelId = state.getString(KEY_CHANNEL) ?: return null
+        if (channelId.isBlank() || channelId.length > MAX_CHANNEL_ID) return null
+        val start = state.getLong(KEY_PROGRAM_START)
+        if (start <= 0L) return null
+        return FocusAnchor(channelId, start)
+    }
+}
+
 /** First playable TunerOS slice: HTTP M3U/XMLTV import, searchable TV guide, Media3 playback. */
 class MainActivity : Activity() {
     private companion object {
@@ -155,6 +188,8 @@ class MainActivity : Activity() {
     private var activeChannelName: String? = null
     private var focusedChannel: Channel? = null
     private var focusedProgram: GuideProgram? = null
+    /** Anchor read from the saved Bundle; resolved once the retained or reimported data is present. */
+    private var pendingFocusAnchor: FocusAnchor? = null
     private var guideWindowStart: Long = 0
     // Window shift requests from the guide. The guide focus checks read these instead of the screen.
     private var guideWindowShiftCount = 0
@@ -222,6 +257,8 @@ class MainActivity : Activity() {
             // entries or provider URLs: Android may kill a process after saving.
             guideWindowStart = savedInstanceState?.getLong(STATE_WINDOW) ?: 0L
         }
+        pendingFocusAnchor = FocusAnchorState.read(savedInstanceState)
+        applyPendingFocusAnchor()
         window.decorView.setBackgroundColor(Color.rgb(13, 21, 34))
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -1259,6 +1296,7 @@ class MainActivity : Activity() {
                 if (epoch != playlistEpoch.get() || isFinishing || isDestroyed) return@runOnUiThread
                 result.onSuccess {
                     channels = it.channels
+                    applyPendingFocusAnchor()
                     val warnings = it.warnings + if (saved) emptyList() else listOf("URL not saved securely")
                     showStatus("Loaded ${it.channels.size} channels" + if (warnings.isEmpty()) "" else "; WARNING: " + warnings.joinToString("; "))
                     renderChannels()
@@ -1303,6 +1341,7 @@ class MainActivity : Activity() {
                 if (epoch != guideEpoch.get() || isFinishing || isDestroyed) return@runOnUiThread
                 result.onSuccess {
                     guide = it
+                    applyPendingFocusAnchor()
                     setSourcesVisible(false)
                     syncGuideClock()
                     val warnings = it.warnings + if (saved) emptyList() else listOf("URL not saved securely")
@@ -1453,6 +1492,18 @@ class MainActivity : Activity() {
         val saved = guideMappingStore.save(guideMappings)
         showStatus("Removed the saved guide mapping for ${channel.name}" + (if (saved) "" else "; not saved"))
         renderChannels()
+    }
+
+    /** Resolve the saved anchor only when its channel and guide data are available. */
+    private fun applyPendingFocusAnchor() {
+        val anchor = pendingFocusAnchor ?: return
+        val channel = channels.firstOrNull { it.id == anchor.channelId } ?: return
+        focusedChannel = channel
+        val currentGuide = guide ?: return
+        focusedProgram = currentGuide.programs.firstOrNull {
+            it.channelId == channel.guideId && it.startEpochSeconds == anchor.programStartSeconds
+        }
+        pendingFocusAnchor = null
     }
 
     private fun renderChannels() {
@@ -2815,6 +2866,7 @@ class MainActivity : Activity() {
             if (::search.isInitialized) search.text.toString().take(256) else "",
         )
         outState.putLong(STATE_WINDOW, guideWindowStart)
+        FocusAnchorState.save(outState, focusedChannel, focusedProgram)
         super.onSaveInstanceState(outState)
     }
 
