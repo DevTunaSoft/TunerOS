@@ -27,6 +27,10 @@ object TunerBackup {
     private val credentialLike = Regex("(?i)(pass(word|wd)?|token|secret|api[_-]?key|authorization)\\s*[=:]")
 
     fun encode(contents: BackupContents): String {
+        // Import normalizes restricted names and refuses one that becomes empty (or a set above the cap). Apply the
+        // same rule here so a file we export can always be imported.
+        ParentalPolicy.normalizeAll(contents.restrictedGroups)
+        ParentalPolicy.normalizeAll(contents.restrictedChannels)
         val lines = ArrayList<String>()
         for (favorite in contents.favorites.sorted()) {
             lines += "favorite\t" + field(favorite, allowEmpty = false)
