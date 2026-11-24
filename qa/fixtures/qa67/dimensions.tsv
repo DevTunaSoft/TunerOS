@@ -1,0 +1,13 @@
+key	value
+seed	67024
+case_count	48
+family_count	8
+cases_per_family	6
+max_line_chars	160
+max_segments	3
+window_max_bytes	5000
+cycles	6
+max_heap_bytes	52428800
+max_thread_drift	0
+expected_cases_sha	322f03b28b3c17181d488223937e22cca912eb69ed92e16be13afe7fab665cad
+expected_corrupt_sha	4733a9b1d242498b1e801a8f2dc9aa8397aa0060e925607694a9356d468ac9fe
