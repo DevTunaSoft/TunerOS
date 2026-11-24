@@ -1,0 +1,4 @@
+# gate	ref-key	expected-sha
+QA34	QA31	fcabc641cb2444219dbbedfbaaf235df4668090a
+QA34	QA33	a584c39df00e825bf68ff9ebae039fbc5dd6e51e
+QA38	QA37	9df525ad5c1b11f8625949888474b24f86967b81

@@ -1,0 +1,20 @@
+# gate	source	needle	expected-count
+QA31	run.sh	verdict=PASS; rc=0	1
+QA31	run.sh	verdict=FAIL; rc=1	1
+QA32	run.sh	verdict=PASS; rc=0	1
+QA32	run.sh	verdict=FAIL; rc=1	1
+QA33	run.sh	verdict=MERGE-REVIEW-NEEDED; rc=3	1
+QA33	run.sh	HAZARD\t	1
+QA33	README.md	MERGE-REVIEW-NEEDED	4
+QA34	run.sh	verdict=MERGE-REVIEW-NEEDED; rc=3	1
+QA34	run.sh	HAZARD\t	2
+QA34	README.md	MERGE-REVIEW-NEEDED	6
+QA35	run.sh	verdict=PASS; rc=0	1
+QA35	run.sh	verdict=FAIL; rc=1	1
+QA36	run.sh	verdict=PASS; rc=0	1
+QA36	run.sh	verdict=FAIL; rc=1	1
+QA37	run.sh	verdict=PASS; rc=0	1
+QA37	run.sh	verdict=FAIL; rc=1	1
+QA38	run.sh	verdict=PASS; rc=0	1
+QA38	run.sh	verdict=FAIL; rc=1	1
+QA38	run.sh	RESTORE-02	2
