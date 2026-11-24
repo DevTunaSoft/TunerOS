@@ -1,0 +1,1 @@
+QA-59 bounded DASH listed-live verdict matrix. Scratch fixture only.
