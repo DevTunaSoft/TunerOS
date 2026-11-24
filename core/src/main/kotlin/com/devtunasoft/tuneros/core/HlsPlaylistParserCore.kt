@@ -111,7 +111,7 @@ object HlsPlaylistParserCore {
                     "HLS playlist exceeds $MAX_TOTAL_CHARACTERS characters",
                 )
             }
-            val line = raw.trim().removePrefix("\uFEFF")
+            val line = raw.trim().removePrefix("\uFEFF").trim()
             if (line.isEmpty()) continue
             if (!sawHeader) {
                 require(line == "#EXTM3U") { "HLS playlist must begin with #EXTM3U" }

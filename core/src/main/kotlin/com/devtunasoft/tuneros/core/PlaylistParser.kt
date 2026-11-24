@@ -50,7 +50,7 @@ object PlaylistParser {
             val raw = BoundedLines.read(input, MAX_LINE_LENGTH, "Playlist") ?: break
             totalLines++
             if (totalLines > MAX_LINES) throw IllegalArgumentException("Playlist exceeds $MAX_LINES lines")
-            val line = raw.trim().removePrefix("\uFEFF")
+            val line = raw.trim().removePrefix("\uFEFF").trim()
             when {
                 line.startsWith("#EXTINF:", ignoreCase = true) -> {
                     pending = parseExtinf(line); userAgent = null; referer = null
