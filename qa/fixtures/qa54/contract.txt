@@ -1,0 +1,10 @@
+schema=qa54-favorites-v1
+channel_count=32
+case_count=48
+toggle_count=24
+filter_count=24
+corrupt_count=8
+max_channels=32
+max_cases=48
+max_line_bytes=512
+mirror_digest=a02b0e0506c504f7e95b580ccd0622662b1ada82eabab71da28ced6b1b9416ae
