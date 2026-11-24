@@ -1,0 +1,7 @@
+# id	regex	scope	description
+CREDENTIAL_ASSIGNMENT	(?i)\b(?:password|passwd|secret|api[_-]?key|access[_-]?token|auth[_-]?token|token|credential|bearer|private[_-]?key)\s*[:=]\s*([A-Za-z0-9_-]{16,})\b	all	SEC-01 bare credential assignment inside a string literal
+URI_CREDENTIAL_TOKEN	(?i)\b(?:https?|ftp|rtmp)://[^\s"']*(?:\?|&)(?:token|key|password|secret|sig|auth)=([A-Za-z0-9_-]{16,})\b	all	SEC-04 credential-bearing URI token inside a string literal
+HOSTILE_URI_CONTROL	(?i)\b[a-z][a-z0-9+.-]*://[^\s"']*\\u00(?:0[0-8b-f]|1[0-f])	all	CORE-49 control character inside a resource URI
+PRIVATE_FILE_PATH	/data/(?:data|user/0)/	all	SEC-04 private application path literal
+DRM_KEY_LITERAL	(?i)\b(?:widevine|fairplay|playready|drm[_-]?key|license[_-]?key)\s*[:=]\s*["'][A-Za-z0-9_-]{8,}	all	SEC-04 DRM or licence key literal
+CANARY_MARKER	QA43SYNTH-[0-9a-f]{8}	all	Runtime-derived synthetic canary; never a real secret

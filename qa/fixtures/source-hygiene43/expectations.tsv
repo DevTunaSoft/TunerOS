@@ -1,0 +1,5 @@
+min_files=100
+patterns=6
+baseline_findings=0
+mutants=3
+max_reported=10

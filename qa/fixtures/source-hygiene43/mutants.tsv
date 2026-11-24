@@ -1,0 +1,4 @@
+# id	needle	expected_first
+M1_CREDENTIAL	val qa43Scratch = "diagnostic: token={CANARY}"	CREDENTIAL_ASSIGNMENT
+M2_HOSTILE_URI	val qa43Scratch = "https://fixture.invalid/live/seg\u0007{CANARY}.ts"	HOSTILE_URI_CONTROL
+M3_PRIVATE_PATH	val qa43Scratch = "/data/user/0/com.devtunasoft.tuneros/{CANARY}"	PRIVATE_FILE_PATH

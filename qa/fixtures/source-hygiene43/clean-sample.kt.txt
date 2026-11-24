@@ -1,0 +1,7 @@
+package com.devtunasoft.tuneros.qa43scratch
+
+/** Synthetic scratch substrate for the QA-43 mutation probe. No credentials or addresses. */
+object CleanSample {
+    const val LABEL = "QA43 clean sample"
+    fun describe(code: Int): String = "code=$code"
+}
