@@ -1,5 +1,7 @@
 # TunerOS roadmap
 
+> **Hermes autonomous execution roadmap:** [`HERMES_EXECUTION_ROADMAP.md`](HERMES_EXECUTION_ROADMAP.md) contains the current prioritized milestones, worker allocation, and completion gates. [`HERMES_INTERNAL_CRON.md`](HERMES_INTERNAL_CRON.md) defines the Hermes **internal** every-five-minute worker continuity job. This original roadmap is preserved as the product decision and historical implementation record; reconcile its historical statuses with current source and CI.
+
 The master research backlog contains 134 prioritized items. Short-term release sequence:
 
 **Autonomous QA requirement (2026-11-11):** End users will not be asked to perform manual acceptance scripts. The app must execute and log its own safe local checks and observe real-device behavior. Existing manual QA references below describe uncovered scenarios to automate, not user instructions. Add on-device instrumented D-pad/focus, source-download, playback, recording, reboot/rearm, SAF fault recovery, and bounded memory/battery scenarios. No unexercised test is marked PASS. Initial autonomous runner has been added to main, CI/device acceptance pending. See `docs/ON_DEVICE_QA.md`.
