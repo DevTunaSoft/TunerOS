@@ -1,0 +1,8 @@
+evict_oldest_first	1
+byte_budget_enforced	1
+oversize_segment_refused	1
+sequence_monotonic	1
+playlist_live_no_end_tag	1
+reuse_requires_equal_headers	1
+no_reuse_while_recording	1
+finish_deletes_all	1
