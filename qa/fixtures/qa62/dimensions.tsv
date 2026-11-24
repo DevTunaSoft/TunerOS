@@ -1,0 +1,6 @@
+key	value
+maxSegments	3
+maxBytes	2500
+rows	24
+families	6
+corruptVariants	6
