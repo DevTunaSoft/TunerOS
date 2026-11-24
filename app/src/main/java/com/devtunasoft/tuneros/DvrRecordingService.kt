@@ -20,7 +20,29 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
+
+/**
+ * A STOP is terminal for the recording it stopped, even if a new START resets the shared
+ * cancellation flag before the old worker finalizes. Epochs are monotonic: a STOP marks the
+ * current epoch, and a recording consults only its own token when settling an outcome.
+ */
+internal class DvrCancellationEpoch {
+    private val currentEpoch = AtomicLong(0)
+    private val lastCancelledEpoch = AtomicLong(0)
+
+    /** Open a fresh, uncancelled epoch for a newly admitted recording. */
+    fun beginRecording(): Long = currentEpoch.incrementAndGet()
+
+    /** Mark the currently active recording (if any) as cancelled. */
+    fun cancelActive() {
+        lastCancelledEpoch.updateAndGet { maxOf(it, currentEpoch.get()) }
+    }
+
+    /** True when a STOP was issued for this recording, regardless of later STARTs. */
+    fun isCancelled(token: Long): Boolean = token > 0 && lastCancelledEpoch.get() >= token
+}
 
 /**
  * Single-capture foreground DVR service.
@@ -57,6 +79,7 @@ class DvrRecordingService : Service() {
 
     private val worker = Executors.newSingleThreadExecutor()
     private val cancelled = AtomicBoolean(false)
+    private val cancellationEpoch = DvrCancellationEpoch()
     private val activeRecordingId = AtomicReference<String?>(null)
     private val connections = AbortableSlot<HttpURLConnection> { it.disconnect() }
     private val catalogLazy = lazy { RecordingCatalog(this, qaCatalogDatabaseName ?: "recordings.db") }
@@ -79,6 +102,7 @@ class DvrRecordingService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_STOP -> {
+                cancellationEpoch.cancelActive()
                 cancelled.set(true)
                 connections.abortCurrent()
                 if (activeRecordingId.get() == null) stopSelf(startId)
@@ -137,6 +161,7 @@ class DvrRecordingService : Service() {
             stopSelf(startId)
             return
         }
+        val recordingEpoch = cancellationEpoch.beginRecording()
         val foregroundAccepted = runCatching {
             startForeground(
                 NOTIFICATION_ID,
@@ -192,7 +217,7 @@ class DvrRecordingService : Service() {
                         applicationContext, OnDeviceSelfTest.Event.RECORDING_STARTED,
                     )
                 }
-                capture(id, url, endEpochSeconds, userAgent, referer)
+                capture(id, url, endEpochSeconds, userAgent, referer, recordingEpoch)
             } finally {
                 activeRecordingId.set(null)
                 stopForeground(STOP_FOREGROUND_REMOVE)
@@ -224,6 +249,7 @@ class DvrRecordingService : Service() {
         endEpochSeconds: Long,
         userAgent: String?,
         referer: String?,
+        recordingEpoch: Long,
     ) {
         val safeId = id.replace(Regex("[^A-Za-z0-9._-]"), "_").take(96)
         var sink: RecordingSink? = null
@@ -269,10 +295,11 @@ class DvrRecordingService : Service() {
                     }
                 }
             }
-            applyOutcome(id, sink, outcome)
+            applyOutcome(id, sink, outcome, recordingEpoch)
         } catch (error: Exception) {
             val bytes = sink?.bytesWritten ?: 0L
-            val wasCancelled = cancelled.get()
+            // A STOP for this recording stays terminal even if a newer START reset the flag.
+            val wasCancelled = cancelled.get() || cancellationEpoch.isCancelled(recordingEpoch)
             val state = if (wasCancelled) "CANCELLED" else if (bytes > 0) "PARTIAL" else "FAILED"
             catalog.finish(
                 id = id,
@@ -484,8 +511,19 @@ class DvrRecordingService : Service() {
         id: String,
         sink: RecordingSink,
         requested: CaptureOutcome,
+        recordingEpoch: Long,
     ) {
-        val outcome = settledOutcome(requested)
+        // The shared flag may have been reset by a newer START; the epoch holds this capture's STOP.
+        val stoppedForThisRecording = cancellationEpoch.isCancelled(recordingEpoch)
+        val outcome = if (stoppedForThisRecording && requested.state != "CANCELLED") {
+            requested.copy(
+                state = "CANCELLED",
+                finalizeFile = false,
+                failureReason = null,
+            )
+        } else {
+            settledOutcome(requested)
+        }
         if (outcome.finalizeFile) {
             val finalizedLocation = sink.finalizeRecording()
             val state = if (finalizedLocation != null) "COMPLETED" else "PARTIAL"
@@ -621,6 +659,7 @@ class DvrRecordingService : Service() {
     }.getOrDefault(".ts")
 
     override fun onDestroy() {
+        cancellationEpoch.cancelActive()
         cancelled.set(true)
         connections.abortCurrent()
         // A cancelled recording may still be unwinding its stream and persisting
