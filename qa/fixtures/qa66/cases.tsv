@@ -1,0 +1,13 @@
+id	family	query	hide	guide	expected
+c0001	passthrough		0	NONE	c1,c2,c3,c4
+c0002	passthrough		0	PRESENT	c1,c2,c3,c4
+c0003	case	NEWS	0	NONE	c1
+c0004	case	KiDs	0	NONE	c4
+c0005	query	sports	0	NONE	c2
+c0006	trim	  kid  	0	NONE	c4
+c0007	null_guide		1	NONE	
+c0008	null_guide	news	1	NONE	
+c0009	schedule		1	PRESENT	c1,c4
+c0010	composed	  MOVIES 	1	PRESENT	
+c0011	composed	KIDS	1	PRESENT	c4
+c0012	nomatch	none	0	NONE	
