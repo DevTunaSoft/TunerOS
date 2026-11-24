@@ -1,0 +1,6 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <instrumentation
+        android:name="com.devtunasoft.tuneros.qa56.Qa56Instrumentation"
+        android:targetPackage="com.devtunasoft.tuneros"
+        android:label="QA56 bounded display-number mapping gate" />
+</manifest>

@@ -1,0 +1,4 @@
+# qa56 diagnostics carry check ids, counts and digests only
+CHECK	BYTE_IDENTITY	PASS
+CHECK	PINNED_DIGEST	PASS
+SUMMARY	checks=2	fail=0
