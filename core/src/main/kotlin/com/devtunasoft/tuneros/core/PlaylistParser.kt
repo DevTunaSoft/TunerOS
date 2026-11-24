@@ -135,8 +135,25 @@ object PlaylistParser {
                 key.equals("group-title", ignoreCase = true) -> group = attributeValue(match)
             }
         }
-        val display = line.substringAfterLast(',', "").trim()
+        val display = displayTitle(line)
         return Pending(display.ifBlank { tvgName.orEmpty() }, guideId, logo, group)
+    }
+
+    /**
+     * The title follows the first comma outside an attribute value the extractor recognises. A title may contain commas,
+     * so the last comma is not the separator; a comma inside a quoted attribute value is not the separator either.
+     */
+    private fun displayTitle(line: String): String {
+        val attributes = attribute.findAll(line).iterator()
+        var span = if (attributes.hasNext()) attributes.next().range else null
+        for (index in line.indices) {
+            while (span != null && index > span.last) {
+                span = if (attributes.hasNext()) attributes.next().range else null
+            }
+            if (span?.contains(index) == true) continue
+            if (line[index] == ',') return line.substring(index + 1).trim()
+        }
+        return ""
     }
 
 
