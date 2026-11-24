@@ -1,0 +1,5 @@
+QA-53 synthetic scratch fixture for bounded M3U metadata hygiene.
+All hosts use the reserved .invalid suffix; all names are invented scratch data.
+Header values are generated from the marker seed; no real marker is present here.
+dimensions.tsv uses tab-separated keys; every other table has an exact header.
+The verifier parses these bytes and drives the real compiled core parser.

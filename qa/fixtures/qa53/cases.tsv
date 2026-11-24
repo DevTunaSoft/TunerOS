@@ -1,0 +1,37 @@
+id	source	guide	name	display	logoMode	group	urlMode	headerMode	expect	note
+c001	qa53-src-a	qa53-g001	QA53 Channel 001	QA53 Channel 001	OK	-	OK	NONE	ADMIT	family=ADMIT rep=0
+c002	qa53-src-b	qa53-g002	QA53 Channel 002	QA53 Channel 002	OK	-	OK	NONE	ADMIT	family=ADMIT rep=1
+c003	qa53-src-a	qa53-g003	QA53 Channel 003	QA53 Channel 003	OK	-	OK	NONE	ADMIT	family=ADMIT rep=2
+c004	qa53-src-b	qa53-g004	QA53 Channel 004	QA53 Channel 004	OK	-	OK	NONE	ADMIT	family=ADMIT rep=3
+c005	qa53-src-a	qa53-g005	QA53 Channel 005	QA53 Channel 005	OK	-	UPPER	NONE	ADMIT	family=SCHEME_UPPER rep=0
+c006	qa53-src-b	qa53-g006	QA53 Channel 006	QA53 Channel 006	OK	-	UPPER	NONE	ADMIT	family=SCHEME_UPPER rep=1
+c007	qa53-src-a	qa53-g007	QA53 Channel 007	QA53 Channel 007	OK	-	UPPER	NONE	ADMIT	family=SCHEME_UPPER rep=2
+c008	qa53-src-b	qa53-g008	QA53 Channel 008	QA53 Channel 008	OK	-	UPPER	NONE	ADMIT	family=SCHEME_UPPER rep=3
+c009	qa53-src-a	qa53-g009	QA53 Channel 009	QA53 Channel 009	OK	-	FTP	NONE	REFUSE	family=SCHEME_FTP rep=0
+c010	qa53-src-b	qa53-g010	QA53 Channel 010	QA53 Channel 010	OK	-	FTP	NONE	REFUSE	family=SCHEME_FTP rep=1
+c011	qa53-src-a	qa53-g011	QA53 Channel 011	QA53 Channel 011	OK	-	FTP	NONE	REFUSE	family=SCHEME_FTP rep=2
+c012	qa53-src-b	qa53-g012	QA53 Channel 012	QA53 Channel 012	OK	-	FTP	NONE	REFUSE	family=SCHEME_FTP rep=3
+c013	qa53-src-a	qa53-g013	QA53 Channel 013	QA53 Channel 013	OK	-	CTRL	NONE	REFUSE	family=CTRL rep=0
+c014	qa53-src-b	qa53-g014	QA53 Channel 014	QA53 Channel 014	OK	-	CTRL	NONE	REFUSE	family=CTRL rep=1
+c015	qa53-src-a	qa53-g015	QA53 Channel 015	QA53 Channel 015	OK	-	CTRL	NONE	REFUSE	family=CTRL rep=2
+c016	qa53-src-b	qa53-g016	QA53 Channel 016	QA53 Channel 016	OK	-	CTRL	NONE	REFUSE	family=CTRL rep=3
+c017	qa53-src-a	qa53-g017	QA53 Channel 017		OK	-	OK	NONE	REFUSE	family=BLANK_NAME rep=0
+c018	qa53-src-b	qa53-g018	QA53 Channel 018		OK	-	OK	NONE	REFUSE	family=BLANK_NAME rep=1
+c019	qa53-src-a	qa53-g019	QA53 Channel 019		OK	-	OK	NONE	REFUSE	family=BLANK_NAME rep=2
+c020	qa53-src-b	qa53-g020	QA53 Channel 020		OK	-	OK	NONE	REFUSE	family=BLANK_NAME rep=3
+c021	qa53-src-a	qa53-g021	QA53 Channel 021	QA53 Channel 021	LONG	-	OK	NONE	ADMIT	family=LOGO_LONG rep=0
+c022	qa53-src-b	qa53-g022	QA53 Channel 022	QA53 Channel 022	LONG	-	OK	NONE	ADMIT	family=LOGO_LONG rep=1
+c023	qa53-src-a	qa53-g023	QA53 Channel 023	QA53 Channel 023	LONG	-	OK	NONE	ADMIT	family=LOGO_LONG rep=2
+c024	qa53-src-b	qa53-g024	QA53 Channel 024	QA53 Channel 024	LONG	-	OK	NONE	ADMIT	family=LOGO_LONG rep=3
+c025	qa53-src-a	qa53-g025	QA53 Channel 025	QA53 Channel 025	BAD	-	OK	NONE	ADMIT	family=LOGO_BAD rep=0
+c026	qa53-src-b	qa53-g026	QA53 Channel 026	QA53 Channel 026	BAD	-	OK	NONE	ADMIT	family=LOGO_BAD rep=1
+c027	qa53-src-a	qa53-g027	QA53 Channel 027	QA53 Channel 027	BAD	-	OK	NONE	ADMIT	family=LOGO_BAD rep=2
+c028	qa53-src-b	qa53-g028	QA53 Channel 028	QA53 Channel 028	BAD	-	OK	NONE	ADMIT	family=LOGO_BAD rep=3
+c029	qa53-src-a	qa53-g029	QA53 Channel 029	QA53 Channel 029	OK	qa53-group-0	OK	NONE	ADMIT	family=GROUP rep=0
+c030	qa53-src-b	qa53-g030	QA53 Channel 030	QA53 Channel 030	OK	qa53-group-1	OK	NONE	ADMIT	family=GROUP rep=1
+c031	qa53-src-a	qa53-g031	QA53 Channel 031	QA53 Channel 031	OK	qa53-group-0	OK	NONE	ADMIT	family=GROUP rep=2
+c032	qa53-src-b	qa53-g032	QA53 Channel 032	QA53 Channel 032	OK	qa53-group-1	OK	NONE	ADMIT	family=GROUP rep=3
+c033	qa53-src-a	qa53-g033	QA53 Channel 033	QA53 Channel 033	OK	-	OK	UA	ADMIT	family=HEADERS rep=0
+c034	qa53-src-b	qa53-g034	QA53 Channel 034	QA53 Channel 034	OK	-	OK	REF	ADMIT	family=HEADERS rep=1
+c035	qa53-src-a	qa53-g035	QA53 Channel 035	QA53 Channel 035	OK	-	OK	BOTH	ADMIT	family=HEADERS rep=2
+c036	qa53-src-b	qa53-g036	QA53 Channel 036	QA53 Channel 036	OK	-	OK	NONE	ADMIT	family=HEADERS rep=3

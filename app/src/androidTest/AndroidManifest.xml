@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <instrumentation
+        android:name="com.devtunasoft.tuneros.qa53.Qa53Instrumentation"
+        android:targetPackage="com.devtunasoft.tuneros"
+        android:label="QA53 bounded M3U metadata hygiene assertions" />
+</manifest>

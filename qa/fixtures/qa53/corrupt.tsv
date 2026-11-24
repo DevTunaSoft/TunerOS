@@ -1,0 +1,9 @@
+id	kind	note
+c901	NO_METADATA	no pending metadata
+c902	FTP_URL	unsupported scheme
+c903	CTRL_URL	control byte in address
+c904	BLANK_NAME	blank display name
+c905	BLANK_URL	blank address
+c906	BAD_CAP	zero channel cap
+c907	CAP_OVER	cap above hard ceiling
+c908	OVER_LINE	overlong line
