@@ -1,0 +1,7 @@
+schema=qa71-catalog-v1
+seed=71290411
+row_count=12
+case_count=24
+small_limit=5
+max_limit=500
+mark_length=12

@@ -1,0 +1,7 @@
+case_id	payload
+qa71x001	insert|bad!id|Title|ch-01|1760000000|-|ADMITTED
+qa71x002	drop|qa71r001|-|-|-|-|ADMITTED
+qa71x003	insert|qa71r099|Title|ch-01|1760000000|-|ADMITTED|extra
+qa71x004	recent|-1|-|-|-|-|REJECT
+qa71x005	insert|qa71r098|Title|ch-01|notnum|-|ADMITTED
+qa71x006	
