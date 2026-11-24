@@ -1,0 +1,9 @@
+# key<TAB>fixed-expected-value
+refs.rows	10
+fixes.rows	8
+markers.rows	2
+expected.checks	43
+hazard.markers.expected	2
+marker.max.bytes	200
+object.max.bytes	65536
+object.max.lines	4096
