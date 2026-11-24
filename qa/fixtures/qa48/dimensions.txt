@@ -1,0 +1,8 @@
+schema=qa48-capture-storage-1
+seed=qa48-seed-20261124
+max_cases=15
+max_corrupt=8
+max_input_bytes=10000
+copy_buffer_bytes=4096
+min_free_bytes=512
+report_line_cap=256

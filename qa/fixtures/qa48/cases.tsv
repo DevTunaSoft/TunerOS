@@ -1,0 +1,16 @@
+caseId	scenario	inputBytes	freeBefore	freeAfterRead	writtenSinceReport	cancelAfterRead	expectedStop	expectedWritten	expectedRemaining
+c0001	clean_eos	6000	8192	8192	0	0	END_OF_STREAM	6000	0
+c0002	empty_eos	0	8192	8192	0	0	END_OF_STREAM	0	0
+c0003	cancel_before	6000	8192	8192	0	1	CANCELLED	0	0
+c0004	cancel_after_read	10000	8192	8192	0	3	CANCELLED	4096	0
+c0005	low_before	6000	300	300	0	0	STORAGE_REJECTED	0	0
+c0006	low_after_read	6000	8192	300	0	0	LOW_STORAGE	0	0
+c0007	low_during_write	6000	600	600	0	0	LOW_STORAGE	0	0
+c0008	low_reserved_exact	512	4608	4608	0	0	END_OF_STREAM	512	0
+c0009	zero_read	6000	8192	8192	0	0	NO_PROGRESS	0	0
+c0010	capacity_none	0	-1	-1	0	0	CAPACITY	0	0
+c0011	capacity_zero	0	0	0	0	0	CAPACITY	0	0
+c0012	capacity_negative	0	-5	-5	0	0	CAPACITY	0	0
+c0013	capacity_exact	0	1000	1000	1000	0	CAPACITY	0	0
+c0014	capacity_partial	0	1000	1000	300	0	CAPACITY	0	700
+c0015	capacity_overdrawn	0	1000	1000	5000	0	CAPACITY	0	0
