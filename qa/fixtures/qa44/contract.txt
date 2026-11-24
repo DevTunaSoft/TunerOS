@@ -1,0 +1,2 @@
+qa44-ring-fixture-v1
+synthetic scratch data only; invented names and counts
