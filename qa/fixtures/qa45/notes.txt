@@ -1,0 +1,3 @@
+qa45 bounded synthetic fixture
+all source identifiers are invented tokens
+no provider material is present

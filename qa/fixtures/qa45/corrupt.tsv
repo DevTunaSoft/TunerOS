@@ -1,0 +1,9 @@
+#qa45-corrupt-v1
+bad-header	restore	HEADER_STRICT	#wrong-header
+field-count	restore	FIELD_COUNT	R00001~N~S00001~0
+bad-row-id	restore	BAD_ROW_ID	X00001~N~S00001~0~0~0
+bad-source-token	restore	BAD_SOURCE_TOKEN	R00001~Q~S00001~0~0~0
+bad-flag	restore	BAD_FLAG	R00001~N~S00001~2~0~0
+bad-expectation	restore	BAD_EXPECTATION	R00001~N~S00001~0~0~9
+bad-epoch	commit	BAD_EPOCH	C00001~1~x~4~0
+commit-field-count	commit	FIELD_COUNT	C00001~1~2
