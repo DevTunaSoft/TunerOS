@@ -1,12 +1,10 @@
 package com.devtunasoft.tuneros
 
-import android.Manifest
 import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import java.util.concurrent.atomic.AtomicBoolean
@@ -19,7 +17,7 @@ internal object RecordingScheduler {
     private val startupRecoveryClaimed = AtomicBoolean(false)
     private const val PREPARATION_RECOVERY_LIMIT = 256
     private const val PREPARATION_PAGE_SIZE = 32
-    /** Bounded one-shot retry so a denied grant cannot spin the alarm. */
+    /** Bounded one-shot retry reserved for a genuine foreground-start failure. */
     private const val DISPATCH_RETRY_DELAY_MS = 60_000L
 
     /**
@@ -120,33 +118,28 @@ internal object RecordingScheduler {
         context.getSystemService(AlarmManager::class.java).cancel(alarmIntent(context, id))
     }
 
-    /** POST_NOTIFICATIONS gates the foreground recording notification on Android 13+. */
-    internal fun canStartForegroundRecording(context: Context): Boolean {
-        return Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
-            context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) ==
-                PackageManager.PERMISSION_GRANTED
-    }
-
     /**
-     * A background receiver cannot request a runtime permission. Re-arm one
-     * delayed alarm on the same identity and leave the row SCHEDULED with its
-     * source secrets intact; the existing rearm paths still own later retries.
-     * No permission state is logged or persisted here.
+     * A foreground start can genuinely fail (for example a process-start
+     * restriction). Re-arm one delayed alarm on the same identity and leave the
+     * row SCHEDULED with its source secrets intact so the next delivery can
+     * still capture. Notification permission is never consulted, logged or
+     * stored here: a denied grant hides the notification, not the recording.
      */
-    internal fun rescheduleDeniedDispatch(context: Context, entry: RecordingScheduleEntry) {
+    internal fun rescheduleFailedDispatch(context: Context, entry: RecordingScheduleEntry): Boolean {
         val alarmManager = context.getSystemService(AlarmManager::class.java)
         val exactAllowed = Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
             alarmManager.canScheduleExactAlarms()
-        if (!exactAllowed) return
+        if (!exactAllowed) return false
         val retryAt = System.currentTimeMillis() + DISPATCH_RETRY_DELAY_MS
-        if (retryAt >= entry.endEpochSeconds * 1_000) return
-        runCatching {
+        if (retryAt >= entry.endEpochSeconds * 1_000) return false
+        return runCatching {
             alarmManager.setExactAndAllowWhileIdle(
                 AlarmManager.RTC_WAKEUP,
                 retryAt,
                 alarmIntent(context, entry.id),
             )
-        }
+            true
+        }.getOrDefault(false)
     }
 
     /** True only when at least one pending recording was actually visited. */
@@ -269,13 +262,9 @@ class RecordingAlarmReceiver : BroadcastReceiver() {
             return
         }
 
-        if (!RecordingScheduler.canStartForegroundRecording(context)) {
-            // A receiver cannot show a permission dialog. Skip this delivery,
-            // keep the row SCHEDULED, and re-arm one bounded retry.
-            RecordingScheduler.rescheduleDeniedDispatch(context, entry)
-            return
-        }
-
+        // A denied notification grant hides the foreground notification; it
+        // does not prevent starting a foreground service or recording. The
+        // Android 35 CI RED came from skipping this dispatch on a denial.
         val serviceIntent = Intent(context, DvrRecordingService::class.java).apply {
             action = DvrRecordingService.ACTION_START
             putExtra(DvrRecordingService.EXTRA_ID, entry.id)
@@ -300,7 +289,12 @@ class RecordingAlarmReceiver : BroadcastReceiver() {
             // Dispatch is not acceptance: the foreground recorder acknowledges
             // STARTED and deletes source secrets after it actually starts.
         }.onFailure { error ->
-            failPending(context, entry, secrets, error.javaClass.simpleName)
+            // Bounded retry is reserved for a genuine start failure; a denied
+            // notification grant never reaches this path because dispatch is
+            // unconditional. If no retry can be armed, fail as before.
+            if (!RecordingScheduler.rescheduleFailedDispatch(context, entry)) {
+                failPending(context, entry, secrets, error.javaClass.simpleName)
+            }
         }
     }
 
