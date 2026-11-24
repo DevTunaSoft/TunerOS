@@ -1,0 +1,14 @@
+version=qa44-ring-fixture-v1
+seed=20261124
+family_count=7
+cases_per_family=8
+case_count=56
+corrupt_count=8
+max_case_line=200
+max_name_chars=40
+max_playlist_chars=512
+heap_limit_bytes=75497472
+thread_drift_limit=2
+atomic_rename=1
+leak_probe=0
+cases_sha256=e5bb412dc6f2e4aaf25466d64b11043bd1028d313cea0522c2d1198b4b756dae
