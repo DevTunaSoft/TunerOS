@@ -1,0 +1,4 @@
+# qa55 diagnostics carry check ids, counts and digests only
+CHECK	TOKEN_NORMALIZATION	PASS	count=18
+CHECK	CORRUPT_FAIL_CLOSED	PASS	count=9
+CHECK	PRIVACY_SCAN	PASS	hits=0

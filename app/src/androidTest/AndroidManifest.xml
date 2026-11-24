@@ -1,0 +1,6 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <instrumentation
+        android:name="com.devtunasoft.tuneros.qa55.Qa55Instrumentation"
+        android:targetPackage="com.devtunasoft.tuneros"
+        android:label="QA55 bounded XMLTV token admission gate" />
+</manifest>
