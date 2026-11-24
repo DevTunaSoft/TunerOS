@@ -1,0 +1,6 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <instrumentation
+        android:name="com.devtunasoft.tuneros.qa62.Qa62Instrumentation"
+        android:targetPackage="com.devtunasoft.tuneros"
+        android:label="QA-62 bounded timeshift segment lifecycle gate" />
+</manifest>

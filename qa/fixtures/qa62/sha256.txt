@@ -1,0 +1,4 @@
+# qa62-pinned-sha256
+ae18e823d1dd537d9181aeaa2358627107b4c79a8254e5122bf5f958dc60b1b3	dimensions.tsv
+3cb4a321291c8d1f8f7dce0a42f58e6d99a5a250afdd739c3c89ebbcce2be7a8	events.tsv
+da709f539f18f2ac0d1d654c8dd01c0d1e9c6ff21bb5fc7657a67ac7033548a1	corrupt.tsv
