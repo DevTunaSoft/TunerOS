@@ -1,0 +1,7 @@
+name	payload
+valid-control	c999	ROUTE_A	ROUTE_A	0	REUSE	control
+bad-field-count	c900	ROUTE_A	ROUTE_B	0	REUSE
+bad-profile	c901	NO_SUCH_PROFILE	ROUTE_A	0	REUSE	unknown
+bad-recflag	c902	ROUTE_A	ROUTE_B	2	REUSE	invalid
+bad-verdict	c903	ROUTE_A	ROUTE_B	0	MAYBE	invalid
+empty-payload	

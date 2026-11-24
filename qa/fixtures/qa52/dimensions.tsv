@@ -1,0 +1,15 @@
+key	value
+caseCount	112
+capCases	112
+reuseExpected	9
+refreshExpected	103
+nullCurrentExpected	14
+recordingExpected	56
+mismatchExpected	40
+cycles	4
+heapLimitBytes	67108864
+heapDriftBytes	16777216
+threadLimit	8
+markerSeed	qa52-seed-6147
+casesSha256	e96a900a5938a4f1b75de39d86efebf6647ac9248eb7b813b956050cdf638e64
+corruptSha256	2f3184bcb03eb811a5b9d76d5b6c09705920a203f33f68c95b7320c19a16d41e
