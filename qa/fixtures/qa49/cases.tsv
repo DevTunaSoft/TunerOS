@@ -1,0 +1,73 @@
+caseId	family	scheme	authority	treeId	mime	flags	volumeId	usableBytes	cursor	expect	trace
+q49-001	ADMIT	content	com.android.externalstorage.documents	primary:Documents/qa49-0	vnd.android.document/directory	4	primary	1024	ROW	ADMIT	ADMIT
+q49-002	ADMIT	content	com.android.externalstorage.documents	ABCD-1234:Documents/qa49-1	vnd.android.document/directory	4	ABCD-1234	2048	ROW	ADMIT	ADMIT
+q49-003	ADMIT	content	com.android.externalstorage.documents	primary:Documents/qa49-2	vnd.android.document/directory	4	primary	3072	ROW	ADMIT	ADMIT
+q49-004	ADMIT	content	com.android.externalstorage.documents	ABCD-1234:Documents/qa49-3	vnd.android.document/directory	4	ABCD-1234	4096	ROW	ADMIT	ADMIT
+q49-005	ADMIT	content	com.android.externalstorage.documents	primary:Documents/qa49-4	vnd.android.document/directory	4	primary	5120	ROW	ADMIT	ADMIT
+q49-006	ADMIT	content	com.android.externalstorage.documents	ABCD-1234:Documents/qa49-5	vnd.android.document/directory	4	ABCD-1234	6144	ROW	ADMIT	ADMIT
+q49-007	ADMIT	content	com.android.externalstorage.documents	primary:Documents/qa49-6	vnd.android.document/directory	4	primary	7168	ROW	ADMIT	ADMIT
+q49-008	ADMIT	content	com.android.externalstorage.documents	ABCD-1234:Documents/qa49-7	vnd.android.document/directory	4	ABCD-1234	8192	ROW	ADMIT	ADMIT
+q49-009	SCHEME	file	com.android.externalstorage.documents	primary:Documents/qa49-0	vnd.android.document/directory	4	primary	1024	ROW	REFUSE	NONE
+q49-010	SCHEME	https	com.android.externalstorage.documents	primary:Documents/qa49-1	vnd.android.document/directory	4	ABCD-1234	2048	ROW	REFUSE	NONE
+q49-011	SCHEME		com.android.externalstorage.documents	primary:Documents/qa49-2	vnd.android.document/directory	4	primary	3072	ROW	REFUSE	NONE
+q49-012	SCHEME	FILE	com.android.externalstorage.documents	primary:Documents/qa49-3	vnd.android.document/directory	4	ABCD-1234	4096	ROW	REFUSE	NONE
+q49-013	SCHEME	HTTPS	com.android.externalstorage.documents	primary:Documents/qa49-4	vnd.android.document/directory	4	primary	5120	ROW	REFUSE	NONE
+q49-014	SCHEME	ftp	com.android.externalstorage.documents	primary:Documents/qa49-5	vnd.android.document/directory	4	ABCD-1234	6144	ROW	REFUSE	NONE
+q49-015	SCHEME	contentx	com.android.externalstorage.documents	primary:Documents/qa49-6	vnd.android.document/directory	4	primary	7168	ROW	REFUSE	NONE
+q49-016	SCHEME	content-	com.android.externalstorage.documents	primary:Documents/qa49-7	vnd.android.document/directory	4	ABCD-1234	8192	ROW	REFUSE	NONE
+q49-017	AUTHORITY	content	com.android.externalstorage.documents.qa49	primary:Documents/qa49-0	vnd.android.document/directory	4	primary	1024	ROW	REFUSE	NONE
+q49-018	AUTHORITY	content	com.android.externalstorage.documents.qa49	primary:Documents/qa49-1	vnd.android.document/directory	4	ABCD-1234	2048	ROW	REFUSE	NONE
+q49-019	AUTHORITY	content	com.android.externalstorage.documents.qa49	primary:Documents/qa49-2	vnd.android.document/directory	4	primary	3072	ROW	REFUSE	NONE
+q49-020	AUTHORITY	content	com.android.externalstorage.documents.qa49	primary:Documents/qa49-3	vnd.android.document/directory	4	ABCD-1234	4096	ROW	REFUSE	NONE
+q49-021	AUTHORITY	content	com.android.externalstorage.documents.qa49	primary:Documents/qa49-4	vnd.android.document/directory	4	primary	5120	ROW	REFUSE	NONE
+q49-022	AUTHORITY	content	com.android.externalstorage.documents.qa49	primary:Documents/qa49-5	vnd.android.document/directory	4	ABCD-1234	6144	ROW	REFUSE	NONE
+q49-023	AUTHORITY	content	com.android.externalstorage.documents.qa49	primary:Documents/qa49-6	vnd.android.document/directory	4	primary	7168	ROW	REFUSE	NONE
+q49-024	AUTHORITY	content	com.android.externalstorage.documents.qa49	primary:Documents/qa49-7	vnd.android.document/directory	4	ABCD-1234	8192	ROW	REFUSE	NONE
+q49-025	BLANK_TREE	content	com.android.externalstorage.documents		vnd.android.document/directory	4	primary	1024	ROW	REFUSE	NONE
+q49-026	BLANK_TREE	content	com.android.externalstorage.documents		vnd.android.document/directory	4	ABCD-1234	2048	ROW	REFUSE	NONE
+q49-027	BLANK_TREE	content	com.android.externalstorage.documents		vnd.android.document/directory	4	primary	3072	ROW	REFUSE	NONE
+q49-028	BLANK_TREE	content	com.android.externalstorage.documents		vnd.android.document/directory	4	ABCD-1234	4096	ROW	REFUSE	NONE
+q49-029	BLANK_TREE	content	com.android.externalstorage.documents		vnd.android.document/directory	4	primary	5120	ROW	REFUSE	NONE
+q49-030	BLANK_TREE	content	com.android.externalstorage.documents		vnd.android.document/directory	4	ABCD-1234	6144	ROW	REFUSE	NONE
+q49-031	BLANK_TREE	content	com.android.externalstorage.documents		vnd.android.document/directory	4	primary	7168	ROW	REFUSE	NONE
+q49-032	BLANK_TREE	content	com.android.externalstorage.documents		vnd.android.document/directory	4	ABCD-1234	8192	ROW	REFUSE	NONE
+q49-033	NO_CREATE	content	com.android.externalstorage.documents	primary:Documents/qa49-0	vnd.android.document/file	4	primary	1024	ROW	REFUSE	NO_CREATE
+q49-034	NO_CREATE	content	com.android.externalstorage.documents	primary:Documents/qa49-1	vnd.android.document/directory	0	ABCD-1234	2048	ROW	REFUSE	NO_CREATE
+q49-035	NO_CREATE	content	com.android.externalstorage.documents	primary:Documents/qa49-2	vnd.android.document/file	4	primary	3072	ROW	REFUSE	NO_CREATE
+q49-036	NO_CREATE	content	com.android.externalstorage.documents	primary:Documents/qa49-3	vnd.android.document/directory	0	ABCD-1234	4096	ROW	REFUSE	NO_CREATE
+q49-037	NO_CREATE	content	com.android.externalstorage.documents	primary:Documents/qa49-4	vnd.android.document/file	4	primary	5120	ROW	REFUSE	NO_CREATE
+q49-038	NO_CREATE	content	com.android.externalstorage.documents	primary:Documents/qa49-5	vnd.android.document/directory	0	ABCD-1234	6144	ROW	REFUSE	NO_CREATE
+q49-039	NO_CREATE	content	com.android.externalstorage.documents	primary:Documents/qa49-6	vnd.android.document/file	4	primary	7168	ROW	REFUSE	NO_CREATE
+q49-040	NO_CREATE	content	com.android.externalstorage.documents	primary:Documents/qa49-7	vnd.android.document/directory	0	ABCD-1234	8192	ROW	REFUSE	NO_CREATE
+q49-041	CURSOR_EMPTY	content	com.android.externalstorage.documents	primary:Documents/qa49-0	vnd.android.document/directory	4	primary	1024	NULL	REFUSE	NO_CREATE
+q49-042	CURSOR_EMPTY	content	com.android.externalstorage.documents	primary:Documents/qa49-1	vnd.android.document/directory	4	ABCD-1234	2048	EMPTY	REFUSE	NO_CREATE
+q49-043	CURSOR_EMPTY	content	com.android.externalstorage.documents	primary:Documents/qa49-2	vnd.android.document/directory	4	primary	3072	NULL	REFUSE	NO_CREATE
+q49-044	CURSOR_EMPTY	content	com.android.externalstorage.documents	primary:Documents/qa49-3	vnd.android.document/directory	4	ABCD-1234	4096	EMPTY	REFUSE	NO_CREATE
+q49-045	CURSOR_EMPTY	content	com.android.externalstorage.documents	primary:Documents/qa49-4	vnd.android.document/directory	4	primary	5120	NULL	REFUSE	NO_CREATE
+q49-046	CURSOR_EMPTY	content	com.android.externalstorage.documents	primary:Documents/qa49-5	vnd.android.document/directory	4	ABCD-1234	6144	EMPTY	REFUSE	NO_CREATE
+q49-047	CURSOR_EMPTY	content	com.android.externalstorage.documents	primary:Documents/qa49-6	vnd.android.document/directory	4	primary	7168	NULL	REFUSE	NO_CREATE
+q49-048	CURSOR_EMPTY	content	com.android.externalstorage.documents	primary:Documents/qa49-7	vnd.android.document/directory	4	ABCD-1234	8192	EMPTY	REFUSE	NO_CREATE
+q49-049	UNKNOWN_VOLUME	content	com.android.externalstorage.documents	unknown-0:Documents/qa49-0	vnd.android.document/directory	4	unknown-0	1024	ROW	REFUSE	VOLUME_MISSING
+q49-050	UNKNOWN_VOLUME	content	com.android.externalstorage.documents	unknown-1:Documents/qa49-1	vnd.android.document/directory	4	unknown-1	2048	ROW	REFUSE	VOLUME_MISSING
+q49-051	UNKNOWN_VOLUME	content	com.android.externalstorage.documents	unknown-2:Documents/qa49-2	vnd.android.document/directory	4	unknown-2	3072	ROW	REFUSE	VOLUME_MISSING
+q49-052	UNKNOWN_VOLUME	content	com.android.externalstorage.documents	unknown-3:Documents/qa49-3	vnd.android.document/directory	4	unknown-3	4096	ROW	REFUSE	VOLUME_MISSING
+q49-053	UNKNOWN_VOLUME	content	com.android.externalstorage.documents	unknown-4:Documents/qa49-4	vnd.android.document/directory	4	unknown-4	5120	ROW	REFUSE	VOLUME_MISSING
+q49-054	UNKNOWN_VOLUME	content	com.android.externalstorage.documents	unknown-5:Documents/qa49-5	vnd.android.document/directory	4	unknown-5	6144	ROW	REFUSE	VOLUME_MISSING
+q49-055	UNKNOWN_VOLUME	content	com.android.externalstorage.documents	unknown-6:Documents/qa49-6	vnd.android.document/directory	4	unknown-6	7168	ROW	REFUSE	VOLUME_MISSING
+q49-056	UNKNOWN_VOLUME	content	com.android.externalstorage.documents	unknown-7:Documents/qa49-7	vnd.android.document/directory	4	unknown-7	8192	ROW	REFUSE	VOLUME_MISSING
+q49-057	NEGATIVE_SPACE	content	com.android.externalstorage.documents	NEGVOL:Documents/qa49-0	vnd.android.document/directory	4	NEGVOL	1024	ROW	REFUSE	VOLUME_NEGATIVE
+q49-058	NEGATIVE_SPACE	content	com.android.externalstorage.documents	NEGVOL:Documents/qa49-1	vnd.android.document/directory	4	NEGVOL	2048	ROW	REFUSE	VOLUME_NEGATIVE
+q49-059	NEGATIVE_SPACE	content	com.android.externalstorage.documents	NEGVOL:Documents/qa49-2	vnd.android.document/directory	4	NEGVOL	3072	ROW	REFUSE	VOLUME_NEGATIVE
+q49-060	NEGATIVE_SPACE	content	com.android.externalstorage.documents	NEGVOL:Documents/qa49-3	vnd.android.document/directory	4	NEGVOL	4096	ROW	REFUSE	VOLUME_NEGATIVE
+q49-061	NEGATIVE_SPACE	content	com.android.externalstorage.documents	NEGVOL:Documents/qa49-4	vnd.android.document/directory	4	NEGVOL	5120	ROW	REFUSE	VOLUME_NEGATIVE
+q49-062	NEGATIVE_SPACE	content	com.android.externalstorage.documents	NEGVOL:Documents/qa49-5	vnd.android.document/directory	4	NEGVOL	6144	ROW	REFUSE	VOLUME_NEGATIVE
+q49-063	NEGATIVE_SPACE	content	com.android.externalstorage.documents	NEGVOL:Documents/qa49-6	vnd.android.document/directory	4	NEGVOL	7168	ROW	REFUSE	VOLUME_NEGATIVE
+q49-064	NEGATIVE_SPACE	content	com.android.externalstorage.documents	NEGVOL:Documents/qa49-7	vnd.android.document/directory	4	NEGVOL	8192	ROW	REFUSE	VOLUME_NEGATIVE
+q49-065	ADMIT_ALT	content	com.android.externalstorage.documents	primary:Documents/qa49-0	vnd.android.document/directory	4	primary	1024	ROW	ADMIT	ADMIT
+q49-066	ADMIT_ALT	content	com.android.externalstorage.documents	ABCD-1234:Documents/qa49-1	vnd.android.document/directory	4	ABCD-1234	2048	ROW	ADMIT	ADMIT
+q49-067	ADMIT_ALT	content	com.android.externalstorage.documents	primary:Documents/qa49-2	vnd.android.document/directory	4	primary	3072	ROW	ADMIT	ADMIT
+q49-068	ADMIT_ALT	content	com.android.externalstorage.documents	ABCD-1234:Documents/qa49-3	vnd.android.document/directory	4	ABCD-1234	4096	ROW	ADMIT	ADMIT
+q49-069	ADMIT_ALT	content	com.android.externalstorage.documents	primary:Documents/qa49-4	vnd.android.document/directory	4	primary	5120	ROW	ADMIT	ADMIT
+q49-070	ADMIT_ALT	content	com.android.externalstorage.documents	ABCD-1234:Documents/qa49-5	vnd.android.document/directory	4	ABCD-1234	6144	ROW	ADMIT	ADMIT
+q49-071	ADMIT_ALT	content	com.android.externalstorage.documents	primary:Documents/qa49-6	vnd.android.document/directory	4	primary	7168	ROW	ADMIT	ADMIT
+q49-072	ADMIT_ALT	content	com.android.externalstorage.documents	ABCD-1234:Documents/qa49-7	vnd.android.document/directory	4	ABCD-1234	8192	ROW	ADMIT	ADMIT
