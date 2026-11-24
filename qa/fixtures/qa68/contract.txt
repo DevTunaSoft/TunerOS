@@ -1,0 +1,5 @@
+QA-68 scratch contract. Bounded playback-failure evidence extraction.
+The host gate compiles the unmodified app source and calls evidenceOf directly.
+All names and counters are synthetic scratch values. No provider address,
+credential, personal identification number, protected-content key or recorded
+media payload is represented here. Identifiers are invented for this gate.
