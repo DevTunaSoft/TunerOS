@@ -1,0 +1,7 @@
+schema=qa64-width-v1
+cases=32
+families=8
+corrupt=6
+cycles=6
+family_order=floor,exact,scale,fraction,saturation,longrun,gapedge,midband
+golden=6c172219988a529b8dcf0752197653ea8a7fb37477890eb19a592a757f6ec0ac
