@@ -1,0 +1,8 @@
+schema	qa45-recovery-epoch-v1
+restore_cap	256
+commit_cap	128
+corrupt_cap	8
+restore_true	13
+restore_false	243
+commit_true	24
+commit_false	104
