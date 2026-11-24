@@ -1,0 +1,8 @@
+schema=qa47-worker-shutdown-1
+max_tasks=12
+work_tasks=6
+journal_cap=16
+cycles=3
+peek_wait_ms=150
+terminate_wait_ms=3000
+seed=qa47-seed-20261124
