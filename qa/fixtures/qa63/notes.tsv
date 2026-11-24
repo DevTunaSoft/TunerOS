@@ -1,0 +1,3 @@
+QA-63 scratch prose, generated from fixed constants.
+No provider address, credential, PIN, secret or recording payload is stored here.
+Derived marker is computed at run time from a fixed numeric seed.

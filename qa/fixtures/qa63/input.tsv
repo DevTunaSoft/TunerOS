@@ -1,0 +1,42 @@
+c01	5	BBC One HD	g01	BBC One	1
+c01	5	BBC One HD	g02	BBC Two	1
+c01	5	BBC One HD	g03	bbcone	1
+c01	5	BBC One HD	g04	BBC One West	1
+c01	5	BBC One HD	g05	One	1
+c01	5	BBC One HD	g06	BBC One HD	0
+c02	3	Discovery	g07	Discovery Channel	1
+c02	3	Discovery	g08	Discovery	1
+c02	3	Discovery	g09	Disc	1
+c02	3	Discovery	g10	Discovery Science	0
+c02	3	Discovery	g11	Travel	1
+c03	5	National Geographic	g12	Wild National	1
+c03	5	National Geographic	g13	Geographic Today	1
+c03	5	National Geographic	g14	Unrelated	1
+c03	5	National Geographic	g15	Nat Geo	1
+c03	5	National Geographic	g16	National	1
+c04	5	News	g19	News	1
+c04	5	News	g20	News	1
+c04	5	News	g21	News	1
+c04	5	News	g22	News Extra	1
+c05	1	Sport	g30	Sport	1
+c05	1	Sport	g31	Sport Extra	1
+c05	1	Sport	g32	Sport Live	1
+c06	5	   	g40	Anything	1
+c07	5	Xyzqv	g41	Alpha	1
+c07	5	Xyzqv	g42	Beta	1
+c08	5	Gallery	gallery	A Different Name	1
+c08	5	Gallery	g43	Gallery Annex	1
+c09	5	BBC  ONE!	g50	bbc one	1
+c09	5	BBC  ONE!	g51	BBC	1
+c10	5	UHD 4K TV	g60	UHD	1
+c11	4	Movie	g70	Movie	0
+c11	4	Movie	g71	Movie Central	1
+c11	4	Movie	g72	Movie	1
+c12	5	Star	g80	Star	1
+c12	5	Star	g81	Star Wars	1
+c12	5	Star	g82	Star Trek	1
+c12	5	Star	g83	Starring	1
+c12	5	Star	g84	Star One	0
+c12	5	Star	g85	Star Two	1
+c12	5	Star	g86	Star Three	1
+c12	5	Star	g87	Star Four	1
