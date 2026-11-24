@@ -1,0 +1,13 @@
+# QA-41 pinned counts. Count checks run after the semantic checks.
+cases.total	20
+family.completed	2
+family.zero-byte	3
+family.cancelled	3
+family.storage-fault	6
+family.double-finalize	2
+family.epoch-lost-stop	4
+state.COMPLETED	5
+state.FAILED	5
+state.PARTIAL	3
+state.CANCELLED	7
+markers.total	7
