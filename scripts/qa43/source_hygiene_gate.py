@@ -107,16 +107,27 @@ def committed_sources():
     )
 
 
-def scan_text(text, patterns, is_test):
-    """Return [(code, line_number)] with no matched content."""
+def scan_text(text, patterns, is_test, allow_synthetic=True):
+    """Return [(code, line_number)] with no matched text.
+
+    Test files may carry declared SYNTHETIC* fixture values (SEC-01/SEC-04
+    regression tests do). Production files may not. The derived canary never
+    carries that prefix, so probe mutants are unaffected by this narrow rule.
+    """
     findings = []
     for number, line in enumerate(text.splitlines(), 1):
         for literal in STRING_LITERAL.findall(line):
             for code, regex, scope in patterns:
                 if scope == "test" and not is_test:
                     continue
-                if regex.search(literal):
-                    findings.append((code, number))
+                match = regex.search(literal)
+                if not match:
+                    continue
+                if (is_test and allow_synthetic and match.lastindex
+                        and match.group(1)
+                        and match.group(1).upper().startswith("SYNTHETIC")):
+                    continue
+                findings.append((code, number))
     return findings
 
 
@@ -168,10 +179,14 @@ def mode_scan(_args):
         and ids == ["CREDENTIAL_ASSIGNMENT", "URI_CREDENTIAL_TOKEN",
                     "HOSTILE_URI_CONTROL", "PRIVATE_FILE_PATH",
                     "DRM_KEY_LITERAL", "CANARY_MARKER"]
+        and expected.get("allow_synthetic_in_tests") == "true"
     )
     emit("CONTRACT_SHAPE", "PASS" if contract_ok else "FAIL",
-        "patterns=%d expected=%s" % (len(patterns), expected.get("patterns")))
+        "patterns=%d expected=%s allow_synthetic_in_tests=%s" % (
+            len(patterns), expected.get("patterns"),
+            expected.get("allow_synthetic_in_tests")))
     ok = ok and contract_ok
+    allow_synthetic = expected.get("allow_synthetic_in_tests") == "true"
 
     try:
         files = committed_sources()
@@ -192,7 +207,7 @@ def mode_scan(_args):
         data = (ROOT / rel).read_bytes()
         text = data.decode("utf-8", errors="replace")
         is_test = "/test/" in rel
-        for code, number in scan_text(text, patterns, is_test):
+        for code, number in scan_text(text, patterns, is_test, allow_synthetic):
             counts[code] += 1
             if len(locations) < int(expected["max_reported"]):
                 locations.append("%s:%d:%s" % (rel, number, code))

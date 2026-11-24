@@ -16,6 +16,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -87,7 +88,7 @@ public class SourceHygieneGateContractTest {
     }
 
     /** Mirrors the gate's literal-only scan; returns path:line:code ids, never matched text. */
-    private static List<String> findings(Path file, List<String[]> patterns) throws Exception {
+    private static List<String> findings(Path file, List<String[]> patterns, boolean isTest) throws Exception {
         List<String> hits = new ArrayList<String>();
         String content = text(file);
         String[] lines = content.split("\n", -1);
@@ -97,7 +98,12 @@ public class SourceHygieneGateContractTest {
             while (literals.find()) {
                 String literal = literals.group();
                 for (String[] pattern : patterns) {
-                    if (Pattern.compile(pattern[1]).matcher(literal).find()) {
+                    Matcher match = Pattern.compile(pattern[1]).matcher(literal);
+                    if (match.find()) {
+                        if (isTest && match.groupCount() >= 1 && match.group(1) != null
+                                && match.group(1).toUpperCase(Locale.ROOT).startsWith("SYNTHETIC")) {
+                            continue;
+                        }
                         hits.add(file.getFileName() + ":" + (i + 1) + ":" + pattern[0]);
                     }
                 }
@@ -123,6 +129,7 @@ public class SourceHygieneGateContractTest {
         assertEquals("expected pattern count", "6", expected.get("patterns"));
         assertEquals("expected mutant count", "3", expected.get("mutants"));
         assertEquals("baseline findings", "0", expected.get("baseline_findings"));
+        assertEquals("synthetic test allowance must be declared", "true", expected.get("allow_synthetic_in_tests"));
         assertTrue("minimum source files must be a real bound", Integer.parseInt(expected.get("min_files")) >= 100);
         for (int i = 0; i < rows.size(); i++) {
             assertEquals("pattern id at " + i, EXPECTED_IDS[i], rows.get(i)[0]);
@@ -164,7 +171,7 @@ public class SourceHygieneGateContractTest {
         List<String[]> patterns = contract();
         List<String> hits = new ArrayList<String>();
         for (Path file : files) {
-            hits.addAll(findings(file, patterns));
+            hits.addAll(findings(file, patterns, file.toString().replace('\\', '/').contains("/test/")));
         }
         assertTrue("hygiene findings: count=" + hits.size() + " first=" +
             (hits.isEmpty() ? "none" : hits.subList(0, Math.min(5, hits.size())).toString()),
@@ -195,7 +202,27 @@ public class SourceHygieneGateContractTest {
             }
         }
         assertTrue("scratch substrate is not clean",
-            findings(dir.resolve("clean-sample.kt.txt"), contract()).isEmpty());
+            findings(dir.resolve("clean-sample.kt.txt"), contract(), false).isEmpty());
+    }
+
+    @Test
+    public void syntheticAllowanceIsTestOnlyAndCanaryIsNeverAllowed() throws Exception {
+        Path scratch = Files.createTempFile("qa43-allowance-", ".kt");
+        try {
+            String marker = "SYNTHETIC-CRED-abc123";
+            String line = "val scratch = \"warning: token=" + marker + "\"";
+            Files.write(scratch, line.getBytes(StandardCharsets.UTF_8));
+            assertTrue("declared synthetic marker must be allowed in tests",
+                findings(scratch, contract(), true).isEmpty());
+            assertFalse("synthetic marker must be rejected in production",
+                findings(scratch, contract(), false).isEmpty());
+            String canaryLine = "val scratch = \"warning: token=" + derivedCanary() + "\"";
+            Files.write(scratch, canaryLine.getBytes(StandardCharsets.UTF_8));
+            assertFalse("derived canary must be rejected even in tests",
+                findings(scratch, contract(), true).isEmpty());
+        } finally {
+            Files.deleteIfExists(scratch);
+        }
     }
 
     @Test

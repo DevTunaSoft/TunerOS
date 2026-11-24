@@ -22,6 +22,12 @@ by the mutation probe is derived at run time from a fixed seed and never
 appears as a literal in source or fixtures. All fixture values are synthetic;
 no real URL, credential, PIN, token or recording payload is used.
 
+Declared values beginning with `SYNTHETIC` are allowed **only in test files**
+(SEC-01 and SEC-04 regression tests carry such literals by design). Production
+sources, and the runtime-derived canary in every file, are always rejected.
+This keeps the merged SEC-01/SEC-04 suites green without weakening detection
+of a real credential reaching production diagnostics.
+
 `probe` copies `clean-sample.kt.txt` into a scratch directory, applies each
 row of `mutants.tsv`, and requires a nonzero finding with the pinned FIRST
 code. It then restores the scratch copy and re-hashes every owned committed

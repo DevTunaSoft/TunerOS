@@ -3,3 +3,4 @@ patterns=6
 baseline_findings=0
 mutants=3
 max_reported=10
+allow_synthetic_in_tests=true
