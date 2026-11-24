@@ -1,0 +1,5 @@
+QA-70 scratch contract.
+Bounded adapter response admission: DASH index byte ranges and HLS AES key bodies.
+All identifiers, sizes and bodies are invented scratch values.
+No provider address, credential, personal identification number, protected-content
+key or recorded media payload is represented here.
