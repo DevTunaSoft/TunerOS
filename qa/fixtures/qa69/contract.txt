@@ -1,0 +1,7 @@
+qa69-contract-v1
+The rows describe a bounded scheduled-recording preparation set. Only rows in
+PREPARING or RECOVERING are orphaned work. Enumeration is ordered by id, is
+exclusive of the after id and is bounded by the page cap. A claim may move only
+an inert reservation with the same id and scratch source marker into RECOVERING.
+Deletion removes only a RECOVERING row with the same scratch source marker.
+Diagnostics carry check ids, counts and digests only.

@@ -1,0 +1,50 @@
+qa69-cases-v1
+id	title	channel	ssk	start	end	state	exact	detail
+c0000	scratch show 0000	scratch-channel-00	ssk-0000	1800000000	1800000090	PREPARING	1	scratch detail 0000
+c0001	scratch show 0001	scratch-channel-01	ssk-0001	1800000120	1800000210	RECOVERING	0	
+c0002	scratch show 0002	scratch-channel-02	ssk-0002	1800000240	1800000330	SCHEDULED	1	
+c0003	scratch show 0003	scratch-channel-03	ssk-0003	1800000360	1800000450	STARTED	0	
+c0004	scratch show 0004	scratch-channel-04	ssk-0004	1800000480	1800000570	PREPARING	1	
+c0005	scratch show 0005	scratch-channel-05	ssk-0005	1800000600	1800000690	RECOVERING	0	scratch detail 0005
+c0006	scratch show 0006	scratch-channel-00	ssk-0006	1800000720	1800000810	SCHEDULED	1	
+c0007	scratch show 0007	scratch-channel-01	ssk-0007	1800000840	1800000930	FAILED	0	
+c0008	scratch show 0008	scratch-channel-02	ssk-0008	1800000960	1800001050	PREPARING	1	
+c0009	scratch show 0009	scratch-channel-03	ssk-0009	1800001080	1800001170	RECOVERING	0	
+c0010	scratch show 0010	scratch-channel-04	ssk-0010	1800001200	1800001290	SCHEDULED	1	scratch detail 0010
+c0011	scratch show 0011	scratch-channel-05	ssk-0011	1800001320	1800001410	STARTED	0	
+c0012	scratch show 0012	scratch-channel-00	ssk-0012	1800001440	1800001530	PREPARING	1	
+c0013	scratch show 0013	scratch-channel-01	ssk-0013	1800001560	1800001650	RECOVERING	0	
+c0014	scratch show 0014	scratch-channel-02	ssk-0014	1800001680	1800001770	SCHEDULED	1	
+c0015	scratch show 0015	scratch-channel-03	ssk-0015	1800001800	1800001890	FAILED	0	scratch detail 0015
+c0016	scratch show 0016	scratch-channel-04	ssk-0016	1800001920	1800002010	PREPARING	1	
+c0017	scratch show 0017	scratch-channel-05	ssk-0017	1800002040	1800002130	RECOVERING	0	
+c0018	scratch show 0018	scratch-channel-00	ssk-0018	1800002160	1800002250	SCHEDULED	1	
+c0019	scratch show 0019	scratch-channel-01	ssk-0019	1800002280	1800002370	STARTED	0	
+c0020	scratch show 0020	scratch-channel-02	ssk-0020	1800002400	1800002490	PREPARING	1	scratch detail 0020
+c0021	scratch show 0021	scratch-channel-03	ssk-0021	1800002520	1800002610	RECOVERING	0	
+c0022	scratch show 0022	scratch-channel-04	ssk-0022	1800002640	1800002730	SCHEDULED	1	
+c0023	scratch show 0023	scratch-channel-05	ssk-0023	1800002760	1800002850	FAILED	0	
+c0024	scratch show 0024	scratch-channel-00	ssk-0024	1800002880	1800002970	PREPARING	1	
+c0025	scratch show 0025	scratch-channel-01	ssk-0025	1800003000	1800003090	RECOVERING	0	scratch detail 0025
+c0026	scratch show 0026	scratch-channel-02	ssk-0026	1800003120	1800003210	SCHEDULED	1	
+c0027	scratch show 0027	scratch-channel-03	ssk-0027	1800003240	1800003330	STARTED	0	
+c0028	scratch show 0028	scratch-channel-04	ssk-0028	1800003360	1800003450	PREPARING	1	
+c0029	scratch show 0029	scratch-channel-05	ssk-0029	1800003480	1800003570	RECOVERING	0	
+c0030	scratch show 0030	scratch-channel-00	ssk-0030	1800003600	1800003690	SCHEDULED	1	scratch detail 0030
+c0031	scratch show 0031	scratch-channel-01	ssk-0031	1800003720	1800003810	FAILED	0	
+c0032	scratch show 0032	scratch-channel-02	ssk-0032	1800003840	1800003930	PREPARING	1	
+c0033	scratch show 0033	scratch-channel-03	ssk-0033	1800003960	1800004050	RECOVERING	0	
+c0034	scratch show 0034	scratch-channel-04	ssk-0034	1800004080	1800004170	SCHEDULED	1	
+c0035	scratch show 0035	scratch-channel-05	ssk-0035	1800004200	1800004290	STARTED	0	scratch detail 0035
+c0036	scratch show 0036	scratch-channel-00	ssk-0036	1800004320	1800004410	PREPARING	1	
+c0037	scratch show 0037	scratch-channel-01	ssk-0037	1800004440	1800004530	RECOVERING	0	
+c0038	scratch show 0038	scratch-channel-02	ssk-0038	1800004560	1800004650	SCHEDULED	1	
+c0039	scratch show 0039	scratch-channel-03	ssk-0039	1800004680	1800004770	FAILED	0	
+c0040	scratch show 0040	scratch-channel-04	ssk-0040	1800004800	1800004890	PREPARING	1	scratch detail 0040
+c0041	scratch show 0041	scratch-channel-05	ssk-0041	1800004920	1800005010	RECOVERING	0	
+c0042	scratch show 0042	scratch-channel-00	ssk-0042	1800005040	1800005130	SCHEDULED	1	
+c0043	scratch show 0043	scratch-channel-01	ssk-0043	1800005160	1800005250	STARTED	0	
+c0044	scratch show 0044	scratch-channel-02	ssk-0044	1800005280	1800005370	PREPARING	1	
+c0045	scratch show 0045	scratch-channel-03	ssk-0045	1800005400	1800005490	RECOVERING	0	scratch detail 0045
+c0046	scratch show 0046	scratch-channel-04	ssk-0046	1800005520	1800005610	SCHEDULED	1	
+c0047	scratch show 0047	scratch-channel-05	ssk-0047	1800005640	1800005730	FAILED	0	
