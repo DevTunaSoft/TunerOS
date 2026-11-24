@@ -1,0 +1,6 @@
+* -text
+.gitattributes -text
+cases.tsv -text
+markers.tsv -text
+expectations.tsv -text
+sha256.txt -text

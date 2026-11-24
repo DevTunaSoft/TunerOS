@@ -1,0 +1,8 @@
+# QA-41 policy markers. Value 1 means the invariant is in force; 0 is a mutation.
+terminal_from_recording_only	1
+zero_byte_never_completed	1
+cancellation_wins_over_fault	1
+stop_epoch_persists_across_start	1
+double_finalize_is_noop	1
+no_silent_storage_fallback	1
+sink_bytes_authoritative	1
